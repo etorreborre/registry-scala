@@ -42,8 +42,8 @@ private[registry] object MakeSafeMacro:
     import q.reflect.*
     val printer = Printer.TypeReprShortCode
     val head    = s"No entry in this registry produces the type ${t.show(using printer)}."
-    if outs.isEmpty then s"$head\nProduced types: (none)"
-    else s"$head\nProduced types:\n${outs.map(o => s"  ${o.show(using printer)}").mkString("\n")}"
+    if outs.isEmpty then s"$head\n\nProduced types: (none)"
+    else s"$head\n\nProduced types:\n${outs.map(o => s"  ${o.show(using printer)}").mkString("\n")}"
 
   private def formatMissing(using
       q: Quotes
@@ -55,4 +55,4 @@ private[registry] object MakeSafeMacro:
     val outsPart =
       if outs.isEmpty then "Produced outputs: (none)"
       else s"Produced outputs:\n${outs.map(o => s"  ${o.show(using printer)}").mkString("\n")}"
-    s"$head\n$missingPart\n$outsPart"
+    s"$head\n\n$missingPart\n\n$outsPart"

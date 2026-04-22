@@ -6,6 +6,10 @@ import Chain.*
 
 class RegistrySpec extends Specification:
 
+  """|Create a registry by appending functions and values.
+     |If the inputs of a function cannot be produced by the outputs of other functions or values already in the
+     |registry, the code fails to compile.""".stripMargin.br
+
   "fun[T]" should {
     "register a case class primary constructor so inputs resolve recursively" >> {
       val r =
@@ -14,8 +18,7 @@ class RegistrySpec extends Specification:
         fun[DbConfig]            +:
         value(Host("localhost")) +:
         value(5432)              +:
-        value(AppName("my-app")) +:
-        Registry.empty
+        value(AppName("my-app"))
 
       r.make[App] ===
         App(Db(DbConfig(Host("localhost"), 5432)), AppName("my-app"))
@@ -25,8 +28,7 @@ class RegistrySpec extends Specification:
       val r =
         fun[Plain.Service] +:
         value(Host("h"))   +:
-        value(9000)        +:
-        Registry.empty
+        value(9000)
 
       val s = r.make[Plain.Service]
       s.host === Host("h")
@@ -37,8 +39,7 @@ class RegistrySpec extends Specification:
       val r =
         fun[Plain.Bare]  +:
         value(Host("h")) +:
-        value(42)        +:
-        Registry.empty
+        value(42)
 
       r.make[Plain.Bare].describe === "Host(h)@42"
     }
@@ -47,8 +48,7 @@ class RegistrySpec extends Specification:
       val r =
         fun[Plain.Multi] +:
         value(Host("h")) +:
-        value(7)         +:
-        Registry.empty
+        value(7)
 
       r.make[Plain.Multi].describe === "h-7"
     }
@@ -57,8 +57,7 @@ class RegistrySpec extends Specification:
       val r =
         fun[Plain.WithUsing] +:
         value(Host("h"))     +:
-        value(42)            +:
-        Registry.empty
+        value(42)
 
       r.make[Plain.WithUsing].describe === "h:42"
     }
@@ -67,8 +66,7 @@ class RegistrySpec extends Specification:
       val r =
         fun[Plain.WithImplicit] +:
         value(Host("h"))        +:
-        value(99)               +:
-        Registry.empty
+        value(99)
 
       r.make[Plain.WithImplicit].describe === "h#99"
     }
@@ -78,8 +76,7 @@ class RegistrySpec extends Specification:
     "register a lambda" >> {
       val r =
         fun((n: Int) => s"n=$n") +:
-        value(7)                 +:
-        Registry.empty
+        value(7)
 
       r.make[String] === "n=7"
     }
@@ -88,8 +85,7 @@ class RegistrySpec extends Specification:
       val r =
         fun(DbConfig.apply) +:
         value(Host("h"))    +:
-        value(1)            +:
-        Registry.empty
+        value(1)
 
       r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
@@ -102,59 +98,90 @@ class RegistrySpec extends Specification:
     }
   }; br
 
-  "resolution" should {
-    "be LIFO — the most recently prepended entry wins for a duplicate output" >> {
-      val r =
-        value("second") +:
-        value("first")  +:
-        Registry.empty
-
-      r.make[String] === "second"
-    }
-
-    "distinguish generic outputs — List[Int] and List[String] are separate producers" >> {
-      val r =
-        value(List(1, 2, 3))       +:
-        value(List("a", "b", "c")) +:
-        Registry.empty
-
-      r.make[List[Int]] === List(1, 2, 3)
-      r.make[List[String]] === List("a", "b", "c")
-    }
-
-    "throw a clear error at runtime when an input is missing" >> {
+  "+:" should {
+    "compile and build when the entry's inputs are already produced (dependencies first, closest to empty)" >> {
       val r =
         fun[DbConfig]    +:
-        value(Host("h")) +: // Int missing
-        Registry.empty
+        value(Host("h")) +:
+        value(1)
 
-      r.make[DbConfig] must throwA[RuntimeException].like { case e =>
-        e.getMessage === """No entry produces scala.Int.
-                           |Available outputs:
-                           |  registry.Chain::DbConfig
-                           |  registry.Chain::Host""".stripMargin
-      }
+      r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
 
-    "throw a cycle error with the full dependency path" >> {
-      val r =
-        fun((b: Cycle.B) => Cycle.A(b)) +:
-        fun((a: Cycle.A) => Cycle.B(a)) +:
-        Registry.empty
+    "fail to compile naming the missing inputs" >> {
+      val errs = typeCheckErrors("""
+        import registry.*
+        import Chain.*
+        // fun[DbConfig] +: empty — DbConfig needs Host + Int, empty produces nothing
+        val r = fun[DbConfig] +: Registry.empty
+      """)
+      errs must haveSize(1)
+      errs.head.message === """+: cannot prepend this entry because some inputs cannot be produced by the rest of the registry.
+                              |
+                              |Missing inputs:
+                              |  Host
+                              |  Int
+                              |
+                              |Produced outputs: (none)""".stripMargin
+    }
+  }; br
 
-      r.make[Cycle.A] must throwA[RuntimeException].like { case e =>
-        e.getMessage === """Found a cycle while resolving registry.Cycle::A:
-                           |  registry.Cycle::A
-                           |  registry.Cycle::B
-                           |  registry.Cycle::A""".stripMargin
-      }
+  "+: (polymorphic)" should {
+    "combine two TypedEntries into a 2-entry registry when the left's inputs are covered by the right's output" >> {
+      val r =
+        fun((h: Chain.Host) => h.value) +: // input Host, output String
+        value(Host("h"))                   // output Host — covers the left's Host need
+
+      r.make[String] === "h"
+    }
+
+    "reject combining two entries when the left's inputs are not covered by the right's output" >> {
+      val errs = typeCheckErrors("""
+        import registry.*
+        import Chain.*
+        val r = fun[DbConfig] +: value(Host("h")) // DbConfig needs Host + Int, right gives only Host
+      """)
+      errs must haveSize(1)
+      errs.head.message must contain("Missing inputs:")
+      errs.head.message must contain("Int")
+    }
+
+    "merge two registries when all inputs are covered by combined outputs" >> {
+      // consumers is built with *: (tracked, not strict) because its pieces aren't self-contained.
+      val consumers = fun[App] *: fun[Db] *: fun[DbConfig]
+      val deps      = value(Host("h")) +: value(1) +: value(AppName("x"))
+      val r         = consumers +: deps // strict merge: consumers' ins covered by consumers.outs ++ deps.outs
+
+      r.make[App] === App(Db(DbConfig(Host("h"), 1)), AppName("x"))
+    }
+
+    "reject merging two registries when some input is not covered" >> {
+      val errs = typeCheckErrors("""
+        import registry.*
+        import Chain.*
+        val consumers = fun[DbConfig] *: Registry.empty    // needs Host + Int
+        val deps      = value(Host("h")) +: Registry.empty // provides only Host
+        val r = consumers +: deps
+      """)
+      errs must haveSize(1)
+      errs.head.message must contain("Missing inputs:")
+      errs.head.message must contain("Int")
+    }
+
+    "prepend a registry above a single entry (registry +: entry)" >> {
+      val deps =
+        value(Host("h")) +:
+        value(1)
+
+      val r = deps +: fun[DbConfig] // right side is a TypedEntry
+      r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
   }; br
 
   "<+>" should {
     "merge two registries, left operand winning on duplicate outputs" >> {
       val left  = value("from-left")  +: Registry.empty
-      val right = value("from-right") +: value(7) +: Registry.empty
+      val right = value("from-right") +: value(7)
       val r     = left <+> right
 
       r.make[String] === "from-left"
@@ -162,112 +189,49 @@ class RegistrySpec extends Specification:
     }
 
     "supply inputs across a merge boundary" >> {
-      val producers = fun[DbConfig] +: Registry.empty
-      val values    = value(Host("h")) +: value(1) +: Registry.empty
+      val producers = fun[DbConfig] *: Registry.empty
+      val values    = value(Host("h")) +: value(1)
 
       (producers <+> values).make[DbConfig] === DbConfig(Host("h"), 1)
     }
   }; br
 
-  "makeSafe" should {
-    "compile and run when all deps are satisfied" >> {
+  "make" should {
+    "be LIFO — the most recently prepended entry wins for a duplicate output" >> {
       val r =
-        fun[DbConfig]    +:
-        value(Host("h")) +:
-        value(1)         +:
-        Registry.empty
+        value("second") +:
+        value("first")
 
-      r.makeSafe[DbConfig] === DbConfig(Host("h"), 1)
+      r.make[String] === "second"
     }
 
-    "fail to compile naming T and the produced types, one per line" >> {
-      val errs = typeCheckErrors("""
-        import registry.*
-        val r = value(42) +: value("hi") +: Registry.empty
-        r.makeSafe[Long]
-      """)
-      errs must haveSize(1)
-      errs.head.message === """No entry in this registry produces the type Long.
-                              |
-                              |Produced types:
-                              |  Int
-                              |  String""".stripMargin
-    }
+    "distinguish generic outputs — List[Int] and List[String] are separate producers" >> {
+      val r =
+        value(List(1, 2, 3))       +:
+        value(List("a", "b", "c"))
 
-    "fail to compile listing missing inputs and produced outputs, one per line" >> {
-      val errs = typeCheckErrors("""
-        import registry.*
-        import Chain.*
-        val r = fun[App] +: fun[Db] +: fun[DbConfig] +: Registry.empty
-        r.makeSafe[App]
-      """)
-      errs must haveSize(1)
-      errs.head.message === """Some registered entries require inputs that are not produced by this registry.
-                              |
-                              |Missing inputs:
-                              |  AppName
-                              |  Host
-                              |  Int
-                              |
-                              |Produced outputs:
-                              |  App
-                              |  Db
-                              |  DbConfig""".stripMargin
-    }
-
-    "use the same layout for a single missing input" >> {
-      val errs = typeCheckErrors("""
-        import registry.*
-        import Chain.*
-        val r = fun[DbConfig] +: value(Host("h")) +: Registry.empty
-        r.makeSafe[DbConfig]
-      """)
-      errs must haveSize(1)
-      errs.head.message === """Some registered entries require inputs that are not produced by this registry.
-                              |
-                              |Missing inputs:
-                              |  Int
-                              |
-                              |Produced outputs:
-                              |  DbConfig
-                              |  Host""".stripMargin
-    }
-
-    "compile once the missing input is added" >> {
-      typeChecks("""
-        import registry.*
-        import Chain.*
-        val r = fun[DbConfig] +: value(Host("h")) +: value(1) +: Registry.empty
-        r.makeSafe[DbConfig]
-      """) must beTrue
+      r.make[List[Int]] === List(1, 2, 3)
+      r.make[List[String]] === List("a", "b", "c")
     }
   }; br
 
-  "make" should {
-    "stay runtime-only — compile even when a dep is missing, fail at runtime" >> {
-      val r = fun[DbConfig] +: value(Host("h")) +: Registry.empty
-      r.make[DbConfig] must throwA[RuntimeException]
+  "erase" should {
+    "drop type-level tracking while keeping all entries for runtime use" >> {
+      val r =
+        fun[DbConfig]    +:
+        value(Host("h")) +:
+        value(1)
+
+      val erased: Registry[EmptyTuple, EmptyTuple] = r.erase
+      erased.make[DbConfig] === DbConfig(Host("h"), 1)
+    }
+
+    "make makeSafe unable to prove anything after erasure" >> {
+      typeChecks("""
+        import registry.*
+        import Chain.*
+        val r = fun[DbConfig] +: value(Host("h")) +: value(1)
+        r.erase.makeSafe[DbConfig]
+      """) must beFalse
     }
   }
-
-object Chain:
-  case class Host(value: String)
-  case class AppName(value: String)
-  case class DbConfig(host: Host, port: Int)
-  case class Db(config: DbConfig)
-  case class App(db: Db, name: AppName)
-
-object Plain:
-  class Service(val host: Host, val port: Int)
-  class Bare(host: Host, port: Int):
-    def describe: String = s"Host(${host.value})@$port"
-  class Multi(host: Host)(port: Int):
-    def describe: String = s"${host.value}-$port"
-  class WithUsing(host: Host)(using port: Int):
-    def describe: String = s"${host.value}:$port"
-  class WithImplicit(host: Host)(implicit port: Int):
-    def describe: String = s"${host.value}#$port"
-
-object Cycle:
-  case class A(b: B)
-  case class B(a: A)

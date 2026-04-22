@@ -13,8 +13,7 @@ case class App(db: Db, name: AppName)
     fun[DbConfig]            +:
     value(Host("localhost")) +:
     value(5432)              +:
-    value(AppName("my-app")) +:
-    Registry.empty
+    value(AppName("my-app"))
 
   val app: App = r.make[App]
   println(app)

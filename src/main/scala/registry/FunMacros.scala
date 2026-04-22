@@ -6,10 +6,10 @@ import izumi.reflect.macrortti.LightTypeTag
 
 private[registry] object FunMacros:
 
-  def funValueImpl[T: Type](f: Expr[T])(using Quotes): Expr[Entry] =
+  def funValueImpl[F: Type](f: Expr[F])(using Quotes): Expr[TypedEntry[? <: Tuple, ?]] =
     import quotes.reflect.*
 
-    val tpe = TypeRepr.of[T].dealias
+    val tpe = TypeRepr.of[F].dealias
     val (paramTypes, retType) = tpe match
       case AppliedType(tycon, targs) if isFunctionType(tycon) =>
         (targs.init, targs.last)
@@ -28,7 +28,7 @@ private[registry] object FunMacros:
     val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
       ${
         import quotes.reflect.*
-        val innerParams = TypeRepr.of[T].dealias match
+        val innerParams = TypeRepr.of[F].dealias match
           case AppliedType(_, targs) => targs.init
           case _                     => Nil
         val argTerms: List[Term] = innerParams.zipWithIndex.map { (pt, i) =>
@@ -39,15 +39,15 @@ private[registry] object FunMacros:
       }
     }
 
-    '{
-      Entry(
-        ${ Expr.ofList(inputTagExprs) },
-        $outputTagExpr,
-        $closure
-      )
-    }
+    val entryExpr: Expr[Entry] =
+      '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
 
-  def funTypeImpl[T: Type](using Quotes): Expr[Entry] =
+    val insTpe = buildTupleType(paramTypes)
+    (insTpe.asType, retType.asType) match
+      case ('[ins], '[out]) =>
+        '{ TypedEntry[ins & Tuple, out]($entryExpr) }
+
+  def funTypeImpl[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, T]] =
     import quotes.reflect.*
 
     val tpe = TypeRepr.of[T]
@@ -83,7 +83,7 @@ private[registry] object FunMacros:
         val innerCtor = innerSym.primaryConstructor
         val innerValueParamLists: List[List[Symbol]] =
           innerCtor.paramSymss.filterNot(_.headOption.exists(_.isType))
-        val innerFlat: List[Symbol]  = innerValueParamLists.flatten
+        val innerFlat: List[Symbol] = innerValueParamLists.flatten
         val innerParamTypes: List[TypeRepr] = innerFlat.map(innerTpe.memberType)
 
         val argTerms: List[Term] = innerParamTypes.zipWithIndex.map { (pt, i) =>
@@ -114,12 +114,19 @@ private[registry] object FunMacros:
       }
     }
 
-    '{
-      Entry(
-        ${ Expr.ofList(inputTagExprs) },
-        $outputTagExpr,
-        $closure
-      )
+    val entryExpr: Expr[Entry] =
+      '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
+
+    val insTpe = buildTupleType(paramTypes)
+    insTpe.asType match
+      case '[ins] =>
+        '{ TypedEntry[ins & Tuple, T]($entryExpr) }
+
+  private def buildTupleType(using Quotes)(types: List[quotes.reflect.TypeRepr]): quotes.reflect.TypeRepr =
+    import quotes.reflect.*
+    types.foldRight(TypeRepr.of[EmptyTuple]) { (h, acc) =>
+      (h.asType, acc.asType) match
+        case ('[ht], '[tt]) => TypeRepr.of[ht *: (tt & Tuple)]
     }
 
   private def isFunctionType(using Quotes)(tycon: quotes.reflect.TypeRepr): Boolean =

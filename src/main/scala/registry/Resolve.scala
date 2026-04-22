@@ -5,17 +5,17 @@ import izumi.reflect.macrortti.LightTypeTag
 object Resolve:
   private val OneLineLimit = 60
 
-  def resolve(registry: Registry, want: LightTypeTag): Any =
-    go(registry, want, List.empty)
+  def resolve(entries: List[Entry], want: LightTypeTag): Any =
+    go(entries, want, List.empty)
 
-  private def go(registry: Registry, want: LightTypeTag, inFlight: List[LightTypeTag]): Any =
+  private def go(entries: List[Entry], want: LightTypeTag, inFlight: List[LightTypeTag]): Any =
     if inFlight.exists(_.repr == want.repr) then
       sys.error(formatCycle(want, inFlight :+ want))
-    val entry = registry.entries.find(_.output.repr == want.repr).getOrElse {
-      sys.error(formatMissing(want, registry.entries.map(_.output.repr).distinct))
+    val entry = entries.find(_.output.repr == want.repr).getOrElse {
+      sys.error(formatMissing(want, entries.map(_.output.repr).distinct))
     }
     val nextInFlight = inFlight :+ want
-    val args         = entry.inputs.map(go(registry, _, nextInFlight))
+    val args         = entry.inputs.map(go(entries, _, nextInFlight))
     entry.invoke(args)
 
   private def formatMissing(want: LightTypeTag, outputs: List[String]): String =

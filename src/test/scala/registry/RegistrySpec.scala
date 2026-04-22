@@ -1,6 +1,7 @@
 package registry
 
 import org.specs2.mutable.Specification
+import scala.compiletime.testing.{typeChecks, typeCheckErrors}
 import Chain.*
 
 class RegistrySpec extends Specification:
@@ -142,6 +143,78 @@ class RegistrySpec extends Specification:
     val values    = value(Host("h")) +: value(1) +: Registry.empty
 
     (producers <+> values).make[DbConfig] === DbConfig(Host("h"), 1)
+  }
+
+  "makeSafe — compiles and runs when all deps are satisfied" >> {
+    val r =
+      fun[DbConfig]    +:
+      value(Host("h")) +:
+      value(1)         +:
+      Registry.empty
+
+    r.makeSafe[DbConfig] === DbConfig(Host("h"), 1)
+  }
+
+  "makeSafe[T] — compile error names T, each produced type on its own line" >> {
+    val errs = typeCheckErrors("""
+      import registry.*
+      val r = value(42) +: value("hi") +: Registry.empty
+      r.makeSafe[Long]
+    """)
+    errs must haveSize(1)
+    errs.head.message === """No entry in this registry produces the type Long.
+                            |Produced types:
+                            |  Int
+                            |  String""".stripMargin
+  }
+
+  "makeSafe — compile error shows missing inputs and produced outputs, one per line" >> {
+    val errs = typeCheckErrors("""
+      import registry.*
+      import Chain.*
+      val r = fun[App] +: fun[Db] +: fun[DbConfig] +: Registry.empty
+      r.makeSafe[App]
+    """)
+    errs must haveSize(1)
+    errs.head.message === """Some registered entries require inputs that are not produced by this registry.
+                            |Missing inputs:
+                            |  AppName
+                            |  Host
+                            |  Int
+                            |Produced outputs:
+                            |  App
+                            |  Db
+                            |  DbConfig""".stripMargin
+  }
+
+  "makeSafe — compile error with a single missing input uses the same layout" >> {
+    val errs = typeCheckErrors("""
+      import registry.*
+      import Chain.*
+      val r = fun[DbConfig] +: value(Host("h")) +: Registry.empty
+      r.makeSafe[DbConfig]
+    """)
+    errs must haveSize(1)
+    errs.head.message === """Some registered entries require inputs that are not produced by this registry.
+                            |Missing inputs:
+                            |  Int
+                            |Produced outputs:
+                            |  DbConfig
+                            |  Host""".stripMargin
+  }
+
+  "makeSafe compiles once the missing input is added" >> {
+    typeChecks("""
+      import registry.*
+      import Chain.*
+      val r = fun[DbConfig] +: value(Host("h")) +: value(1) +: Registry.empty
+      r.makeSafe[DbConfig]
+    """) must beTrue
+  }
+
+  "make stays runtime-only — compiles even when a dep is missing, fails at runtime" >> {
+    val r = fun[DbConfig] +: value(Host("h")) +: Registry.empty
+    r.make[DbConfig] must throwA[RuntimeException]
   }
 
   "cycle — A depends on B, B depends on A" >> {

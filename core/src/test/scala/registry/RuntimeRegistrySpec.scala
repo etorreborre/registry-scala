@@ -32,6 +32,40 @@ class RuntimeRegistrySpec extends Specification:
       r.make[List[String]] === List("a", "b", "c")
     }
 
+    "resolve a request with a registered subtype (List[Int] satisfies Seq[Int])" >> {
+      val r = value(List(1, 2, 3): List[Int]) *: Registry.empty
+      r.make[Seq[Int]] === Seq(1, 2, 3)
+    }
+
+    "resolve via a function whose input is a supertype (asks for Seq[Int], registered List[Int])" >> {
+      val sumSeq: Seq[Int] => Int = _.sum
+      val r =
+        fun(sumSeq)                            *:
+        value(List(1, 2, 3): List[Int])        *:
+        Registry.empty
+      r.make[Int] === 6
+    }
+
+    "reject the wrong direction — Seq[Int] registered does not satisfy a request for List[Int]" >> {
+      val r = value(Seq(1, 2, 3): Seq[Int]) *: Registry.empty
+      r.make[List[Int]] must throwA[RuntimeException].like { case e =>
+        e.getMessage must contain("No entry produces")
+        e.getMessage must contain("List")
+      }
+    }
+
+    "still distinguish unrelated generic types — List[Int] does not satisfy Seq[String]" >> {
+      val r = value(List(1, 2, 3): List[Int]) *: Registry.empty
+      r.make[Seq[String]] must throwA[RuntimeException]
+    }
+
+    "match a registered class against a requested supertype/interface" >> {
+      val r = value(Subtype.Impl("hello"): Subtype.Impl) *: Registry.empty
+      r.make[Subtype.Iface].label === "hello"
+    }
+  }
+
+  "runtime errors" should {
     "throw a clear error at runtime when an input is missing" >> {
       val r =
         fun[DbConfig]    *:

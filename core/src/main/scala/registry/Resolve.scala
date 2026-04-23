@@ -11,7 +11,10 @@ object Resolve:
   private def go(entries: List[Entry], want: LightTypeTag, inFlight: List[LightTypeTag]): Any =
     if inFlight.exists(_.repr == want.repr) then
       sys.error(formatCycle(want, inFlight :+ want))
-    val entry = entries.find(_.output.repr == want.repr).getOrElse {
+    // Subtype-aware lookup: an entry whose output is a subtype of `want` satisfies the request.
+    // E.g., a registered `List[Int]` matches a request for `Seq[Int]`. LIFO order means the head wins
+    // when multiple entries are subtypes of `want`.
+    val entry = entries.find(_.output <:< want).getOrElse {
       sys.error(formatMissing(want, entries.map(_.output.repr).distinct))
     }
     val nextInFlight = inFlight :+ want

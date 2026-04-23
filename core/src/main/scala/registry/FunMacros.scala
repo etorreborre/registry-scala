@@ -43,7 +43,7 @@ private[registry] object FunMacros:
       '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
 
     val insTpe = buildTupleType(paramTypes)
-    (insTpe.asType, retType.asType) match
+    ((insTpe.asType, retType.asType): @unchecked) match
       case ('[ins], '[out]) =>
         '{ TypedEntry[ins & Tuple, out]($entryExpr) }
 
@@ -125,7 +125,7 @@ private[registry] object FunMacros:
   private def buildTupleType(using Quotes)(types: List[quotes.reflect.TypeRepr]): quotes.reflect.TypeRepr =
     import quotes.reflect.*
     types.foldRight(TypeRepr.of[EmptyTuple]) { (h, acc) =>
-      (h.asType, acc.asType) match
+      ((h.asType, acc.asType): @unchecked) match
         case ('[ht], '[tt]) => TypeRepr.of[ht *: (tt & Tuple)]
     }
 

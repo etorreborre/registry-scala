@@ -22,3 +22,8 @@ object Plain:
 object Cycle:
   case class A(b: B)
   case class B(a: A)
+
+object Subtype:
+  trait Iface:
+    def label: String
+  case class Impl(label: String) extends Iface

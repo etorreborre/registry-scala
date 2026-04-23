@@ -24,15 +24,18 @@ lazy val core = (project in file("core"))
     )
   )
 
+lazy val Bench = config("bench").extend(Test)
+
 lazy val bench = (project in file("bench"))
+  .configs(Bench)
   .dependsOn(core % "compile->compile;test->test")
   .settings(commonSettings)
   .settings(
+    inConfig(Bench)(Defaults.testSettings),
     name := "registry-bench",
     publish / skip := true,
-    libraryDependencies ++= Seq(
-      specs2 % Test
-    )
+    libraryDependencies += specs2 % "test,bench",
+    Bench / testFrameworks += new TestFramework("org.specs2.runner.Specs2Framework")
   )
 
 lazy val scalacheck = (project in file("scalacheck"))

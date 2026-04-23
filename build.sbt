@@ -13,6 +13,7 @@ val izumi = "dev.zio" %% "izumi-reflect" % "3.0.3"
 val scalaCheckDep = "org.scalacheck" %% "scalacheck" % "1.18.1"
 val circeCore = "io.circe" %% "circe-core" % "0.14.10"
 val circeParser = "io.circe" %% "circe-parser" % "0.14.10"
+val catsCore = "org.typelevel" %% "cats-core" % "2.12.0"
 
 lazy val core = (project in file("core"))
   .settings(commonSettings)
@@ -61,8 +62,19 @@ lazy val circe = (project in file("circe"))
     )
   )
 
+lazy val catsInterop = (project in file("cats"))
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(commonSettings)
+  .settings(
+    name := "registry-cats",
+    libraryDependencies ++= Seq(
+      catsCore,
+      specs2 % Test
+    )
+  )
+
 lazy val root = (project in file("."))
-  .aggregate(core, bench, scalacheck, circe)
+  .aggregate(core, bench, scalacheck, circe, catsInterop)
   .settings(commonSettings)
   .settings(
     name := "registry-scala",

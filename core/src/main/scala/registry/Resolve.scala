@@ -30,14 +30,14 @@ object Resolve:
 
     val base = spec match
       case Some((_, _, v)) => v
-      case None =>
+      case None            =>
         // Subtype-aware entry lookup: a registered `List[Int]` matches a request for `Seq[Int]`.
         // LIFO order means the head wins when multiple entries are subtypes of `want`.
         val entry = entries.find(_.output <:< want).getOrElse {
           sys.error(formatMissing(want, entries.map(_.output.repr).distinct))
         }
         val nextInFlight = inFlight :+ want
-        val args         = entry.inputs.map(go(entries, tweaks, specializations, _, nextInFlight))
+        val args = entry.inputs.map(go(entries, tweaks, specializations, _, nextInFlight))
         entry.invoke(args)
 
     applyTweaks(base, want, tweaks)
@@ -49,8 +49,10 @@ object Resolve:
       if tweakKey == key then f(acc) else acc
     }
 
-  /** True iff the elements of `needle` appear (in order, not necessarily contiguous) in `haystack`,
-   * compared by `LightTypeTag.repr`. */
+  /**
+   * True iff the elements of `needle` appear (in order, not necessarily contiguous) in `haystack`,
+   * compared by `LightTypeTag.repr`.
+   */
   private def isSubsequence(needle: List[LightTypeTag], haystack: List[LightTypeTag]): Boolean =
     needle match
       case Nil => true
@@ -68,8 +70,8 @@ object Resolve:
       else s"$head.\nAvailable outputs:\n${outputs.map(o => s"  $o").mkString("\n")}"
 
   private def formatCycle(want: LightTypeTag, path: List[LightTypeTag]): String =
-    val reprs  = path.map(_.repr)
-    val head   = s"Found a cycle while resolving ${want.repr}"
+    val reprs = path.map(_.repr)
+    val head = s"Found a cycle while resolving ${want.repr}"
     val inline = s"$head: ${reprs.mkString(" -> ")}"
     if inline.length <= OneLineLimit then inline
     else s"$head:\n${reprs.map(r => s"  $r").mkString("\n")}"

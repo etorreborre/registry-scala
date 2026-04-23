@@ -166,15 +166,18 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
 object Registry:
   val empty: Registry[EmptyTuple, EmptyTuple] = Registry(Nil, Nil, Nil)
 
-  /** Wrap an entry's `invoke` closure with a cache. First call computes and stores the result; subsequent
-   * calls return the cached value regardless of `args`. Thread-safe via `AtomicReference`. */
+  /**
+   * Wrap an entry's `invoke` closure with a cache. First call computes and stores the result; subsequent
+   * calls return the cached value regardless of `args`. Thread-safe via `AtomicReference`.
+   */
   private[registry] def withMemoization(entry: Entry): Entry =
     val ref = new java.util.concurrent.atomic.AtomicReference[Option[Any]](None)
-    entry.copy(invoke = args =>
-      ref.get() match
-        case Some(cached) => cached
-        case None =>
-          val result = entry.invoke(args)
-          ref.compareAndSet(None, Some(result))
-          ref.get().get // either the value we just set, or another concurrent writer's — both are valid
+    entry.copy(invoke =
+      args =>
+        ref.get() match
+          case Some(cached) => cached
+          case None =>
+            val result = entry.invoke(args)
+            ref.compareAndSet(None, Some(result))
+            ref.get().get // either the value we just set, or another concurrent writer's — both are valid
     )

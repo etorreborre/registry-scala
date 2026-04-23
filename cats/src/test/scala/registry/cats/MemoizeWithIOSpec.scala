@@ -19,7 +19,7 @@ class MemoizeWithIOSpec extends Specification:
 
   "registry.memoize + IO" should {
     "cache the IO[T] value itself — the IO is re-run on each call but the value is shared" >> {
-      val counter              = new java.util.concurrent.atomic.AtomicInteger(0)
+      val counter = new java.util.concurrent.atomic.AtomicInteger(0)
       val acquire: IO[Service] = IO.delay { counter.incrementAndGet(); new Service() }
 
       val r = (value(acquire) +: Registry.empty).memoize[IO[Service]]
@@ -35,7 +35,7 @@ class MemoizeWithIOSpec extends Specification:
     }
 
     "stacking IO.memoize gives full result-level memoization" >> {
-      val counter              = new java.util.concurrent.atomic.AtomicInteger(0)
+      val counter = new java.util.concurrent.atomic.AtomicInteger(0)
       val acquire: IO[Service] = IO.delay { counter.incrementAndGet(); new Service() }
 
       // `acquire.memoize` is `IO[IO[Service]]` — an IO that creates a fresh memoized cell each time it
@@ -43,7 +43,7 @@ class MemoizeWithIOSpec extends Specification:
       // returns the cached result.
       val memoizedIO: IO[Service] = acquire.memoize.unsafeRunSync()
 
-      val r  = value(memoizedIO) +: Registry.empty
+      val r = value(memoizedIO) +: Registry.empty
       val io = r.make[IO[Service]]
 
       val s1 = io.unsafeRunSync()

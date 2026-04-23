@@ -29,7 +29,7 @@ val genPerson: Gen[Person] = r.make[Gen[Person]]
 ### Sealed traits via `genSum` (convenience) or `genTrait` + `Chooser` (explicit)
 
 For a sealed trait whose variants are all case classes, the easiest path is `genSum[T]` — it bundles
-`genTrait[T]` + `genFun[V_i]` for every variant + a default `Chooser.uniform`:
+`genTrait[T]` + `genFun[VariantN]` for every variant + a default `Chooser.uniform`:
 
 ```scala
 sealed trait Animal
@@ -37,10 +37,9 @@ case class Dog(name: String) extends Animal
 case class Cat(lives: Int)   extends Animal
 
 val r =
-  genSum[Animal] *:
-  value(Gen.alphaStr: Gen[String]) *:
-  value(Gen.choose(1, 9): Gen[Int]) *:
-  Registry.empty
+  genSum[Animal] +:
+  value(Gen.alphaStr: Gen[String]) +:
+  value(Gen.choose(1, 9): Gen[Int])
 
 val gen: Gen[Animal] = r.make[Gen[Animal]]
 ```
@@ -50,24 +49,22 @@ above `genSum[T]` (LIFO resolves the most recent entry):
 
 ```scala
 val skewed =
-  value(Chooser.weighted(9, 1)) *:   // 9x more Dogs than Cats
-  genSum[Animal] *:
-  value(Gen.alphaStr: Gen[String]) *:
-  value(Gen.choose(1, 9): Gen[Int]) *:
-  Registry.empty
+  value(Chooser.weighted(9, 1)) +:   // 9x more Dogs than Cats
+  genSum[Animal] +:
+  value(Gen.alphaStr: Gen[String]) +:
+  value(Gen.choose(1, 9): Gen[Int])
 ```
 
 For more control — or when variants include case objects / enum cases — use the lower-level form:
 
 ```scala
 val r =
-  genTrait[Animal] *:
-  genFun[Dog] *:
-  genFun[Cat] *:
-  value(Chooser.uniform) *:
-  value(Gen.alphaStr: Gen[String]) *:
-  value(Gen.choose(1, 9): Gen[Int]) *:
-  Registry.empty
+  genTrait[Animal] +:
+  genFun[Dog] +:
+  genFun[Cat] +:
+  value(Chooser.uniform) +:
+  value(Gen.alphaStr: Gen[String]) +:
+  value(Gen.choose(1, 9): Gen[Int])
 ```
 
 `genSum[T]` is limited to sealed traits with case-class variants only — enums and case objects need

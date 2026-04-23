@@ -16,7 +16,8 @@ extension [AllIns <: Tuple, AllOuts <: Tuple](r: Registry[AllIns, AllOuts])
     try Right(r.make[T])
     catch case scala.util.control.NonFatal(t) => Left(t)
 
-  /** Like `make[T]` but returns `Invalid(throwable)` on resolution failure instead of throwing.
+  /**
+   * Like `make[T]` but returns `Invalid(throwable)` on resolution failure instead of throwing.
    *
    * Note the error channel is a single `Throwable`, not a `NonEmptyList`: registry resolution produces
    * at most one error (the first missing input, cycle, or user exception). `Validated` is offered over

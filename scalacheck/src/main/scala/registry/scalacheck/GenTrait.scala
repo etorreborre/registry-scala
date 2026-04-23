@@ -36,7 +36,7 @@ transparent inline def genTrait[T](using
       invoke = args => {
         // args(0) is the Chooser; args(1..n) are the Gen[Sub_i]. Covariance of Gen lets us upcast.
         val chooser = args.head.asInstanceOf[Chooser]
-        val gens    = args.tail.map(_.asInstanceOf[Gen[T]])
+        val gens = args.tail.map(_.asInstanceOf[Gen[T]])
         chooser.pickOne(gens)
       }
     )

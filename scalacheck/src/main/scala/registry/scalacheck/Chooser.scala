@@ -14,6 +14,7 @@ trait Chooser:
   def pickOne[T](gens: Seq[Gen[T]]): Gen[T]
 
 object Chooser:
+
   /** Uniform random pick. */
   val uniform: Chooser = new Chooser:
     def pickOne[T](gens: Seq[Gen[T]]): Gen[T] = GenCombine.pickOne(gens)

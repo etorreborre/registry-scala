@@ -26,16 +26,18 @@ transparent inline def funTo[F[_], T](using app: Applicative[F]): TypedEntry[? <
 def funTo[F[_]]: FunToValueBuilder[F] = FunToValueBuilder.instance[F]
 
 final class FunToValueBuilder[F[_]]():
+
   transparent inline def apply[Fn](inline f: Fn)(using
       app: Applicative[F]
   ): TypedEntry[? <: Tuple, ?] =
     ${ FunToMacro.valueImpl[F, Fn]('f, 'app) }
 
 object FunToValueBuilder:
-  private val any                          = new FunToValueBuilder[[x] =>> Any]()
+  private val any = new FunToValueBuilder[[x] =>> Any]()
   def instance[F[_]]: FunToValueBuilder[F] = any.asInstanceOf[FunToValueBuilder[F]]
 
-/** Lift a pure value into `F` via `Applicative[F].pure`: `valTo[F](x)`.
+/**
+ * Lift a pure value into `F` via `Applicative[F].pure`: `valTo[F](x)`.
  *
  * Only `F` is passed as an explicit type parameter; `T` is inferred from `x`. The two-step signature
  * (`valTo[F]` returns a partially-applied builder) is the standard Scala 3 workaround for the lack of
@@ -44,6 +46,7 @@ object FunToValueBuilder:
 def valTo[F[_]]: ValToBuilder[F] = ValToBuilder.instance[F]
 
 final class ValToBuilder[F[_]]():
+
   def apply[T](x: T)(using
       applicative: Applicative[F],
       tag: Tag[F[T]]
@@ -51,5 +54,5 @@ final class ValToBuilder[F[_]]():
     TypedEntry(Entry(Nil, tag.tag, _ => applicative.pure(x)))
 
 object ValToBuilder:
-  private val any                        = new ValToBuilder[[x] =>> Any]()
-  def instance[F[_]]: ValToBuilder[F]    = any.asInstanceOf[ValToBuilder[F]]
+  private val any = new ValToBuilder[[x] =>> Any]()
+  def instance[F[_]]: ValToBuilder[F] = any.asInstanceOf[ValToBuilder[F]]

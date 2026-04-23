@@ -29,7 +29,7 @@ private[cats] object FunToMacro:
 
     val valueParamLists: List[List[Symbol]] =
       ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
-    val flatParams: List[Symbol]   = valueParamLists.flatten
+    val flatParams: List[Symbol] = valueParamLists.flatten
     val paramTypes: List[TypeRepr] = flatParams.map(tpe.memberType)
 
     // Wrap each input type in F[_] — the entry's declared inputs.
@@ -48,11 +48,11 @@ private[cats] object FunToMacro:
     val buildFn: Expr[Seq[Any] => T] = '{ (vs: Seq[Any]) =>
       ${
         import quotes.reflect.*
-        val innerTpe  = TypeRepr.of[T]
+        val innerTpe = TypeRepr.of[T]
         val innerCtor = innerTpe.typeSymbol.primaryConstructor
         val innerValueParamLists: List[List[Symbol]] =
           innerCtor.paramSymss.filterNot(_.headOption.exists(_.isType))
-        val innerFlat: List[Symbol]         = innerValueParamLists.flatten
+        val innerFlat: List[Symbol] = innerValueParamLists.flatten
         val innerParamTypes: List[TypeRepr] = innerFlat.map(innerTpe.memberType)
 
         val argTerms: List[Term] = innerParamTypes.zipWithIndex.map { (pt, i) =>
@@ -91,13 +91,15 @@ private[cats] object FunToMacro:
       '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
 
     val insTpe = buildTupleType(effectParamTypes)
-    ((insTpe.asType): @unchecked) match
+    (insTpe.asType: @unchecked) match
       case '[ins] =>
         '{ TypedEntry[ins & Tuple, F[T]]($entryExpr) }
 
-  /** Value-driven: `funTo[F](f)` where `f` has some `FunctionN` type. Extracts the function's parameter
+  /**
+   * Value-driven: `funTo[F](f)` where `f` has some `FunctionN` type. Extracts the function's parameter
    * types + return type, wraps each in `F`, and emits an entry whose closure sequences `F`-effects via
-   * `Combine.combineF` and applies `f` to the collected values. */
+   * `Combine.combineF` and applies `f` to the collected values.
+   */
   def valueImpl[F[_]: Type, Fn: Type](
       f: Expr[Fn],
       app: Expr[Applicative[F]]
@@ -151,7 +153,7 @@ private[cats] object FunToMacro:
           '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
 
         val insTpe = buildTupleType(fParamTypes)
-        ((insTpe.asType): @unchecked) match
+        (insTpe.asType: @unchecked) match
           case '[ins] =>
             '{ TypedEntry[ins & Tuple, F[r]]($entryExpr) }
 

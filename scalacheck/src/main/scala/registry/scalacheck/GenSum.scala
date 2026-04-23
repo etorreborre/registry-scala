@@ -31,11 +31,13 @@ transparent inline def genSum[T](using m: Mirror.SumOf[T]): Registry[EmptyTuple,
   val withVariants: Registry[EmptyTuple, EmptyTuple] = addVariantEntries[m.MirroredElemTypes](base)
   genTrait[T].entry -: withVariants
 
-/** Recursively prepend a raw `Entry` for each variant's `genFun[V_i]`. We drop into raw `Entry`-based
+/**
+ * Recursively prepend a raw `Entry` for each variant's `genFun[V_i]`. We drop into raw `Entry`-based
  * prepends (`-:`) here because the `*:` / `+:` overloads need a concrete `Ins` tuple, which clashes
  * with the existential `? <: Tuple` returned by the transparent `genFun` macro inside this inline match.
  * The bundle is therefore untyped at the phantom level; once merged with a user registry via `*:`,
- * the user-side entries still get their type tracking. */
+ * the user-side entries still get their type tracking.
+ */
 private transparent inline def addVariantEntries[Ts <: Tuple](
     acc: Registry[EmptyTuple, EmptyTuple]
 ): Registry[EmptyTuple, EmptyTuple] =

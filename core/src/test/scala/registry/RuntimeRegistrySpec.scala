@@ -188,8 +188,8 @@ class RuntimeRegistrySpec extends Specification:
     }
 
     "merge tweaks across <+>" >> {
-      val left = (value(5) +: Registry.empty).tweak[Int](_ + 1)  // 5 -> 6
-      val right = Registry.empty.tweak[Int](_ * 10)              // applied second; 6 -> 60
+      val left = (value(5) +: Registry.empty).tweak[Int](_ + 1) // 5 -> 6
+      val right = Registry.empty.tweak[Int](_ * 10) // applied second; 6 -> 60
       val merged = left <+> right
       merged.make[Int] === 60
     }
@@ -198,7 +198,9 @@ class RuntimeRegistrySpec extends Specification:
   "memoize" should {
     "cache the resolved value of the memoized type (same instance on repeated make)" >> {
       var calls = 0
-      val r = (fun((_: Int) => { calls += 1; Wrap(calls) }) +: value(0) +: Registry.empty)
+      val r = (fun { (_: Int) =>
+        calls += 1; Wrap(calls)
+      } +: value(0) +: Registry.empty)
         .memoize[Wrap]
 
       val a = r.make[Wrap]
@@ -209,12 +211,14 @@ class RuntimeRegistrySpec extends Specification:
 
     "not affect types that weren't memoized" >> {
       var calls = 0
-      val r = (fun((_: Int) => { calls += 1; Wrap(calls) }) +: value(0) +: Registry.empty)
+      val r = (fun { (_: Int) =>
+        calls += 1; Wrap(calls)
+      } +: value(0) +: Registry.empty)
         .memoize[Int] // memoize Int (the leaf), not Wrap
 
       val a = r.make[Wrap]
       val b = r.make[Wrap]
-      a !== b      // Wrap is rebuilt each time
+      a !== b // Wrap is rebuilt each time
       calls === 2
     }
 
@@ -223,7 +227,9 @@ class RuntimeRegistrySpec extends Specification:
       case class User(wrap: Wrap)
       val r =
         (fun[User] +:
-          fun((_: Int) => { calls += 1; Wrap(calls) }) +:
+          fun { (_: Int) =>
+            calls += 1; Wrap(calls)
+          } +:
           value(0) +:
           Registry.empty).memoize[Wrap]
 
@@ -235,7 +241,9 @@ class RuntimeRegistrySpec extends Specification:
 
     "memoizeAll caches every entry in the registry" >> {
       var wrapCalls = 0
-      val r = (fun((_: Int) => { wrapCalls += 1; Wrap(wrapCalls) }) +: value(99) +: Registry.empty).memoizeAll
+      val r = (fun { (_: Int) =>
+        wrapCalls += 1; Wrap(wrapCalls)
+      } +: value(99) +: Registry.empty).memoizeAll
 
       r.make[Wrap]
       r.make[Wrap]
@@ -246,14 +254,16 @@ class RuntimeRegistrySpec extends Specification:
     "each memoize call returns an independent cache" >> {
       // calling .memoize[Wrap] twice on the same base produces two Registries that do NOT share caches.
       var calls = 0
-      val base    = fun((_: Int) => { calls += 1; Wrap(calls) }) +: value(0) +: Registry.empty
-      val mem1    = base.memoize[Wrap]
-      val mem2    = base.memoize[Wrap]
+      val base = fun { (_: Int) =>
+        calls += 1; Wrap(calls)
+      } +: value(0) +: Registry.empty
+      val mem1 = base.memoize[Wrap]
+      val mem2 = base.memoize[Wrap]
       val fromM1a = mem1.make[Wrap]
       val fromM1b = mem1.make[Wrap]
-      val fromM2  = mem2.make[Wrap]
+      val fromM2 = mem2.make[Wrap]
       fromM1a must beTheSameAs(fromM1b) // within mem1
-      fromM1a !== fromM2                         // across memoize calls → different caches
+      fromM1a !== fromM2 // across memoize calls → different caches
       calls === 2
     }
   }; br
@@ -316,8 +326,8 @@ class RuntimeRegistrySpec extends Specification:
 
     "equivalence: specialize[Ctx, T](v) behaves identically to specializePath[Ctx *: EmptyTuple, T](v)" >> {
       val base = fun[DbConfig] +: value(Host("base")) +: value(5432) +: Registry.empty
-      val a    = base.specialize[DbConfig, Host](Host("specialized"))
-      val b    = base.specializePath[DbConfig *: EmptyTuple, Host](Host("specialized"))
+      val a = base.specialize[DbConfig, Host](Host("specialized"))
+      val b = base.specializePath[DbConfig *: EmptyTuple, Host](Host("specialized"))
 
       a.make[DbConfig] === b.make[DbConfig]
     }

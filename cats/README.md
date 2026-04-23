@@ -65,11 +65,13 @@ Full worked example in `cats/src/test/scala/registry/cats/MemoizeWithIOSpec.scal
 
 ## Implemented
 
-| Combinator    | Purpose                                                                                                                                                                                                                         |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `funTo[F, T]` | Lift a case class / plain class primary constructor into `F`. Returns `TypedEntry[(F[P0], F[P1], …), F[T]]`. Uses `Applicative[F].product` to sequence the per-field effects.                                                   |
-| `funTo[F](f)` | Lift an arbitrary function (lambda or eta-expanded method reference) into `F`. Argument and return types are inferred from `f`. Returns `TypedEntry[(F[P0], F[P1], …), F[R]]`. Same sequencing as `funTo[F, T]` under the hood. |
-| `valTo[F](x)` | Lift a pure value into `F` via `Applicative[F].pure`. `T` is inferred from `x`.                                                                                                                                                 |
+| Combinator           | Purpose                                                                                                                                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `funTo[F, T]`        | Lift a case class / plain class primary constructor into `F`. Returns `TypedEntry[(F[P0], F[P1], …), F[T]]`. Uses `Applicative[F].product` to sequence the per-field effects.                                                   |
+| `funTo[F](f)`        | Lift an arbitrary function (lambda or eta-expanded method reference) into `F`. Argument and return types are inferred from `f`. Returns `TypedEntry[(F[P0], F[P1], …), F[R]]`. Same sequencing as `funTo[F, T]` under the hood. |
+| `valTo[F](x)`        | Lift a pure value into `F` via `Applicative[F].pure`. `T` is inferred from `x`.                                                                                                                                                 |
+| `r.makeEither[T]`    | Non-throwing `make`. Returns `Right(t)` on success, `Left(throwable)` on missing dep / cycle / user exception.                                                                                                                  |
+| `r.makeValidated[T]` | Non-throwing `make`, returning cats `Validated[Throwable, T]`. Useful when combining several `makeValidated` calls applicatively.                                                                                               |
 
 `make[F[T]]` works unchanged — the registry treats `F[T]` as just another output type. Memoization
 via core's `memoize[F[T]]` / `memoizeAll` works too; see the section above for how it interacts with
@@ -77,10 +79,7 @@ via core's `memoize[F[T]]` / `memoizeAll` works too; see the section above for h
 
 ## Not yet implemented
 
-| Feature                        | Haskell      | Notes                                                                                                                                                       |
-| ------------------------------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sum-type effectful derivation  | —            | `registry-scalacheck` has `genSum[T]`; a parallel `sumTo[F, T]` via `Mirror.SumOf` + cats `Alternative` or `NonEmptyList` choose would cover sealed traits. |
-| `makeEither` / `makeValidated` | `makeEither` | Wrap resolution errors in `Either` instead of throwing. Could be built on top of `make` by catching runtime exceptions.                                     |
+Nothing tracked here right now — contributions welcome.
 
 ## Running
 

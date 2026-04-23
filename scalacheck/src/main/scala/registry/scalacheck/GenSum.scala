@@ -1,40 +1,44 @@
 package registry.scalacheck
 
-import izumi.reflect.Tag
-import org.scalacheck.Gen
-import scala.compiletime.summonAll
+import scala.compiletime.erasedValue
 import scala.deriving.Mirror
-import registry.{Entry, TypedEntry}
+import registry.{Registry, value}
 
 /**
- * Register a sum type's generator by combining a `Gen[Sub_i]` for each subtype into a `Gen[T]` that picks
- * uniformly at random: `genSum[Animal]`.
+ * Convenience bundle for a sealed trait / sealed abstract class `T` whose variants are all case classes.
  *
- * Requires `Mirror.SumOf[T]` — available automatically for sealed traits / sealed abstract classes whose
- * subtypes are case classes or case objects, and for Scala 3 `enum` types.
+ * `genSum[T]` expands at compile time into:
+ *   `genTrait[T] *: genFun[Sub_0] *: genFun[Sub_1] *: … *: value(Chooser.uniform) *: Registry.empty`
  *
- * Returns a [[registry.TypedEntry]] whose `Ins` is `(Gen[Sub_0], Gen[Sub_1], ...)` (the sum's cases each
- * wrapped in `Gen`) and whose `Out` is `Gen[T]`.
+ * so you only need to add leaf generators for the fields:
+ * {{{
+ * val r = genSum[Animal] *:
+ *         value(Gen.alphaStr: Gen[String]) *:
+ *         value(Gen.choose(1, 9): Gen[Int]) *:
+ *         Registry.empty
+ * val gen = r.make[Gen[Animal]]
+ * }}}
  *
- * Typical use: prepend `genSum[T]` *above* the per-subtype `genFun[Sub_i]` entries in the registry so that
- * `make[Gen[T]]` picks up the combined generator rather than the first subtype entry that subtype-matches.
+ * To override the default chooser, prepend a `value(Chooser.weighted(…))` above `genSum[T]` — LIFO means
+ * the most recent entry wins.
  *
- * Analogous to the Haskell `registry-hedgehog`'s `makeGenerators` TH helper.
+ * Does NOT currently support variants that are case objects or no-arg enum cases. For those, use
+ * `genTrait[T]` directly together with `value(Gen.const(caseInstance): Gen[Case.type])` per variant
+ * (see `GenTraitSpec` for an example).
  */
-transparent inline def genSum[T](using
-    m: Mirror.SumOf[T]
-): TypedEntry[Tuple.Map[m.MirroredElemTypes, Gen], Gen[T]] =
-  val inputTags =
-    summonAll[Tuple.Map[m.MirroredElemTypes, [s] =>> Tag[Gen[s]]]].toList.asInstanceOf[List[Tag[?]]]
-  val outputTag = summon[Tag[Gen[T]]]
-  TypedEntry(
-    Entry(
-      inputs = inputTags.map(_.tag),
-      output = outputTag.tag,
-      invoke = args => {
-        // Each args(i) is a Gen[Sub_i]. Since Gen is covariant, Gen[Sub_i] <: Gen[T].
-        val gens = args.map(_.asInstanceOf[Gen[T]])
-        GenCombine.pickOne(gens)
-      }
-    )
-  )
+transparent inline def genSum[T](using m: Mirror.SumOf[T]): Registry[EmptyTuple, EmptyTuple] =
+  val base: Registry[EmptyTuple, EmptyTuple] = value(Chooser.uniform: Chooser) -: Registry.empty
+  val withVariants: Registry[EmptyTuple, EmptyTuple] = addVariantEntries[m.MirroredElemTypes](base)
+  genTrait[T].entry -: withVariants
+
+/** Recursively prepend a raw `Entry` for each variant's `genFun[V_i]`. We drop into raw `Entry`-based
+ * prepends (`-:`) here because the `*:` / `+:` overloads need a concrete `Ins` tuple, which clashes
+ * with the existential `? <: Tuple` returned by the transparent `genFun` macro inside this inline match.
+ * The bundle is therefore untyped at the phantom level; once merged with a user registry via `*:`,
+ * the user-side entries still get their type tracking. */
+private transparent inline def addVariantEntries[Ts <: Tuple](
+    acc: Registry[EmptyTuple, EmptyTuple]
+): Registry[EmptyTuple, EmptyTuple] =
+  inline erasedValue[Ts] match
+    case _: EmptyTuple => acc
+    case _: (h *: t)   => genFun[h].entry -: addVariantEntries[t](acc)

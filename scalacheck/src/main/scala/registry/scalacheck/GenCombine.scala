@@ -3,8 +3,11 @@ package registry.scalacheck
 import org.scalacheck.Gen
 
 private[scalacheck] object GenCombine:
-  /** Sequence a list of untyped `Gen[?]` into a `Gen[T]` by collecting their generated values and then
-   * applying `build` to the vector of collected values. Used by the `genFun` macro-emitted closures. */
+
+  /**
+   * Sequence a list of untyped `Gen[?]` into a `Gen[T]` by collecting their generated values and then
+   * applying `build` to the vector of collected values. Used by the `genFun` macro-emitted closures.
+   */
   def combineGens[T](gens: Seq[Gen[?]], build: Seq[Any] => T): Gen[T] =
     if gens.isEmpty then Gen.const(build(Nil))
     else

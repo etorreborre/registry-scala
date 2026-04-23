@@ -12,21 +12,22 @@ class RuntimeRegistrySpec extends Specification:
      |The *: operator still produces a typed registry that will fail to compile if some inputs are missing
      |when `makeSafe` is used.
      |
-     |The -: operator produces an untyped registry that cannot be checked at compile time, errors will surface at runtime.""".stripMargin.br
+     |The -: operator produces an untyped registry that cannot be checked at compile time, errors will surface at runtime."""
+    .stripMargin.br
 
   "make" should {
     "be LIFO — the most recently prepended entry wins for a duplicate output" >> {
       val r =
         value("second") *:
-        value("first")
+          value("first")
 
       r.make[String] === "second"
     }
 
     "distinguish generic outputs — List[Int] and List[String] are separate producers" >> {
       val r =
-        value(List(1, 2, 3))       *:
-        value(List("a", "b", "c"))
+        value(List(1, 2, 3)) *:
+          value(List("a", "b", "c"))
 
       r.make[List[Int]] === List(1, 2, 3)
       r.make[List[String]] === List("a", "b", "c")
@@ -40,9 +41,9 @@ class RuntimeRegistrySpec extends Specification:
     "resolve via a function whose input is a supertype (asks for Seq[Int], registered List[Int])" >> {
       val sumSeq: Seq[Int] => Int = _.sum
       val r =
-        fun(sumSeq)                            *:
-        value(List(1, 2, 3): List[Int])        *:
-        Registry.empty
+        fun(sumSeq) *:
+          value(List(1, 2, 3): List[Int]) *:
+          Registry.empty
       r.make[Int] === 6
     }
 
@@ -68,8 +69,8 @@ class RuntimeRegistrySpec extends Specification:
   "runtime errors" should {
     "throw a clear error at runtime when an input is missing" >> {
       val r =
-        fun[DbConfig]    *:
-        value(Host("h"))  // Int missing
+        fun[DbConfig] *:
+          value(Host("h")) // Int missing
 
       r.make[DbConfig] must throwA[RuntimeException].like { case e =>
         e.getMessage === """No entry produces scala.Int.
@@ -82,7 +83,7 @@ class RuntimeRegistrySpec extends Specification:
     "throw a cycle error with the full dependency path" >> {
       val r =
         fun((b: Cycle.B) => Cycle.A(b)) *:
-        fun((a: Cycle.A) => Cycle.B(a))
+          fun((a: Cycle.A) => Cycle.B(a))
 
       r.make[Cycle.A] must throwA[RuntimeException].like { case e =>
         e.getMessage === """Found a cycle while resolving registry.Cycle::A:
@@ -107,14 +108,14 @@ class RuntimeRegistrySpec extends Specification:
 
     "merge two tracked registries (registry *: registry)" >> {
       val consumers = fun[DbConfig] *: Registry.empty
-      val deps      = value(Host("h")) +: value(1)
-      val r         = consumers *: deps
+      val deps = value(Host("h")) +: value(1)
+      val r = consumers *: deps
       r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
 
     "prepend a registry above a single entry (registry *: entry)" >> {
       val deps = value(Host("h")) +: value(1)
-      val r    = deps *: fun[DbConfig]
+      val r = deps *: fun[DbConfig]
       r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
   }; br
@@ -137,16 +138,16 @@ class RuntimeRegistrySpec extends Specification:
     }
 
     "merge a registry into another, keeping only the receiver's types (registry -: registry)" >> {
-      val hidden  = value(7) +: Registry.empty
+      val hidden = value(7) +: Registry.empty
       val visible = value("v") +: Registry.empty
-      val merged  = hidden -: visible
-      merged.make[Int] === 7       // hidden's entry is still there at runtime
+      val merged = hidden -: visible
+      merged.make[Int] === 7 // hidden's entry is still there at runtime
       merged.make[String] === "v"
     }
 
     "prepend an invisible registry above a single entry (registry -: entry)" >> {
       val hidden = value(Host("h")) +: value(1)
-      val r      = hidden -: fun[DbConfig]
+      val r = hidden -: fun[DbConfig]
       r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
   }; br
@@ -161,9 +162,9 @@ class RuntimeRegistrySpec extends Specification:
   "makeSafe" should {
     "compile and run when all deps are satisfied" >> {
       val r =
-        fun[DbConfig]    *:
-        value(Host("h")) *:
-        value(1)
+        fun[DbConfig] *:
+          value(Host("h")) *:
+          value(1)
 
       r.makeSafe[DbConfig] === DbConfig(Host("h"), 1)
     }

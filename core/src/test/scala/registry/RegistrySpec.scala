@@ -13,12 +13,12 @@ class RegistrySpec extends Specification:
   "fun[T]" should {
     "register a case class primary constructor so inputs resolve recursively" >> {
       val r =
-        fun[App]                 +:
-        fun[Db]                  +:
-        fun[DbConfig]            +:
-        value(Host("localhost")) +:
-        value(5432)              +:
-        value(AppName("my-app"))
+        fun[App] +:
+          fun[Db] +:
+          fun[DbConfig] +:
+          value(Host("localhost")) +:
+          value(5432) +:
+          value(AppName("my-app"))
 
       r.make[App] ===
         App(Db(DbConfig(Host("localhost"), 5432)), AppName("my-app"))
@@ -27,8 +27,8 @@ class RegistrySpec extends Specification:
     "work for a regular (non-case) class with val parameters" >> {
       val r =
         fun[Plain.Service] +:
-        value(Host("h"))   +:
-        value(9000)
+          value(Host("h")) +:
+          value(9000)
 
       val s = r.make[Plain.Service]
       s.host === Host("h")
@@ -37,9 +37,9 @@ class RegistrySpec extends Specification:
 
     "work for a regular class with bare constructor parameters" >> {
       val r =
-        fun[Plain.Bare]  +:
-        value(Host("h")) +:
-        value(42)
+        fun[Plain.Bare] +:
+          value(Host("h")) +:
+          value(42)
 
       r.make[Plain.Bare].describe === "Host(h)@42"
     }
@@ -47,8 +47,8 @@ class RegistrySpec extends Specification:
     "handle constructors with multiple parameter lists" >> {
       val r =
         fun[Plain.Multi] +:
-        value(Host("h")) +:
-        value(7)
+          value(Host("h")) +:
+          value(7)
 
       r.make[Plain.Multi].describe === "h-7"
     }
@@ -56,8 +56,8 @@ class RegistrySpec extends Specification:
     "handle a using clause — parameters are resolved from the registry" >> {
       val r =
         fun[Plain.WithUsing] +:
-        value(Host("h"))     +:
-        value(42)
+          value(Host("h")) +:
+          value(42)
 
       r.make[Plain.WithUsing].describe === "h:42"
     }
@@ -65,8 +65,8 @@ class RegistrySpec extends Specification:
     "handle an old-style implicit parameter list" >> {
       val r =
         fun[Plain.WithImplicit] +:
-        value(Host("h"))        +:
-        value(99)
+          value(Host("h")) +:
+          value(99)
 
       r.make[Plain.WithImplicit].describe === "h#99"
     }
@@ -76,7 +76,7 @@ class RegistrySpec extends Specification:
     "register a lambda" >> {
       val r =
         fun((n: Int) => s"n=$n") +:
-        value(7)
+          value(7)
 
       r.make[String] === "n=7"
     }
@@ -84,8 +84,8 @@ class RegistrySpec extends Specification:
     "accept an eta-expanded constructor reference and be equivalent to fun[Ctor]" >> {
       val r =
         fun(DbConfig.apply) +:
-        value(Host("h"))    +:
-        value(1)
+          value(Host("h")) +:
+          value(1)
 
       r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
@@ -101,9 +101,9 @@ class RegistrySpec extends Specification:
   "+:" should {
     "compile and build when the entry's inputs are already produced (dependencies first, closest to empty)" >> {
       val r =
-        fun[DbConfig]    +:
-        value(Host("h")) +:
-        value(1)
+        fun[DbConfig] +:
+          value(Host("h")) +:
+          value(1)
 
       r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
@@ -130,7 +130,7 @@ class RegistrySpec extends Specification:
     "combine two TypedEntries into a 2-entry registry when the left's inputs are covered by the right's output" >> {
       val r =
         fun((h: Chain.Host) => h.value) +: // input Host, output String
-        value(Host("h"))                   // output Host — covers the left's Host need
+          value(Host("h")) // output Host — covers the left's Host need
 
       r.make[String] === "h"
     }
@@ -149,8 +149,8 @@ class RegistrySpec extends Specification:
     "merge two registries when all inputs are covered by combined outputs" >> {
       // consumers is built with *: (tracked, not strict) because its pieces aren't self-contained.
       val consumers = fun[App] *: fun[Db] *: fun[DbConfig]
-      val deps      = value(Host("h")) +: value(1) +: value(AppName("x"))
-      val r         = consumers +: deps // strict merge: consumers' ins covered by consumers.outs ++ deps.outs
+      val deps = value(Host("h")) +: value(1) +: value(AppName("x"))
+      val r = consumers +: deps // strict merge: consumers' ins covered by consumers.outs ++ deps.outs
 
       r.make[App] === App(Db(DbConfig(Host("h"), 1)), AppName("x"))
     }
@@ -171,7 +171,7 @@ class RegistrySpec extends Specification:
     "prepend a registry above a single entry (registry +: entry)" >> {
       val deps =
         value(Host("h")) +:
-        value(1)
+          value(1)
 
       val r = deps +: fun[DbConfig] // right side is a TypedEntry
       r.make[DbConfig] === DbConfig(Host("h"), 1)
@@ -180,17 +180,17 @@ class RegistrySpec extends Specification:
 
   "<+>" should {
     "merge two registries, left operand winning on duplicate outputs" >> {
-      val left  = value("from-left")  +: Registry.empty
+      val left = value("from-left") +: Registry.empty
       val right = value("from-right") +: value(7)
-      val r     = left <+> right
+      val r = left <+> right
 
       r.make[String] === "from-left"
-      r.make[Int]    === 7
+      r.make[Int] === 7
     }
 
     "supply inputs across a merge boundary" >> {
       val producers = fun[DbConfig] *: Registry.empty
-      val values    = value(Host("h")) +: value(1)
+      val values = value(Host("h")) +: value(1)
 
       (producers <+> values).make[DbConfig] === DbConfig(Host("h"), 1)
     }
@@ -200,15 +200,15 @@ class RegistrySpec extends Specification:
     "be LIFO — the most recently prepended entry wins for a duplicate output" >> {
       val r =
         value("second") +:
-        value("first")
+          value("first")
 
       r.make[String] === "second"
     }
 
     "distinguish generic outputs — List[Int] and List[String] are separate producers" >> {
       val r =
-        value(List(1, 2, 3))       +:
-        value(List("a", "b", "c"))
+        value(List(1, 2, 3)) +:
+          value(List("a", "b", "c"))
 
       r.make[List[Int]] === List(1, 2, 3)
       r.make[List[String]] === List("a", "b", "c")
@@ -218,9 +218,9 @@ class RegistrySpec extends Specification:
   "erase" should {
     "drop type-level tracking while keeping all entries for runtime use" >> {
       val r =
-        fun[DbConfig]    +:
-        value(Host("h")) +:
-        value(1)
+        fun[DbConfig] +:
+          value(Host("h")) +:
+          value(1)
 
       val erased: Registry[EmptyTuple, EmptyTuple] = r.erase
       erased.make[DbConfig] === DbConfig(Host("h"), 1)

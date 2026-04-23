@@ -2,12 +2,14 @@ package registry
 
 import registry.TypeChecks.Concat
 
-/** An [[Entry]] tagged with its input and output types at the type level.
+/**
+ * An [[Entry]] tagged with its input and output types at the type level.
  *
  * `Ins` is a tuple of the input types (in declaration order); `Out` is the output type.
  * Carried purely as phantom type information — at runtime this is just a wrapper around the untyped [[Entry]].
  */
 final case class TypedEntry[Ins <: Tuple, Out](entry: Entry):
+
   /** `leftEntry +: rightEntry` — strict; the left entry's inputs must be covered by the right entry's output. */
   inline def +:[LIns <: Tuple, LOut](
       l: TypedEntry[LIns, LOut]

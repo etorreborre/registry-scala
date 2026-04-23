@@ -2,7 +2,8 @@ package registry
 
 import izumi.reflect.macrortti.LightTypeTag
 
-/** An entry in the registry.
+/**
+ * An entry in the registry.
  *
  * This is essentially a manually-typed version of a function value, where the input and output types are captured as LightTypeTags.
  * The `invoke` function is a dynamically-typed implementation of the function, which will be called with arguments

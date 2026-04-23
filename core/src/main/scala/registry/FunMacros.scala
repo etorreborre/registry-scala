@@ -78,8 +78,8 @@ private[registry] object FunMacros:
     val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
       ${
         import quotes.reflect.*
-        val innerTpe  = TypeRepr.of[T]
-        val innerSym  = innerTpe.typeSymbol
+        val innerTpe = TypeRepr.of[T]
+        val innerSym = innerTpe.typeSymbol
         val innerCtor = innerSym.primaryConstructor
         val innerValueParamLists: List[List[Symbol]] =
           innerCtor.paramSymss.filterNot(_.headOption.exists(_.isType))

@@ -29,7 +29,7 @@ private[scalacheck] object GenFunMacro:
 
     val valueParamLists: List[List[Symbol]] =
       ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
-    val flatParams: List[Symbol]  = valueParamLists.flatten
+    val flatParams: List[Symbol] = valueParamLists.flatten
     val paramTypes: List[TypeRepr] = flatParams.map(tpe.memberType)
 
     // Wrap each input type in Gen[_] — the entry's declared inputs.
@@ -49,11 +49,11 @@ private[scalacheck] object GenFunMacro:
     val buildFn: Expr[Seq[Any] => T] = '{ (vs: Seq[Any]) =>
       ${
         import quotes.reflect.*
-        val innerTpe  = TypeRepr.of[T]
+        val innerTpe = TypeRepr.of[T]
         val innerCtor = innerTpe.typeSymbol.primaryConstructor
         val innerValueParamLists: List[List[Symbol]] =
           innerCtor.paramSymss.filterNot(_.headOption.exists(_.isType))
-        val innerFlat: List[Symbol]         = innerValueParamLists.flatten
+        val innerFlat: List[Symbol] = innerValueParamLists.flatten
         val innerParamTypes: List[TypeRepr] = innerFlat.map(innerTpe.memberType)
 
         val argTerms: List[Term] = innerParamTypes.zipWithIndex.map { (pt, i) =>
@@ -92,7 +92,7 @@ private[scalacheck] object GenFunMacro:
       '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
 
     val insTpe = buildTupleType(genParamTypes)
-    ((insTpe.asType): @unchecked) match
+    (insTpe.asType: @unchecked) match
       case '[ins] =>
         '{ TypedEntry[ins & Tuple, Gen[T]]($entryExpr) }
 

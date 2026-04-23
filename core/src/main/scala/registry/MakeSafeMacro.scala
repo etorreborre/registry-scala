@@ -12,12 +12,12 @@ private[registry] object MakeSafeMacro:
   )(using Quotes): Expr[T] =
     import quotes.reflect.*
 
-    val insTpes  = tupleElems(TypeRepr.of[Ins])
+    val insTpes = tupleElems(TypeRepr.of[Ins])
     val outsTpes = tupleElems(TypeRepr.of[Outs])
-    val tTpe     = TypeRepr.of[T]
+    val tTpe = TypeRepr.of[T]
 
     val produced = outsTpes.exists(_ =:= tTpe)
-    val missing  = insTpes.filterNot(i => outsTpes.exists(_ =:= i))
+    val missing = insTpes.filterNot(i => outsTpes.exists(_ =:= i))
 
     val errors = ListBuffer.empty[String]
     if !produced then errors += formatNotProduced(tTpe, outsTpes)
@@ -41,7 +41,7 @@ private[registry] object MakeSafeMacro:
   )(t: q.reflect.TypeRepr, outs: List[q.reflect.TypeRepr]): String =
     import q.reflect.*
     val printer = Printer.TypeReprShortCode
-    val head    = s"No entry in this registry produces the type ${t.show(using printer)}."
+    val head = s"No entry in this registry produces the type ${t.show(using printer)}."
     if outs.isEmpty then s"$head\n\nProduced types: (none)"
     else s"$head\n\nProduced types:\n${outs.map(o => s"  ${o.show(using printer)}").mkString("\n")}"
 
@@ -50,7 +50,7 @@ private[registry] object MakeSafeMacro:
   )(missing: List[q.reflect.TypeRepr], outs: List[q.reflect.TypeRepr]): String =
     import q.reflect.*
     val printer = Printer.TypeReprShortCode
-    val head    = "Some registered entries require inputs that are not produced by this registry."
+    val head = "Some registered entries require inputs that are not produced by this registry."
     val missingPart = s"Missing inputs:\n${missing.map(m => s"  ${m.show(using printer)}").mkString("\n")}"
     val outsPart =
       if outs.isEmpty then "Produced outputs: (none)"

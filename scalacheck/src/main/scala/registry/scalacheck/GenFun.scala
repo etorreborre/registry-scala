@@ -3,7 +3,8 @@ package registry.scalacheck
 import org.scalacheck.Gen
 import registry.TypedEntry
 
-/** Register a case class / plain class primary constructor as a ScalaCheck generator: `genFun[Foo]`.
+/**
+ * Register a case class / plain class primary constructor as a ScalaCheck generator: `genFun[Foo]`.
  *
  * Returns a [[registry.TypedEntry]] whose `Ins` tuple is `(Gen[P0], Gen[P1], ...)` (the constructor's
  * parameter types, each wrapped in `Gen`) and whose `Out` is `Gen[T]`. At runtime the entry's closure

@@ -8,12 +8,12 @@ case class App(db: Db, name: AppName)
 
 @main def hello(): Unit =
   val r =
-    fun[App]                 +:
-    fun[Db]                  +:
-    fun[DbConfig]            +:
-    value(Host("localhost")) +:
-    value(5432)              +:
-    value(AppName("my-app"))
+    fun[App] +:
+      fun[Db] +:
+      fun[DbConfig] +:
+      value(Host("localhost")) +:
+      value(5432) +:
+      value(AppName("my-app"))
 
   val app: App = r.make[App]
   println(app)

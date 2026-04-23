@@ -77,10 +77,6 @@ Full worked example in `cats/src/test/scala/registry/cats/MemoizeWithIOSpec.scal
 via core's `memoize[F[T]]` / `memoizeAll` works too; see the section above for how it interacts with
 `IO`.
 
-## Not yet implemented
-
-Nothing tracked here right now — contributions welcome.
-
 ## Running
 
 ```

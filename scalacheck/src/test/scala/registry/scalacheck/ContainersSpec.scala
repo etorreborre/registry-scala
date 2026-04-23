@@ -160,3 +160,4 @@ class ContainersSpec extends Specification:
 
     r.make[Gen[Bag]].pureApply(Gen.Parameters.default, Seed(1L)) must beAnInstanceOf[Bag]
   }
+

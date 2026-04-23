@@ -152,6 +152,114 @@ class RuntimeRegistrySpec extends Specification:
     }
   }; br
 
+  "tweak" should {
+    "post-process a value of the tweaked type" >> {
+      val r = (value(42) +: Registry.empty).tweak[Int](_ + 1)
+      r.make[Int] === 43
+    }
+
+    "compose multiple tweaks in registration order (first-registered runs first)" >> {
+      val r = (value(42) +: Registry.empty)
+        .tweak[Int](_ + 1) // 42 -> 43
+        .tweak[Int](_ * 2) // 43 -> 86
+      r.make[Int] === 86
+    }
+
+    "apply to values resolved recursively as inputs to a larger build" >> {
+      // Tweak the Host, then build a DbConfig that uses it. The tweak runs on the Host value
+      // that feeds into DbConfig's constructor, so the final config has the upper-cased host.
+      val r =
+        (fun[DbConfig] +: value(Host("h")) +: value(5432) +: Registry.empty)
+          .tweak[Host](h => Host(h.value.toUpperCase))
+
+      r.make[DbConfig] === DbConfig(Host("H"), 5432)
+    }
+
+    "leave unrelated types untouched" >> {
+      val r = (value("hi") +: value(42) +: Registry.empty).tweak[Int](_ + 1000)
+      r.make[Int] === 1042
+      r.make[String] === "hi"
+    }
+
+    "be preserved across +: prepends" >> {
+      val base = (value(1) +: Registry.empty).tweak[Int](_ * 10)
+      val r = fun[Wrap] +: base
+      r.make[Wrap] === Wrap(10) // the tweak fires on the Int input before Wrap's ctor runs
+    }
+
+    "merge tweaks across <+>" >> {
+      val left = (value(5) +: Registry.empty).tweak[Int](_ + 1)  // 5 -> 6
+      val right = Registry.empty.tweak[Int](_ * 10)              // applied second; 6 -> 60
+      val merged = left <+> right
+      merged.make[Int] === 60
+    }
+  }; br
+
+  "specialize" should {
+    "override a type's value only when building inside the given context" >> {
+      // Default Host is "default"; inside a DbConfig build, use "specialized".
+      val r = (fun[DbConfig] +: value(Host("default")) +: value(5432) +: Registry.empty)
+        .specialize[DbConfig, Host](Host("specialized"))
+
+      r.make[DbConfig] === DbConfig(Host("specialized"), 5432)
+      r.make[Host] === Host("default") // direct make, no DbConfig context → default
+    }
+
+    "not fire when the context type isn't in the resolution stack" >> {
+      val r = (value(Host("h")) +: Registry.empty)
+        .specialize[DbConfig, Host](Host("X")) // context never entered
+
+      r.make[Host] === Host("h")
+    }
+
+    "compose with later entries: inputs down the chain see the specialized value" >> {
+      // App -> Db -> DbConfig -> Host. Specialize Host in the App context.
+      val r =
+        (fun[Chain.App] +:
+          fun[Chain.Db] +:
+          fun[Chain.DbConfig] +:
+          value(Chain.Host("base")) +:
+          value(5432) +:
+          value(Chain.AppName("x")) +:
+          Registry.empty).specialize[Chain.App, Chain.Host](Chain.Host("in-app"))
+
+      r.make[Chain.App].db.config.host === Chain.Host("in-app")
+    }
+  }; br
+
+  "specializePath" should {
+    "apply only when every type in Path appears in order in the resolution stack" >> {
+      // Specialize Host along the [App, Db] path.
+      val r =
+        (fun[Chain.App] +:
+          fun[Chain.Db] +:
+          fun[Chain.DbConfig] +:
+          value(Chain.Host("base")) +:
+          value(5432) +:
+          value(Chain.AppName("x")) +:
+          Registry.empty).specializePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
+
+      // Full path: App -> Db -> DbConfig -> Host. [App, Db] is a subsequence → use specialized.
+      r.make[Chain.App].db.config.host === Chain.Host("via-db")
+    }
+
+    "does not fire if the path elements don't appear in order" >> {
+      val r =
+        (fun[Chain.DbConfig] +: value(Chain.Host("base")) +: value(5432) +: Registry.empty)
+          .specializePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("never"))
+      // We never build an App or Db, so [App, Db] is not a subsequence of the resolution stack.
+      r.make[Chain.DbConfig].host === Chain.Host("base")
+    }
+
+    "equivalence: specialize[Ctx, T](v) behaves identically to specializePath[Ctx *: EmptyTuple, T](v)" >> {
+      val base = fun[DbConfig] +: value(Host("base")) +: value(5432) +: Registry.empty
+      val a    = base.specialize[DbConfig, Host](Host("specialized"))
+      val b    = base.specializePath[DbConfig *: EmptyTuple, Host](Host("specialized"))
+
+      a.make[DbConfig] === b.make[DbConfig]
+    }
+  }; br
+
   "make" should {
     "stay runtime-only — compile even when a dep is missing, fail at runtime" >> {
       val r = fun[DbConfig] *: value(Host("h"))

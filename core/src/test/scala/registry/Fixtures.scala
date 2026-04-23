@@ -33,3 +33,5 @@ object Subtype:
     def label: String
 
   case class Impl(label: String) extends Iface
+
+case class Wrap(value: Int)

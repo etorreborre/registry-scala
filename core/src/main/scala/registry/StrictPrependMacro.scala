@@ -15,7 +15,13 @@ private[registry] object StrictPrependMacro:
       newIns = tupleElems(TypeRepr.of[EIns]),
       producedBelow = tupleElems(TypeRepr.of[AllOuts])
     )
-    '{ Registry[Concat[EIns, AllIns], EOut *: AllOuts](${ e }.entry :: ${ self }.entries) }
+    '{
+      Registry[Concat[EIns, AllIns], EOut *: AllOuts](
+        ${ e }.entry :: ${ self }.entries,
+        ${ self }.tweaks,
+        ${ self }.specializations
+      )
+    }
 
   /** leftRegistry +: rightRegistry — merge; left's needs must be covered by left's own outs or right's. */
   def registryIntoRegistry[
@@ -32,7 +38,13 @@ private[registry] object StrictPrependMacro:
       newIns = tupleElems(TypeRepr.of[LIns]),
       producedBelow = tupleElems(TypeRepr.of[LOuts]) ++ tupleElems(TypeRepr.of[ROuts])
     )
-    '{ Registry[Concat[LIns, RIns], Concat[LOuts, ROuts]](${ l }.entries ++ ${ self }.entries) }
+    '{
+      Registry[Concat[LIns, RIns], Concat[LOuts, ROuts]](
+        ${ l }.entries ++ ${ self }.entries,
+        ${ l }.tweaks ++ ${ self }.tweaks,
+        ${ l }.specializations ++ ${ self }.specializations
+      )
+    }
 
   /** entryL +: entryR — treat the right as a 1-entry registry and prepend the left. */
   def entryIntoEntry[LIns <: Tuple: Type, LOut: Type, RIns <: Tuple: Type, ROut: Type](
@@ -46,7 +58,9 @@ private[registry] object StrictPrependMacro:
     )
     '{
       Registry[Concat[LIns, RIns], LOut *: ROut *: EmptyTuple](
-        ${ l }.entry :: ${ self }.entry :: Nil
+        ${ l }.entry :: ${ self }.entry :: Nil,
+        Nil,
+        Nil
       )
     }
 
@@ -67,7 +81,9 @@ private[registry] object StrictPrependMacro:
     )
     '{
       Registry[Concat[LIns, RIns], Concat[LOuts, ROut *: EmptyTuple]](
-        ${ l }.entries ++ (${ self }.entry :: Nil)
+        ${ l }.entries ++ (${ self }.entry :: Nil),
+        ${ l }.tweaks,
+        ${ l }.specializations
       )
     }
 

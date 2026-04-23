@@ -95,6 +95,72 @@ private[cats] object FunToMacro:
       case '[ins] =>
         '{ TypedEntry[ins & Tuple, F[T]]($entryExpr) }
 
+  /** Value-driven: `funTo[F](f)` where `f` has some `FunctionN` type. Extracts the function's parameter
+   * types + return type, wraps each in `F`, and emits an entry whose closure sequences `F`-effects via
+   * `Combine.combineF` and applies `f` to the collected values. */
+  def valueImpl[F[_]: Type, Fn: Type](
+      f: Expr[Fn],
+      app: Expr[Applicative[F]]
+  )(using Quotes): Expr[TypedEntry[? <: Tuple, ?]] =
+    import quotes.reflect.*
+
+    val tpe = TypeRepr.of[Fn].dealias
+    val (paramTypes, retType) = tpe match
+      case AppliedType(tycon, targs) if isFunctionType(tycon) =>
+        (targs.init, targs.last)
+      case other =>
+        report.errorAndAbort(
+          s"funTo[F](f) expects a FunctionN value (lambda or eta-expanded method), got ${other.show}"
+        )
+
+    // F-wrapped input/output types
+    val fParamTypes: List[TypeRepr] = paramTypes.map { pt =>
+      pt.asType match
+        case '[p] => TypeRepr.of[F[p]]
+    }
+
+    val inputTagExprs: List[Expr[LightTypeTag]] = fParamTypes.map { gt =>
+      gt.asType match
+        case '[gp] => '{ summon[Tag[gp]].tag }
+    }
+    val outputTagExpr: Expr[LightTypeTag] = retType.asType match
+      case '[r] => '{ summon[Tag[F[r]]].tag }
+
+    val entryTypedExpr: Expr[TypedEntry[? <: Tuple, ?]] = retType.asType match
+      case '[r] =>
+        // buildFn: Seq[Any] => r — apply `f` to the raw args.
+        val buildFn: Expr[Seq[Any] => r] = '{ (vs: Seq[Any]) =>
+          ${
+            import quotes.reflect.*
+            val innerParams = TypeRepr.of[Fn].dealias match
+              case AppliedType(_, targs) => targs.init
+              case _                     => Nil
+            val argTerms: List[Term] = innerParams.zipWithIndex.map { (pt, i) =>
+              pt.asType match
+                case '[p] => '{ vs(${ Expr(i) }).asInstanceOf[p] }.asTerm
+            }
+            Select.unique(f.asTerm, "apply").appliedToArgs(argTerms).asExprOf[r]
+          }
+        }
+
+        val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
+          Combine.combineF[F, r](args, $buildFn)(using $app): Any
+        }
+
+        val entryExpr: Expr[Entry] =
+          '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
+
+        val insTpe = buildTupleType(fParamTypes)
+        ((insTpe.asType): @unchecked) match
+          case '[ins] =>
+            '{ TypedEntry[ins & Tuple, F[r]]($entryExpr) }
+
+    entryTypedExpr
+
+  private def isFunctionType(using Quotes)(tycon: quotes.reflect.TypeRepr): Boolean =
+    val name = tycon.typeSymbol.fullName
+    name.startsWith("scala.Function") || name.startsWith("scala.ContextFunction")
+
   private def buildTupleType(using
       Quotes
   )(types: List[quotes.reflect.TypeRepr]): quotes.reflect.TypeRepr =

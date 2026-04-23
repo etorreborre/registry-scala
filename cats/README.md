@@ -16,8 +16,8 @@ case class Person(name: String, age: Int)
 
 val r =
   funTo[Option, Person] *:
-  valTo[Option, String]("Alice") *:
-  valTo[Option, Int](30)
+  valTo[Option]("Alice") *:
+  valTo[Option](30)
 
 val result: Option[Person] = r.make[Option[Person]]
 // Some(Person("Alice", 30))
@@ -29,7 +29,7 @@ cats `Id`, `Validated[E, _]`, etc.:
 ```scala
 val r =
   funTo[[a] =>> Either[String, a], Person] *:
-  valTo[[a] =>> Either[String, a], String]("Alice") *:
+  valTo[[a] =>> Either[String, a]]("Alice") *:
   value(Left("bad age"): Either[String, Int])
 
 r.make[Either[String, Person]]    // Left("bad age")
@@ -37,21 +37,21 @@ r.make[Either[String, Person]]    // Left("bad age")
 
 ## Implemented
 
-| Combinator       | Purpose                                                                                                                                                                       |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `funTo[F, T]`    | Lift a case class / plain class primary constructor into `F`. Returns `TypedEntry[(F[P0], F[P1], …), F[T]]`. Uses `Applicative[F].product` to sequence the per-field effects. |
-| `valTo[F, T](x)` | Lift a pure value into `F` via `Applicative[F].pure`.                                                                                                                         |
+| Combinator    | Purpose                                                                                                                                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `funTo[F, T]` | Lift a case class / plain class primary constructor into `F`. Returns `TypedEntry[(F[P0], F[P1], …), F[T]]`. Uses `Applicative[F].product` to sequence the per-field effects.                                                    |
+| `funTo[F](f)` | Lift an arbitrary function (lambda or eta-expanded method reference) into `F`. Argument and return types are inferred from `f`. Returns `TypedEntry[(F[P0], F[P1], …), F[R]]`. Same sequencing as `funTo[F, T]` under the hood.  |
+| `valTo[F](x)` | Lift a pure value into `F` via `Applicative[F].pure`. `T` is inferred from `x`.                                                                                                                                                  |
 
 `make[F[T]]` works unchanged — the registry treats `F[T]` as just another output type.
 
 ## Not yet implemented
 
-| Feature                            | Haskell                          | Notes                                                                                                                                                       |
-| ---------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `funTo(f)` for arbitrary functions | `funTo @m` on a `A -> B -> C`    | Currently only `funTo[F, T]` for class constructors. A value-driven form for lambdas / method references is a natural extension.                            |
-| Sum-type effectful derivation      | —                                | `registry-scalacheck` has `genSum[T]`; a parallel `sumTo[F, T]` via `Mirror.SumOf` + cats `Alternative` or `NonEmptyList` choose would cover sealed traits. |
-| Memoization                        | `memoize @m @A`, `memoizeAll @m` | Cache a resolved `F[A]` so every consumer shares the same effect instance. Distinct from `tweak` which re-applies per resolution.                           |
-| `makeEither` / `makeValidated`     | `makeEither`                     | Wrap resolution errors in `Either` instead of throwing. Could be built on top of `make` by catching runtime exceptions.                                     |
+| Feature                        | Haskell                          | Notes                                                                                                                                                       |
+| ------------------------------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sum-type effectful derivation  | —                                | `registry-scalacheck` has `genSum[T]`; a parallel `sumTo[F, T]` via `Mirror.SumOf` + cats `Alternative` or `NonEmptyList` choose would cover sealed traits. |
+| Memoization                    | `memoize @m @A`, `memoizeAll @m` | Cache a resolved `F[A]` so every consumer shares the same effect instance. Distinct from `tweak` which re-applies per resolution.                           |
+| `makeEither` / `makeValidated` | `makeEither`                     | Wrap resolution errors in `Either` instead of throwing. Could be built on top of `make` by catching runtime exceptions.                                     |
 
 ## Running
 

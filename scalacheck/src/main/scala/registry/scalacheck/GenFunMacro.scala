@@ -96,6 +96,67 @@ private[scalacheck] object GenFunMacro:
       case '[ins] =>
         '{ TypedEntry[ins & Tuple, Gen[T]]($entryExpr) }
 
+  /** Value-driven: `genFun(f)` where `f: (A, B, ...) => R`. Extracts the function's parameter types +
+   * return type, wraps each in `Gen`, and emits an entry whose closure sequences the per-input `Gen`s
+   * via `GenCombine.combineGens` and applies `f` to the collected values. */
+  def valueImpl[Fn: Type](f: Expr[Fn])(using Quotes): Expr[TypedEntry[? <: Tuple, ?]] =
+    import quotes.reflect.*
+
+    val tpe = TypeRepr.of[Fn].dealias
+    val (paramTypes, retType) = tpe match
+      case AppliedType(tycon, targs) if isFunctionType(tycon) =>
+        (targs.init, targs.last)
+      case other =>
+        report.errorAndAbort(
+          s"genFun(f) expects a FunctionN value (lambda or eta-expanded method), got ${other.show}"
+        )
+
+    val genParamTypes: List[TypeRepr] = paramTypes.map { pt =>
+      pt.asType match
+        case '[p] => TypeRepr.of[Gen[p]]
+    }
+
+    val inputTagExprs: List[Expr[LightTypeTag]] = genParamTypes.map { gt =>
+      gt.asType match
+        case '[gp] => '{ summon[Tag[gp]].tag }
+    }
+    val outputTagExpr: Expr[LightTypeTag] = retType.asType match
+      case '[r] => '{ summon[Tag[Gen[r]]].tag }
+
+    val entryTypedExpr: Expr[TypedEntry[? <: Tuple, ?]] = retType.asType match
+      case '[r] =>
+        val buildFn: Expr[Seq[Any] => r] = '{ (vs: Seq[Any]) =>
+          ${
+            import quotes.reflect.*
+            val innerParams = TypeRepr.of[Fn].dealias match
+              case AppliedType(_, targs) => targs.init
+              case _                     => Nil
+            val argTerms: List[Term] = innerParams.zipWithIndex.map { (pt, i) =>
+              pt.asType match
+                case '[p] => '{ vs(${ Expr(i) }).asInstanceOf[p] }.asTerm
+            }
+            Select.unique(f.asTerm, "apply").appliedToArgs(argTerms).asExprOf[r]
+          }
+        }
+
+        val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
+          GenCombine.combineGens[r](args.asInstanceOf[Seq[Gen[?]]], $buildFn)
+        }
+
+        val entryExpr: Expr[Entry] =
+          '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
+
+        val insTpe = buildTupleType(genParamTypes)
+        (insTpe.asType: @unchecked) match
+          case '[ins] =>
+            '{ TypedEntry[ins & Tuple, Gen[r]]($entryExpr) }
+
+    entryTypedExpr
+
+  private def isFunctionType(using Quotes)(tycon: quotes.reflect.TypeRepr): Boolean =
+    val name = tycon.typeSymbol.fullName
+    name.startsWith("scala.Function") || name.startsWith("scala.ContextFunction")
+
   private def buildTupleType(using
       Quotes
   )(types: List[quotes.reflect.TypeRepr]): quotes.reflect.TypeRepr =

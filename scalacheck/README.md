@@ -88,6 +88,7 @@ scope a chooser to a particular build context — e.g., uniform everywhere, but 
 | Combinator           | Purpose                                                                                                                           |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `genFun[T]`          | Register a case class / plain class primary constructor as a generator. Returns `TypedEntry[(Gen[P0], Gen[P1], …), Gen[T]]`.      |
+| `genFun(f)`          | Register an arbitrary function value (lambda or eta-expanded method ref) as a generator. Param / return types inferred from `f`.  |
 | `genTrait[T]`        | Combine per-subtype `Gen[Sub_i]` entries into a `Gen[T]` for a sealed trait / abstract class / enum. Consumes a `Chooser`.        |
 | `genSum[T]`          | Bundle: `genTrait[T]` + `genFun[V_i]` for each variant + default `Chooser.uniform`. Case-class variants only.                     |
 | `Chooser`            | Pluggable pick strategy for `genTrait`. Built-ins: `uniform`, `weighted(ws*)`, `only(i)`; users can implement the trait directly. |
@@ -100,11 +101,10 @@ Subtype-aware resolution is inherited from core: `Gen[List[Int]]` satisfies a re
 
 ## Not yet implemented
 
-| Feature               | Haskell name                                                                                   | Notes                                                                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lambdas / method refs | `genFun = funTo @Gen` on any function                                                          | Currently only `genFun[T]` for class constructors. `genFun(f)` for `(A, B) => C` is a straightforward extension (mirrors `registry-cats`).     |
-| Container helpers     | `listOf`, `maybeOf`, `eitherOf`, `tuple2Of`, `nonEmptyOf`, `setOf`, `mapOf`, `listOfMinMax`, … | Each is a one-liner `Gen[T] => Gen[F[T]]` wrapped in `fun`; we can add the whole set at once when needed.                                      |
-| Recursion helpers     | Hand-rolled in registry-hedgehog via `Gen.recursive`                                           | Not registry-specific; users can hand-write the recursive `Gen` and register it with `value(...)`. A convenience wrapper could be added later. |
+| Feature           | Haskell name                                                                                   | Notes                                                                                                                                          |
+| ----------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container helpers | `listOf`, `maybeOf`, `eitherOf`, `tuple2Of`, `nonEmptyOf`, `setOf`, `mapOf`, `listOfMinMax`, … | Each is a one-liner `Gen[T] => Gen[F[T]]` wrapped in `fun`; we can add the whole set at once when needed.                                      |
+| Recursion helpers | Hand-rolled in registry-hedgehog via `Gen.recursive`                                           | Not registry-specific; users can hand-write the recursive `Gen` and register it with `value(...)`. A convenience wrapper could be added later. |
 
 ## Running
 

@@ -60,7 +60,42 @@ class GenFunSpec extends Specification:
     }
   }
 
+  "genFun(f) (value-driven)" should {
+    "lift an arbitrary lambda: genFun((a, b) => …)" >> {
+      // Output type differs from input types so there's no LIFO cycle resolving
+      // a type that overlaps with an input.
+      val toGreeting: (String, Int) => Greeting = (n, a) => Greeting(s"$n ($a)")
+      val r =
+        genFun(toGreeting) *:
+          value(Gen.const("Alice"): Gen[String]) *:
+          value(Gen.const(30): Gen[Int]) *:
+          Registry.empty
+
+      r.make[Gen[Greeting]].pureApply(Gen.Parameters.default, Seed(1L)) === Greeting("Alice (30)")
+    }
+
+    "accept an eta-expanded constructor reference: genFun(Ctor.apply)" >> {
+      val r =
+        genFun(Person.apply) *:
+          value(Gen.const("Bob"): Gen[String]) *:
+          value(Gen.const(42): Gen[Int]) *:
+          Registry.empty
+
+      r.make[Gen[Person]].pureApply(Gen.Parameters.default, Seed(3L)) === Person("Bob", 42)
+    }
+
+    "lift a single-arg function" >> {
+      val r =
+        genFun((n: Int) => Greeting(s"n=$n")) *:
+          value(Gen.const(21): Gen[Int]) *:
+          Registry.empty
+
+      r.make[Gen[Greeting]].pureApply(Gen.Parameters.default, Seed(5L)) === Greeting("n=21")
+    }
+  }
+
 case class Person(name: String, age: Int)
 case class Address(street: String, zip: Int)
 case class WithAddress(name: String, address: Address)
 case class Tagged(label: String, value: Int)
+case class Greeting(text: String)

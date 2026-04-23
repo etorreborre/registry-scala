@@ -195,6 +195,69 @@ class RuntimeRegistrySpec extends Specification:
     }
   }; br
 
+  "memoize" should {
+    "cache the resolved value of the memoized type (same instance on repeated make)" >> {
+      var calls = 0
+      val r = (fun((_: Int) => { calls += 1; Wrap(calls) }) +: value(0) +: Registry.empty)
+        .memoize[Wrap]
+
+      val a = r.make[Wrap]
+      val b = r.make[Wrap]
+      a must beTheSameAs(b)
+      calls === 1 // the underlying function ran only once
+    }
+
+    "not affect types that weren't memoized" >> {
+      var calls = 0
+      val r = (fun((_: Int) => { calls += 1; Wrap(calls) }) +: value(0) +: Registry.empty)
+        .memoize[Int] // memoize Int (the leaf), not Wrap
+
+      val a = r.make[Wrap]
+      val b = r.make[Wrap]
+      a !== b      // Wrap is rebuilt each time
+      calls === 2
+    }
+
+    "apply when the memoized type is consumed as an input (cached Wrap shared across makes)" >> {
+      var calls = 0
+      case class User(wrap: Wrap)
+      val r =
+        (fun[User] +:
+          fun((_: Int) => { calls += 1; Wrap(calls) }) +:
+          value(0) +:
+          Registry.empty).memoize[Wrap]
+
+      val u1 = r.make[User]
+      val u2 = r.make[User]
+      u1.wrap must beTheSameAs(u2.wrap)
+      calls === 1
+    }
+
+    "memoizeAll caches every entry in the registry" >> {
+      var wrapCalls = 0
+      val r = (fun((_: Int) => { wrapCalls += 1; Wrap(wrapCalls) }) +: value(99) +: Registry.empty).memoizeAll
+
+      r.make[Wrap]
+      r.make[Wrap]
+      r.make[Int] // also cached (no-op effect since value() already returns the same constant)
+      wrapCalls === 1
+    }
+
+    "each memoize call returns an independent cache" >> {
+      // calling .memoize[Wrap] twice on the same base produces two Registries that do NOT share caches.
+      var calls = 0
+      val base    = fun((_: Int) => { calls += 1; Wrap(calls) }) +: value(0) +: Registry.empty
+      val mem1    = base.memoize[Wrap]
+      val mem2    = base.memoize[Wrap]
+      val fromM1a = mem1.make[Wrap]
+      val fromM1b = mem1.make[Wrap]
+      val fromM2  = mem2.make[Wrap]
+      fromM1a must beTheSameAs(fromM1b) // within mem1
+      fromM1a !== fromM2                         // across memoize calls → different caches
+      calls === 2
+    }
+  }; br
+
   "specialize" should {
     "override a type's value only when building inside the given context" >> {
       // Default Host is "default"; inside a DbConfig build, use "specialized".

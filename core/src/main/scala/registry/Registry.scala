@@ -102,6 +102,24 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     Registry(entries, tweaks :+ (tag.tag.repr, f.asInstanceOf[Any => Any]), specializations)
 
   /**
+   * Memoize every entry whose output is a subtype of `A`: once resolved, the entry's value is cached and
+   * returned on subsequent resolutions. For effectful types (e.g. `F[Service]`), this caches the effect
+   * value — whether running it yields the same underlying value again is `F`'s concern (use cats-effect
+   * `IO.memoize` for true effect-result memoization on top).
+   *
+   * The cache is stored in the entry's closure (via `AtomicReference`), so it survives all `copy`-based
+   * combinators (`+:`, `*:`, `tweak`, `specialize`, etc.). Each call to `memoize[A]` creates a *new*
+   * registry with a *fresh* cache; the original is unaffected.
+   */
+  def memoize[A](using tag: Tag[A]): Registry[AllIns, AllOuts] =
+    val targetTag = tag.tag
+    copy(entries = entries.map(e => if e.output <:< targetTag then Registry.withMemoization(e) else e))
+
+  /** Memoize every entry in the registry. Equivalent to applying `memoize[T]` once per output type. */
+  def memoizeAll: Registry[AllIns, AllOuts] =
+    copy(entries = entries.map(Registry.withMemoization))
+
+  /**
    * Context-scoped override: when the resolver is currently *inside* a build of `Ctx` (i.e. `Ctx` appears
    * anywhere in the resolution stack) and we're resolving `T`, return `v` instead of doing a normal
    * lookup. Shorthand for [[specializePath]] with a single-element path.
@@ -147,3 +165,16 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
 
 object Registry:
   val empty: Registry[EmptyTuple, EmptyTuple] = Registry(Nil, Nil, Nil)
+
+  /** Wrap an entry's `invoke` closure with a cache. First call computes and stores the result; subsequent
+   * calls return the cached value regardless of `args`. Thread-safe via `AtomicReference`. */
+  private[registry] def withMemoization(entry: Entry): Entry =
+    val ref = new java.util.concurrent.atomic.AtomicReference[Option[Any]](None)
+    entry.copy(invoke = args =>
+      ref.get() match
+        case Some(cached) => cached
+        case None =>
+          val result = entry.invoke(args)
+          ref.compareAndSet(None, Some(result))
+          ref.get().get // either the value we just set, or another concurrent writer's — both are valid
+    )

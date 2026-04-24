@@ -12,5 +12,6 @@ import izumi.reflect.macrortti.LightTypeTag
 final case class Entry(
     inputs: List[LightTypeTag],
     output: LightTypeTag,
-    invoke: Seq[Any] => Any
+    invoke: Seq[Any] => Any,
+    shared: Boolean = false
 )

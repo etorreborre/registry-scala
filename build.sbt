@@ -58,7 +58,7 @@ lazy val circe = (project in file("circe"))
     name := "registry-circe",
     libraryDependencies ++= Seq(
       circeCore,
-      circeParser % Test,
+      circeParser,
       specs2 % Test
     )
   )

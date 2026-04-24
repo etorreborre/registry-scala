@@ -109,10 +109,10 @@ private[registry] object StrictPrependMacro:
       q: Quotes
   )(missing: List[q.reflect.TypeRepr], outs: List[q.reflect.TypeRepr]): String =
     import q.reflect.*
-    val printer = Printer.TypeReprShortCode
+    val render = TypeRendering.disambiguating(missing ++ outs)
     val head = "+: cannot prepend this entry because some inputs cannot be produced by the rest of the registry."
-    val missingPart = s"Missing inputs:\n${missing.map(m => s"  ${m.show(using printer)}").mkString("\n")}"
+    val missingPart = s"Missing inputs:\n${missing.map(m => s"  ${render(m)}").mkString("\n")}"
     val outsPart =
       if outs.isEmpty then "Produced outputs: (none)"
-      else s"Produced outputs:\n${outs.map(o => s"  ${o.show(using printer)}").mkString("\n")}"
+      else s"Produced outputs:\n${outs.map(o => s"  ${render(o)}").mkString("\n")}"
     s"$head\n\n$missingPart\n\n$outsPart"

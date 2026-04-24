@@ -428,4 +428,24 @@ class RuntimeRegistrySpec extends Specification:
         r.makeSafe[Int]
       """) must beFalse
     }
+
+    "disambiguate types that share a short name across missing inputs and produced outputs" >> {
+      // NeedsFirst takes a `first.Coin`; the registry only provides `second.Coin`. Both have the
+      // short name `Coin`, so the error message must qualify them so the user can see they're
+      // not the same type.
+      val errs = typeCheckErrors("""
+        import registry.*
+        val r = fun[NameClash.NeedsFirst] *: value(NameClash.second.Coin(1))
+        r.makeSafe[NameClash.NeedsFirst]
+      """)
+      errs must haveSize(1)
+      errs.head.message === """Some registered entries require inputs that are not produced by this registry.
+                              |
+                              |Missing inputs:
+                              |  registry.NameClash.first.Coin
+                              |
+                              |Produced outputs:
+                              |  NeedsFirst
+                              |  registry.NameClash.second.Coin""".stripMargin
+    }
   }; br

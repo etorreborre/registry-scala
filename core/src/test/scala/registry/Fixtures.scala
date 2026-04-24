@@ -35,3 +35,12 @@ object Subtype:
   case class Impl(label: String) extends Iface
 
 case class Wrap(value: Int)
+
+object NameClash:
+  // Two distinct types named `Coin` — same short name, different packages. Used to verify
+  // the macro error formatter disambiguates colliding short names.
+  object first:
+    case class Coin(value: Long)
+  object second:
+    case class Coin(value: Long)
+  case class NeedsFirst(coin: first.Coin)

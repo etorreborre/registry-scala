@@ -129,6 +129,31 @@ class GenTraitSpec extends Specification:
       val samples = (0 until 10).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples must contain(beAnInstanceOf[Dog]).foreach // index 0 = Dog per Mirror.SumOf[Animal] order
     }
+
+    "work for a Scala 3 enum of no-arg cases" >> {
+      val r = genSum[Color]
+      val gen = r.make[Gen[Color]]
+      val samples = (0 until 60).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      samples.toSet must contain(Color.Red, Color.Green, Color.Blue)
+    }
+
+    "work for a mixed enum (case-class cases + no-arg cases)" >> {
+      val r =
+        genSum[Shape] +:
+          value(Gen.choose(1.0, 10.0): Gen[Double])
+
+      val gen = r.make[Gen[Shape]]
+      val samples = (0 until 60).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      samples.exists(_.isInstanceOf[Shape.Circle]) must beTrue
+      samples.exists(_ == Shape.Square)            must beTrue
+    }
+
+    "work for a sealed trait whose variants are case objects" >> {
+      val r = genSum[Status]
+      val gen = r.make[Gen[Status]]
+      val samples = (0 until 40).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      samples.toSet must contain(Status.Active, Status.Inactive)
+    }
   }
 
 sealed trait Animal
@@ -137,6 +162,15 @@ case class Cat(lives: Int) extends Animal
 
 enum Color:
   case Red, Green, Blue
+
+enum Shape:
+  case Circle(radius: Double)
+  case Square
+
+sealed trait Status
+object Status:
+  case object Active   extends Status
+  case object Inactive extends Status
 
 sealed trait Single
 case class OnlyCase(v: Int) extends Single

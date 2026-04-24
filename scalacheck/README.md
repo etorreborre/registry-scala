@@ -55,7 +55,9 @@ val skewed =
   value(Gen.choose(1, 9): Gen[Int])
 ```
 
-For more control — or when variants include case objects / enum cases — use the lower-level form:
+`genSum[T]` handles case objects and no-arg enum cases automatically — each becomes a
+`Gen.const(theSingleton)` entry in the registry. For more control over individual variant
+generators, drop down to the lower-level form:
 
 ```scala
 val r =
@@ -67,8 +69,9 @@ val r =
   value(Gen.choose(1, 9): Gen[Int])
 ```
 
-`genSum[T]` is limited to sealed traits with case-class variants only — enums and case objects need
-the explicit form plus `value(Gen.const(theCase): Gen[theCase.type])` per no-arg variant.
+`genSum[T]` works uniformly for sealed hierarchies and Scala 3 `enum`s, including those
+whose variants are case objects or no-arg cases — the macro emits `Gen.const` entries for
+singleton variants and `genFun` entries for parametrised ones.
 
 Built-in Choosers:
 
@@ -90,7 +93,7 @@ scope a chooser to a particular build context — e.g., uniform everywhere, but 
 | `genFun[T]`                        | Register a case class / plain class primary constructor as a generator. Returns `TypedEntry[(Gen[P0], Gen[P1], …), Gen[T]]`.                                                                                                                    |
 | `genFun(f)`                        | Register an arbitrary function value (lambda or eta-expanded method ref) as a generator. Param / return types inferred from `f`.                                                                                                                |
 | `genTrait[T]`                      | Combine per-subtype `Gen[Sub_i]` entries into a `Gen[T]` for a sealed trait / abstract class / enum. Consumes a `Chooser`.                                                                                                                      |
-| `genSum[T]`                        | Bundle: `genTrait[T]` + `genFun[V_i]` for each variant + default `Chooser.uniform`. Case-class variants only.                                                                                                                                   |
+| `genSum[T]`                        | Bundle: `genTrait[T]` + per-variant entry (`genFun[V_i]` for case classes, `value(Gen.const(V_i))` for case objects / no-arg enum cases) + default `Chooser.uniform`.                                                                           |
 | `Chooser`                          | Pluggable pick strategy for `genTrait`. Built-ins: `uniform`, `weighted(ws*)`, `only(i)`; users can implement the trait directly.                                                                                                               |
 | Container helpers                  | `listOf[T]`, `nonEmptyListOf[T]`, `listOfN[T](n)`, `optionOf[T]`, `setOf[T]`, etc. Each registered entry wraps a ScalaCheck combinator and resolves element generators from the rest of the registry. See `Containers.scala` for the full list. |
 | `genRecursive[T](grow)`            | Size-bounded recursive `Gen[T]`. `grow` receives the self-reference; the base case is resolved *from the registry* (e.g. a `value(Gen.const(Leaf))` entry). Overload `genRecursive[T](maxSize)(grow)` caps depth regardless of ambient ScalaCheck size. |

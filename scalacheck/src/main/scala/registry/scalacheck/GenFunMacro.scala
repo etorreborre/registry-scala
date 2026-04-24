@@ -11,7 +11,10 @@ private[scalacheck] object GenFunMacro:
   def typeImpl[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Gen[T]]] =
     import quotes.reflect.*
 
-    val tpe = TypeRepr.of[T]
+    // Dealias so that nested / path-dependent references like `Outer.Inner` resolve to the underlying
+    // class symbol. Without this, `TypeRepr.of[Outer.Inner].typeSymbol.isClassDef` can return false
+    // for case classes declared inside a companion object.
+    val tpe = TypeRepr.of[T].dealias
     val sym = tpe.typeSymbol
     if !sym.isClassDef then
       report.errorAndAbort(s"genFun[T] expects a class type, got ${tpe.show}")
@@ -46,43 +49,49 @@ private[scalacheck] object GenFunMacro:
 
     // Build the `build: Seq[Any] => T` function that invokes the primary constructor. This is the same
     // constructor-call shape as FunMacros.funTypeImpl; we wrap it in Gen.combineGens at the outer level.
-    val buildFn: Expr[Seq[Any] => T] = '{ (vs: Seq[Any]) =>
-      ${
-        import quotes.reflect.*
-        val innerTpe = TypeRepr.of[T]
-        val innerCtor = innerTpe.typeSymbol.primaryConstructor
-        val innerValueParamLists: List[List[Symbol]] =
-          innerCtor.paramSymss.filterNot(_.headOption.exists(_.isType))
-        val innerFlat: List[Symbol] = innerValueParamLists.flatten
-        val innerParamTypes: List[TypeRepr] = innerFlat.map(innerTpe.memberType)
+    // Using the already-dealiased `tpe` + quoted `Type[t]` variant so that nested / path-dependent
+    // types (e.g. `Outer.Inner`) resolve to their underlying class symbol consistently across both
+    // the outer and inner quotes.
+    val tpeType: Type[?] = tpe.asType
+    val buildFn: Expr[Seq[Any] => T] = (tpeType: @unchecked) match
+      case '[t] =>
+        '{ (vs: Seq[Any]) =>
+          ${
+            import quotes.reflect.*
+            val innerTpe = TypeRepr.of[t].dealias
+            val innerCtor = innerTpe.typeSymbol.primaryConstructor
+            val innerValueParamLists: List[List[Symbol]] =
+              innerCtor.paramSymss.filterNot(_.headOption.exists(_.isType))
+            val innerFlat: List[Symbol] = innerValueParamLists.flatten
+            val innerParamTypes: List[TypeRepr] = innerFlat.map(innerTpe.memberType)
 
-        val argTerms: List[Term] = innerParamTypes.zipWithIndex.map { (pt, i) =>
-          pt.asType match
-            case '[p] => '{ vs(${ Expr(i) }).asInstanceOf[p] }.asTerm
-        }
-
-        val grouped: List[List[Term]] = {
-          var remaining = argTerms
-          innerValueParamLists.map { pl =>
-            val (take, rest) = remaining.splitAt(pl.length)
-            remaining = rest
-            take
-          }
-        }
-
-        val ctorSelect: Term = Select(New(TypeTree.of[T]), innerCtor)
-        val ctorTyped: Term = innerTpe match
-          case AppliedType(_, targs) =>
-            val targTrees = targs.map { t =>
-              t.asType match
-                case '[tt] => TypeTree.of[tt]
+            val argTerms: List[Term] = innerParamTypes.zipWithIndex.map { (pt, i) =>
+              pt.asType match
+                case '[p] => '{ vs(${ Expr(i) }).asInstanceOf[p] }.asTerm
             }
-            TypeApply(ctorSelect, targTrees)
-          case _ => ctorSelect
 
-        grouped.foldLeft(ctorTyped)((acc, argList) => Apply(acc, argList)).asExprOf[T]
-      }
-    }
+            val grouped: List[List[Term]] = {
+              var remaining = argTerms
+              innerValueParamLists.map { pl =>
+                val (take, rest) = remaining.splitAt(pl.length)
+                remaining = rest
+                take
+              }
+            }
+
+            val ctorSelect: Term = Select(New(TypeIdent(innerTpe.typeSymbol)), innerCtor)
+            val ctorTyped: Term = innerTpe match
+              case AppliedType(_, targs) =>
+                val targTrees = targs.map { t =>
+                  t.asType match
+                    case '[tt] => TypeTree.of[tt]
+                }
+                TypeApply(ctorSelect, targTrees)
+              case _ => ctorSelect
+
+            grouped.foldLeft(ctorTyped)((acc, argList) => Apply(acc, argList)).asExprOf[t]
+          }
+        }.asInstanceOf[Expr[Seq[Any] => T]]
 
     val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
       GenCombine.combineGens[T](args.asInstanceOf[Seq[Gen[?]]], $buildFn)
@@ -97,8 +106,20 @@ private[scalacheck] object GenFunMacro:
         '{ TypedEntry[ins & Tuple, Gen[T]]($entryExpr) }
 
   /** Value-driven: `genFun(f)` where `f: (A, B, ...) => R`. Extracts the function's parameter types +
-   * return type, wraps each in `Gen`, and emits an entry whose closure sequences the per-input `Gen`s
-   * via `GenCombine.combineGens` and applies `f` to the collected values. */
+   * return type, wraps each in `Gen`, and emits an entry whose closure sequences the per-input `Gen`s.
+   *
+   * If `R = Gen[T]` for some `T`, the entry's output is `Gen[T]` (not `Gen[Gen[T]]`): the closure
+   * uses `combineGensFlat` and the last step is a `flatMap` into `f(a, b, ...)`. This lets you
+   * register Gen-returning helpers directly, e.g.
+   * {{{
+   *   def genShelleyAddress(network: Network): Gen[ShelleyAddress] = ...
+   *   val registry = genFun(genShelleyAddress) +: value(network: Network)
+   *   registry.make[Gen[ShelleyAddress]]
+   * }}}
+   *
+   * Otherwise (the common case, `R` is a plain type), the closure uses `combineGens` with a `map`
+   * at the end and the entry's output is `Gen[R]`.
+   */
   def valueImpl[Fn: Type](f: Expr[Fn])(using Quotes): Expr[TypedEntry[? <: Tuple, ?]] =
     import quotes.reflect.*
 
@@ -120,8 +141,17 @@ private[scalacheck] object GenFunMacro:
       gt.asType match
         case '[gp] => '{ summon[Tag[gp]].tag }
     }
-    val outputTagExpr: Expr[LightTypeTag] = retType.asType match
-      case '[r] => '{ summon[Tag[Gen[r]]].tag }
+
+    // If retType is Gen[X], the output type of the entry is Gen[X] — X is the inner payload.
+    // Otherwise, the output is Gen[retType].
+    val genSym = TypeRepr.of[Gen[Any]].typeSymbol
+    val retIsGen: Option[TypeRepr] = retType.dealias match
+      case AppliedType(tycon, List(inner)) if tycon.typeSymbol == genSym => Some(inner)
+      case _                                                             => None
+
+    val outputPayloadType: TypeRepr = retIsGen.getOrElse(retType)
+    val outputTagExpr: Expr[LightTypeTag] = outputPayloadType.asType match
+      case '[o] => '{ summon[Tag[Gen[o]]].tag }
 
     val entryTypedExpr: Expr[TypedEntry[? <: Tuple, ?]] = retType.asType match
       case '[r] =>
@@ -139,9 +169,21 @@ private[scalacheck] object GenFunMacro:
           }
         }
 
-        val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
-          GenCombine.combineGens[r](args.asInstanceOf[Seq[Gen[?]]], $buildFn)
-        }
+        val closure: Expr[Seq[Any] => Any] = retIsGen match
+          case Some(innerTpe) =>
+            innerTpe.asType match
+              case '[inner] =>
+                // buildFn: Seq[Any] => Gen[inner]; `r` = Gen[inner] structurally
+                '{ (args: Seq[Any]) =>
+                  GenCombine.combineGensFlat[inner](
+                    args.asInstanceOf[Seq[Gen[?]]],
+                    $buildFn.asInstanceOf[Seq[Any] => Gen[inner]]
+                  )
+                }
+          case None =>
+            '{ (args: Seq[Any]) =>
+              GenCombine.combineGens[r](args.asInstanceOf[Seq[Gen[?]]], $buildFn)
+            }
 
         val entryExpr: Expr[Entry] =
           '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
@@ -149,7 +191,9 @@ private[scalacheck] object GenFunMacro:
         val insTpe = buildTupleType(genParamTypes)
         (insTpe.asType: @unchecked) match
           case '[ins] =>
-            '{ TypedEntry[ins & Tuple, Gen[r]]($entryExpr) }
+            outputPayloadType.asType match
+              case '[o] =>
+                '{ TypedEntry[ins & Tuple, Gen[o]]($entryExpr) }
 
     entryTypedExpr
 

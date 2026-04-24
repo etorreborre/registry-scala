@@ -58,6 +58,22 @@ class GenFunSpec extends Specification:
       sample.label === "FIXED"
       sample.value must beBetween(1, 10)
     }
+
+    "derive a Gen for a case class nested inside its companion object" >> {
+      // Regression: before dealias was added, TypeRepr.of[Outer.Inner].typeSymbol.isClassDef returned
+      // false for case classes declared inside a companion, forcing the user to fall back to genFun(f).
+      val r =
+        genFun[Outer] +:
+          genFun[Outer.Inner] +:
+          value(Gen.alphaStr: Gen[String]) +:
+          value(Gen.choose(1, 100): Gen[Int])
+
+      val gen = r.make[Gen[Outer]]
+      val sample = gen.pureApply(Gen.Parameters.default, Seed(11L))
+      sample must beAnInstanceOf[Outer]
+      sample.inner must beAnInstanceOf[Outer.Inner]
+      sample.inner.count must beBetween(1, 100)
+    }
   }
 
   "genFun(f) (value-driven)" should {
@@ -92,6 +108,36 @@ class GenFunSpec extends Specification:
 
       r.make[Gen[Greeting]].pureApply(Gen.Parameters.default, Seed(5L)) === Greeting("n=21")
     }
+
+    "accept a Gen-returning function: entry output is Gen[T] (not Gen[Gen[T]])" >> {
+      // Registering `f: A => Gen[B]` should produce a `Gen[B]` entry — the final combining step
+      // flatMaps into `f(...)` instead of wrapping it.
+      def mkPersonGen(age: Int): Gen[Person] =
+        Gen.alphaStr.map(name => Person(name, age))
+
+      val r =
+        genFun(mkPersonGen) +:
+          value(Gen.const(42): Gen[Int])
+
+      // Resolves as Gen[Person], not Gen[Gen[Person]].
+      val sample = r.make[Gen[Person]].pureApply(Gen.Parameters.default, Seed(9L))
+      sample must beAnInstanceOf[Person]
+      sample.age === 42
+    }
+
+    "Gen-returning function with multiple args chains both Gen inputs and internal Gen" >> {
+      def mkTaggedGen(label: String, max: Int): Gen[Tagged] =
+        Gen.choose(1, max).map(Tagged(label, _))
+
+      val r =
+        genFun(mkTaggedGen) +:
+          value(Gen.const("T"): Gen[String]) +:
+          value(Gen.const(10): Gen[Int])
+
+      val sample = r.make[Gen[Tagged]].pureApply(Gen.Parameters.default, Seed(13L))
+      sample.label === "T"
+      sample.value must beBetween(1, 10)
+    }
   }
 
 case class Person(name: String, age: Int)
@@ -99,3 +145,7 @@ case class Address(street: String, zip: Int)
 case class WithAddress(name: String, address: Address)
 case class Tagged(label: String, value: Int)
 case class Greeting(text: String)
+
+case class Outer(label: String, inner: Outer.Inner)
+object Outer:
+  case class Inner(count: Int)

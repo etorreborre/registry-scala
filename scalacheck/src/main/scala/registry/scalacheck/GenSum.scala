@@ -1,59 +1,30 @@
 package registry.scalacheck
 
-import scala.compiletime.{erasedValue, summonFrom}
 import scala.deriving.Mirror
-import org.scalacheck.Gen
-import registry.{Registry, value}
+import registry.Registry
 
 /**
  * Convenience bundle for a sealed trait / sealed abstract class / Scala 3 `enum` `T`.
  *
- * `genSum[T]` expands at compile time into:
- *   `genTrait[T] *: <per-variant entry> *: … *: value(Chooser.uniform) *: Registry.empty`
+ * `genSum[T]` expands at compile time into a `Registry` containing:
+ *   - `genTrait[T]` — combines per-variant `Gen`s into a `Gen[T]`
+ *   - one entry per variant `V_i`:
+ *       * `value(Gen.const(theSingleton): Gen[V_i])` for no-arg variants (case object / no-arg enum case)
+ *       * a generated `genFun[V_i]`-style entry for parametrised variants
+ *   - `value(Chooser.uniform)` — the default chooser
  *
- * where each `<per-variant entry>` is either:
- *   - `genFun[V_i]` if `V_i` is a case class / plain class with a primary constructor, or
- *   - `value(Gen.const(theSingleton): Gen[V_i])` if `V_i` is a no-arg variant (case object
- *     or no-arg enum case) — detected at compile time via `Mirror.Singleton`.
+ * Both phantom type parameters of the resulting registry are computed by [[GenSumMacro]] so the
+ * compile-time tracker sees what's produced AND what variant-field inputs are still required:
+ *   - `AllOuts` includes `Gen[T]`, every `Gen[V_i]`, and `Chooser`
+ *   - `AllIns` is the deduplicated union of every variant constructor's `Gen[FieldType]` requirement,
+ *     with the internally-produced types (Chooser, the variant Gens, `Gen[T]` itself) filtered out
  *
- * You only need to add leaf generators for the fields of non-singleton variants:
- * {{{
- * val r = genSum[Animal] *:
- *         value(Gen.alphaStr: Gen[String]) *:
- *         value(Gen.choose(1, 9): Gen[Int]) *:
- *         Registry.empty
- * val gen = r.make[Gen[Animal]]
- * }}}
+ * This means a downstream `+:` strict-prepend check correctly reports a missing variant field type
+ * that the surrounding registry has not provided — for example `genSum[Animal] +: Registry.empty`
+ * fails to compile if `Animal.Dog`'s `String` / `Int` fields don't have registered `Gen`s elsewhere.
  *
- * To override the default chooser, prepend a `value(Chooser.weighted(…))` above `genSum[T]` — LIFO means
- * the most recent entry wins.
+ * To override the default chooser, prepend `value(Chooser.weighted(…))` above `genSum[T]` —
+ * LIFO means the most recent entry wins.
  */
-transparent inline def genSum[T](using m: Mirror.SumOf[T]): Registry[EmptyTuple, EmptyTuple] =
-  val base: Registry[EmptyTuple, EmptyTuple] = value(Chooser.uniform: Chooser) -: Registry.empty
-  val withVariants: Registry[EmptyTuple, EmptyTuple] = addVariantEntries[m.MirroredElemTypes](base)
-  genTrait[T].entry -: withVariants
-
-/**
- * Recursively prepend a raw `Entry` for each variant. For no-arg variants (case objects /
- * no-arg enum cases) we emit a `value(Gen.const(singleton))` entry — the `Mirror.Singleton`
- * instance IS the singleton value (it extends `Product`), so `fromProduct(EmptyTuple)` yields
- * it directly. For parametrised variants we fall through to `genFun[h]`.
- *
- * We drop into raw `Entry`-based prepends (`-:`) because the `*:` / `+:` overloads need a
- * concrete `Ins` tuple, which clashes with the existential `? <: Tuple` returned by the
- * transparent `genFun` macro inside this inline match. The bundle is therefore untyped at the
- * phantom level; once merged with a user registry via `*:`, the user-side entries still get
- * their type tracking.
- */
-private transparent inline def addVariantEntries[Ts <: Tuple](
-    acc: Registry[EmptyTuple, EmptyTuple]
-): Registry[EmptyTuple, EmptyTuple] =
-  inline erasedValue[Ts] match
-    case _: EmptyTuple => acc
-    case _: (h *: t)   =>
-      summonFrom {
-        case v: ValueOf[`h`] =>
-          value(Gen.const(v.value): Gen[h]).entry -: addVariantEntries[t](acc)
-        case _ =>
-          genFun[h].entry -: addVariantEntries[t](acc)
-      }
+transparent inline def genSum[T](using m: Mirror.SumOf[T]): Registry[? <: Tuple, ? <: Tuple] =
+  ${ GenSumMacro.impl[T] }

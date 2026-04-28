@@ -12,8 +12,8 @@ private[registry] object StrictPrependMacro:
   )(using Quotes): Expr[Registry[Concat[EIns, AllIns], EOut *: AllOuts]] =
     import quotes.reflect.*
     checkOrError(
-      newIns = tupleElems(TypeRepr.of[EIns]),
-      producedBelow = tupleElems(TypeRepr.of[AllOuts])
+      newIns = TypeRendering.dedupe(tupleElems(TypeRepr.of[EIns])),
+      producedBelow = TypeRendering.dedupe(tupleElems(TypeRepr.of[AllOuts]))
     )
     '{
       Registry[Concat[EIns, AllIns], EOut *: AllOuts](
@@ -35,8 +35,9 @@ private[registry] object StrictPrependMacro:
   )(using Quotes): Expr[Registry[Concat[LIns, RIns], Concat[LOuts, ROuts]]] =
     import quotes.reflect.*
     checkOrError(
-      newIns = tupleElems(TypeRepr.of[LIns]),
-      producedBelow = tupleElems(TypeRepr.of[LOuts]) ++ tupleElems(TypeRepr.of[ROuts])
+      newIns = TypeRendering.dedupe(tupleElems(TypeRepr.of[LIns])),
+      producedBelow =
+        TypeRendering.dedupe(tupleElems(TypeRepr.of[LOuts]) ++ tupleElems(TypeRepr.of[ROuts]))
     )
     '{
       Registry[Concat[LIns, RIns], Concat[LOuts, ROuts]](
@@ -53,7 +54,7 @@ private[registry] object StrictPrependMacro:
   )(using Quotes): Expr[Registry[Concat[LIns, RIns], LOut *: ROut *: EmptyTuple]] =
     import quotes.reflect.*
     checkOrError(
-      newIns = tupleElems(TypeRepr.of[LIns]),
+      newIns = TypeRendering.dedupe(tupleElems(TypeRepr.of[LIns])),
       producedBelow = List(TypeRepr.of[ROut])
     )
     '{
@@ -76,8 +77,8 @@ private[registry] object StrictPrependMacro:
   )(using Quotes): Expr[Registry[Concat[LIns, RIns], Concat[LOuts, ROut *: EmptyTuple]]] =
     import quotes.reflect.*
     checkOrError(
-      newIns = tupleElems(TypeRepr.of[LIns]),
-      producedBelow = tupleElems(TypeRepr.of[LOuts]) :+ TypeRepr.of[ROut]
+      newIns = TypeRendering.dedupe(tupleElems(TypeRepr.of[LIns])),
+      producedBelow = TypeRendering.dedupe(tupleElems(TypeRepr.of[LOuts]) :+ TypeRepr.of[ROut])
     )
     '{
       Registry[Concat[LIns, RIns], Concat[LOuts, ROut *: EmptyTuple]](
@@ -103,6 +104,13 @@ private[registry] object StrictPrependMacro:
       tpe.dealias match
         case AppliedType(tycon, List(h, t)) if tycon.typeSymbol.fullName == "scala.*:" =>
           h :: tupleElems(t)
+        // `Concat[A, B]` (registry.TypeChecks.Concat) sometimes appears un-reduced when one of
+        // its arguments comes from a `transparent inline` macro that itself produces a tuple type.
+        // Manually walk both halves so the chain isn't truncated.
+        case AppliedType(tycon, List(a, b))
+            if tycon.typeSymbol.fullName.endsWith("TypeChecks$.Concat") ||
+               tycon.typeSymbol.fullName.endsWith("TypeChecks.Concat") =>
+          tupleElems(a) ++ tupleElems(b)
         case _ => Nil
 
   private def formatError(using

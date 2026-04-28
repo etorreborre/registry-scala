@@ -12,8 +12,8 @@ private[registry] object MakeSafeMacro:
   )(using Quotes): Expr[T] =
     import quotes.reflect.*
 
-    val insTpes = tupleElems(TypeRepr.of[Ins])
-    val outsTpes = tupleElems(TypeRepr.of[Outs])
+    val insTpes = TypeRendering.dedupe(tupleElems(TypeRepr.of[Ins]))
+    val outsTpes = TypeRendering.dedupe(tupleElems(TypeRepr.of[Outs]))
     val tTpe = TypeRepr.of[T]
 
     val produced = outsTpes.exists(_ =:= tTpe)
@@ -34,6 +34,13 @@ private[registry] object MakeSafeMacro:
       tpe.dealias match
         case AppliedType(tycon, List(h, t)) if tycon.typeSymbol.fullName == "scala.*:" =>
           h :: tupleElems(t)
+        // `Concat[A, B]` (registry.TypeChecks.Concat) sometimes appears un-reduced when one of
+        // its arguments comes from a `transparent inline` macro that itself produces a tuple type.
+        // Manually walk both halves so the chain isn't truncated.
+        case AppliedType(tycon, List(a, b))
+            if tycon.typeSymbol.fullName.endsWith("TypeChecks$.Concat") ||
+               tycon.typeSymbol.fullName.endsWith("TypeChecks.Concat") =>
+          tupleElems(a) ++ tupleElems(b)
         case _ => Nil
 
   private def formatNotProduced(using

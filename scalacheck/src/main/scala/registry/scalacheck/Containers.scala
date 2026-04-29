@@ -59,6 +59,35 @@ def optionOf[T](using
 ): TypedEntry[Gen[T] *: EmptyTuple, Gen[Option[T]]] =
   mk1[T, Option[T]](Gen.option(_))
 
+/** Register `Gen[T] => Gen[IndexedSeq[T]]` — zero-or-more via `Gen.containerOf[Vector, T]`
+ *  (an `IndexedSeq`). */
+def indexedSeqOf[T](using
+    inTag: Tag[Gen[T]],
+    outTag: Tag[Gen[IndexedSeq[T]]]
+): TypedEntry[Gen[T] *: EmptyTuple, Gen[IndexedSeq[T]]] =
+  mk1[T, IndexedSeq[T]](Gen.containerOf[Vector, T](_))
+
+/** Register `Gen[T] => Gen[IndexedSeq[T]]` — one-or-more via `Gen.nonEmptyContainerOf[Vector, T]`. */
+def nonEmptyIndexedSeqOf[T](using
+    inTag: Tag[Gen[T]],
+    outTag: Tag[Gen[IndexedSeq[T]]]
+): TypedEntry[Gen[T] *: EmptyTuple, Gen[IndexedSeq[T]]] =
+  mk1[T, IndexedSeq[T]](Gen.nonEmptyContainerOf[Vector, T](_))
+
+/** Register `Gen[T] => Gen[IndexedSeq[T]]` — exactly `n` elements via `Gen.containerOfN[Vector, T]`. */
+def indexedSeqOfN[T](n: Int)(using
+    inTag: Tag[Gen[T]],
+    outTag: Tag[Gen[IndexedSeq[T]]]
+): TypedEntry[Gen[T] *: EmptyTuple, Gen[IndexedSeq[T]]] =
+  mk1[T, IndexedSeq[T]](Gen.containerOfN[Vector, T](n, _))
+
+/** Register `Gen[T] => Gen[IndexedSeq[T]]` — size between `min` and `max` inclusive. */
+def indexedSeqOfMinMax[T](min: Int, max: Int)(using
+    inTag: Tag[Gen[T]],
+    outTag: Tag[Gen[IndexedSeq[T]]]
+): TypedEntry[Gen[T] *: EmptyTuple, Gen[IndexedSeq[T]]] =
+  mk1[T, IndexedSeq[T]](g => Gen.chooseNum(min, max).flatMap(Gen.containerOfN[Vector, T](_, g)))
+
 /** Register `Gen[T] => Gen[Set[T]]` via `Gen.containerOf[Set, T]`. */
 def setOf[T](using
     inTag: Tag[Gen[T]],

@@ -113,6 +113,33 @@ def eitherOf[L, R](using
 ): TypedEntry[Gen[L] *: Gen[R] *: EmptyTuple, Gen[Either[L, R]]] =
   mk2[L, R, Either[L, R]](Gen.either(_, _))
 
+/** Register `(Gen[S], Gen[T]) => Gen[(S, T)]`. */
+def pairOf[S, T](using
+    sTag: Tag[Gen[S]],
+    tTag: Tag[Gen[T]],
+    outTag: Tag[Gen[(S, T)]]
+): TypedEntry[Gen[S] *: Gen[T] *: EmptyTuple, Gen[(S, T)]] =
+  mk2[S, T, (S, T)]((gS, gT) => gS.flatMap(s => gT.map(t => (s, t))))
+
+/** Register `(Gen[S], Gen[T], Gen[U]) => Gen[(S, T, U)]`. */
+def tripleOf[S, T, U](using
+    sTag: Tag[Gen[S]],
+    tTag: Tag[Gen[T]],
+    uTag: Tag[Gen[U]],
+    outTag: Tag[Gen[(S, T, U)]]
+): TypedEntry[Gen[S] *: Gen[T] *: Gen[U] *: EmptyTuple, Gen[(S, T, U)]] =
+  TypedEntry(
+    Entry(
+      inputs = List(sTag.tag, tTag.tag, uTag.tag),
+      output = outTag.tag,
+      invoke = args =>
+        val gS = args(0).asInstanceOf[Gen[S]]
+        val gT = args(1).asInstanceOf[Gen[T]]
+        val gU = args(2).asInstanceOf[Gen[U]]
+        gS.flatMap(s => gT.flatMap(t => gU.map(u => (s, t, u))))
+    )
+  )
+
 /** Register `(Gen[K], Gen[V]) => Gen[Map[K, V]]` via `Gen.mapOf`. */
 def mapOf[K, V](using
     kTag: Tag[Gen[K]],

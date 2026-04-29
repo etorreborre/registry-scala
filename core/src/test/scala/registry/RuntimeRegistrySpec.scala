@@ -357,11 +357,11 @@ class RuntimeRegistrySpec extends Specification:
         r.makeSafe[Long]
       """)
       errs must haveSize(1)
-      errs.head.message === """No entry in this registry produces the type Long.
-                              |
-                              |Produced types:
+      errs.head.message === """Produced types:
                               |  Int
-                              |  String""".stripMargin
+                              |  String
+                              |
+                              |No entry in this registry produces the type Long.""".stripMargin
     }
 
     "fail to compile listing missing inputs and produced outputs, one per line" >> {
@@ -372,17 +372,17 @@ class RuntimeRegistrySpec extends Specification:
         r.makeSafe[App]
       """)
       errs must haveSize(1)
-      errs.head.message === """Some registered entries require inputs that are not produced by this registry.
+      errs.head.message === """Produced outputs:
+                              |  App
+                              |  Db
+                              |  DbConfig
                               |
                               |Missing inputs:
                               |  AppName
                               |  Host
                               |  Int
                               |
-                              |Produced outputs:
-                              |  App
-                              |  Db
-                              |  DbConfig""".stripMargin
+                              |Some registered entries require inputs that are not produced by this registry.""".stripMargin
     }
 
     "use the same layout for a single missing input" >> {
@@ -393,14 +393,14 @@ class RuntimeRegistrySpec extends Specification:
         r.makeSafe[DbConfig]
       """)
       errs must haveSize(1)
-      errs.head.message === """Some registered entries require inputs that are not produced by this registry.
+      errs.head.message === """Produced outputs:
+                              |  DbConfig
+                              |  Host
                               |
                               |Missing inputs:
                               |  Int
                               |
-                              |Produced outputs:
-                              |  DbConfig
-                              |  Host""".stripMargin
+                              |Some registered entries require inputs that are not produced by this registry.""".stripMargin
     }
 
     "compile once the missing input is added" >> {
@@ -439,13 +439,13 @@ class RuntimeRegistrySpec extends Specification:
         r.makeSafe[NameClash.NeedsFirst]
       """)
       errs must haveSize(1)
-      errs.head.message === """Some registered entries require inputs that are not produced by this registry.
+      errs.head.message === """Produced outputs:
+                              |  NeedsFirst
+                              |  registry.NameClash.second.Coin
                               |
                               |Missing inputs:
                               |  registry.NameClash.first.Coin
                               |
-                              |Produced outputs:
-                              |  NeedsFirst
-                              |  registry.NameClash.second.Coin""".stripMargin
+                              |Some registered entries require inputs that are not produced by this registry.""".stripMargin
     }
   }; br

@@ -116,7 +116,8 @@ class RegistrySpec extends Specification:
         val r = fun[DbConfig] +: Registry.empty
       """)
       errs must haveSize(1)
-      errs.head.message === """+: cannot prepend this entry because some inputs cannot be produced by the rest of the registry.
+      errs.head.message === """+: cannot prepend this entry because some inputs cannot be produced by the rest of the registry:
+                              |    fun[DbConfig]
                               |
                               |Missing inputs:
                               |  Host

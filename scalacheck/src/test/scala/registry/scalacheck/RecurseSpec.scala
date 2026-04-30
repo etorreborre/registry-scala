@@ -10,19 +10,18 @@ class RecurseSpec extends Specification:
 
   "genRecursive[T]" should {
     "build a recursive Gen[T] that resolves its base case from the registry" >> {
-      // Base case (Leaf) is registered as a plain value(Gen.const(...)) elsewhere in the registry.
+      // Base case (Leaf) is registered as `gen(Leaf: Tree)` — `Gen.const` is applied internally.
       // genRecursive picks it up as input — the resolver skips genRecursive's own entry for that lookup.
       val r =
         genRecursive[Tree] { self =>
           Gen.zip(self, self).map((l, r) => Node(l, r): Tree)
         } +:
-          value(Gen.const(Leaf: Tree): Gen[Tree]) +:
-          Registry.empty
+          gen(Leaf: Tree)
 
       val samples = (0 until 30).map(i =>
         r.make[Gen[Tree]].pureApply(Gen.Parameters.default.withSize(8), Seed(i.toLong))
       )
-      samples.exists(_ == Leaf) must beTrue
+      samples must contain(Leaf)
       samples.exists(_.isInstanceOf[Node]) must beTrue
     }
 
@@ -31,8 +30,7 @@ class RecurseSpec extends Specification:
         genRecursive[Tree](maxSize = 2) { self =>
           Gen.zip(self, self).map((l, r) => Node(l, r): Tree)
         } +:
-          value(Gen.const(Leaf: Tree): Gen[Tree]) +:
-          Registry.empty
+          gen(Leaf: Tree)
 
       def depth(t: Tree): Int = t match
         case Leaf       => 0
@@ -49,7 +47,7 @@ class RecurseSpec extends Specification:
       // cycle detection path when the only entry producing Gen[Tree] is the recursive one itself.
       val r = genRecursive[Tree] { self =>
         Gen.zip(self, self).map((l, r) => Node(l, r): Tree)
-      } -: Registry.empty
+      } *: Registry.empty
 
       r.make[Gen[Tree]] must throwA[RuntimeException].like { case e =>
         e.getMessage must contain("cycle").or(contain("No entry"))

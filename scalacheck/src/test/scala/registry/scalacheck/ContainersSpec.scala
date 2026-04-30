@@ -12,8 +12,7 @@ class ContainersSpec extends Specification:
     "build a Gen[List[T]] from a registered Gen[T]" >> {
       val r =
         listOf[Int] +:
-          value(Gen.choose(1, 9): Gen[Int]) +:
-          Registry.empty
+          gen(Gen.choose(1, 9))
 
       val sample = r.make[Gen[List[Int]]].pureApply(Gen.Parameters.default, Seed(3L))
       sample must contain(beBetween(1, 9)).foreach
@@ -24,8 +23,7 @@ class ContainersSpec extends Specification:
     "always produce a non-empty list" >> {
       val r =
         nonEmptyListOf[Int] +:
-          value(Gen.choose(1, 9): Gen[Int]) +:
-          Registry.empty
+          gen(Gen.choose(1, 9))
 
       val sample = r.make[Gen[List[Int]]].pureApply(Gen.Parameters.default.withSize(5), Seed(2L))
       sample must not(beEmpty)
@@ -36,8 +34,7 @@ class ContainersSpec extends Specification:
     "produce a list of exactly n elements" >> {
       val r =
         listOfN[Int](4) +:
-          value(Gen.choose(0, 100): Gen[Int]) +:
-          Registry.empty
+          gen(Gen.choose(0, 100))
 
       r.make[Gen[List[Int]]].pureApply(Gen.Parameters.default, Seed(1L)) must haveSize(4)
     }
@@ -47,11 +44,10 @@ class ContainersSpec extends Specification:
     "produce lists with size in [min, max]" >> {
       val r =
         listOfMinMax[Int](2, 5) +:
-          value(Gen.choose(0, 100): Gen[Int]) +:
-          Registry.empty
+          gen(Gen.choose(0, 100)) 
 
-      val gen     = r.make[Gen[List[Int]]]
-      val samples = (0 until 30).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genList = r.make[Gen[List[Int]]]
+      val samples = (0 until 30).map(i => genList.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.map(_.size) must contain(beBetween(2, 5)).foreach
     }
   }
@@ -60,11 +56,10 @@ class ContainersSpec extends Specification:
     "produce Option[T] values — mix of Some and None" >> {
       val r =
         optionOf[Int] +:
-          value(Gen.const(7): Gen[Int]) +:
-          Registry.empty
+          gen(7)
 
-      val gen     = r.make[Gen[Option[Int]]]
-      val samples = (0 until 50).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genOpt = r.make[Gen[Option[Int]]]
+      val samples = (0 until 50).map(i => genOpt.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isDefined) must beTrue
       samples.exists(_.isEmpty) must beTrue
       samples.flatten must contain(7).forall
@@ -75,8 +70,7 @@ class ContainersSpec extends Specification:
     "produce Set[T] values — no duplicates" >> {
       val r =
         setOf[Int] +:
-          value(Gen.choose(1, 5): Gen[Int]) +:
-          Registry.empty
+          gen(Gen.choose(1, 5)) 
 
       val sample = r.make[Gen[Set[Int]]].pureApply(Gen.Parameters.default, Seed(4L))
       sample must contain(beBetween(1, 5)).foreach
@@ -87,12 +81,11 @@ class ContainersSpec extends Specification:
     "combine two Gens into a Gen[Either]" >> {
       val r =
         eitherOf[String, Int] +:
-          value(Gen.const("oops"): Gen[String]) +:
-          value(Gen.const(42): Gen[Int]) +:
-          Registry.empty
+          gen("oops") +:
+          gen(42) 
 
-      val gen     = r.make[Gen[Either[String, Int]]]
-      val samples = (0 until 30).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genE = r.make[Gen[Either[String, Int]]]
+      val samples = (0 until 30).map(i => genE.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isLeft) must beTrue
       samples.exists(_.isRight) must beTrue
       samples must contain((e: Either[String, Int]) => e.fold(_ === "oops", _ === 42)).foreach
@@ -103,9 +96,8 @@ class ContainersSpec extends Specification:
     "build a Gen[Map[K, V]] from Gens for both sides" >> {
       val r =
         mapOf[String, Int] +:
-          value(Gen.alphaLowerStr.suchThat(_.nonEmpty): Gen[String]) +:
-          value(Gen.choose(0, 100): Gen[Int]) +:
-          Registry.empty
+          gen(Gen.alphaLowerStr.suchThat(_.nonEmpty)) +:
+          gen(Gen.choose(0, 100))
 
       val sample = r.make[Gen[Map[String, Int]]].pureApply(Gen.Parameters.default, Seed(8L))
       sample.values must contain(beBetween(0, 100)).foreach
@@ -116,8 +108,7 @@ class ContainersSpec extends Specification:
     "produce a list of exactly n elements (n >= 1)" >> {
       val r =
         nonEmptyListOfN[Int](3) +:
-          value(Gen.choose(0, 100): Gen[Int]) +:
-          Registry.empty
+          gen(Gen.choose(0, 100)) 
 
       r.make[Gen[List[Int]]].pureApply(Gen.Parameters.default, Seed(1L)) must haveSize(3)
     }
@@ -131,8 +122,7 @@ class ContainersSpec extends Specification:
     "produce sets of exactly n elements when the element gen supplies enough distinct values" >> {
       val r =
         setOfN[Int](5) +:
-          value(Gen.choose(1, 100): Gen[Int]) +:
-          Registry.empty
+          gen(Gen.choose(1, 100))
 
       r.make[Gen[Set[Int]]].pureApply(Gen.Parameters.default, Seed(2L)) must haveSize(5)
     }
@@ -142,22 +132,19 @@ class ContainersSpec extends Specification:
     "produce maps of exactly n distinct keys" >> {
       val r =
         mapOfN[Int, String](4) +:
-          value(Gen.choose(1, 1000): Gen[Int]) +:
-          value(Gen.alphaStr: Gen[String]) +:
-          Registry.empty
+          gen(Gen.choose(1, 1000)) +:
+          gen(Gen.alphaStr)
 
       r.make[Gen[Map[Int, String]]].pureApply(Gen.Parameters.default, Seed(3L)) must haveSize(4)
     }
   }
 
-  "container helpers compose with genFun" >> {
+  "container helpers compose with gen" >> {
     case class Bag(items: List[String])
     val r =
-      genFun[Bag] +:
+      gen[Bag] +:
         listOf[String] +:
-        value(Gen.alphaStr: Gen[String]) +:
-        Registry.empty
+        gen(Gen.alphaStr)
 
     r.make[Gen[Bag]].pureApply(Gen.Parameters.default, Seed(1L)) must beAnInstanceOf[Bag]
   }
-

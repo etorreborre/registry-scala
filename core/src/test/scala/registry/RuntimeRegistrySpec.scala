@@ -318,14 +318,14 @@ class RuntimeRegistrySpec extends Specification:
 
     "does not fire if the path elements don't appear in order" >> {
       val r =
-        (fun[Chain.DbConfig] +: value(Chain.Host("base")) +: value(5432) +: Registry.empty)
+        (fun[Chain.DbConfig] +: value(Chain.Host("base")) +: value(5432))
           .specializePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("never"))
       // We never build an App or Db, so [App, Db] is not a subsequence of the resolution stack.
       r.make[Chain.DbConfig].host === Chain.Host("base")
     }
 
     "equivalence: specialize[Ctx, T](v) behaves identically to specializePath[Ctx *: EmptyTuple, T](v)" >> {
-      val base = fun[DbConfig] +: value(Host("base")) +: value(5432) +: Registry.empty
+      val base = fun[DbConfig] +: value(Host("base")) +: value(5432)
       val a = base.specialize[DbConfig, Host](Host("specialized"))
       val b = base.specializePath[DbConfig *: EmptyTuple, Host](Host("specialized"))
 

@@ -6,7 +6,7 @@ import izumi.reflect.macrortti.LightTypeTag
 import org.scalacheck.Gen
 import registry.{Entry, TypedEntry}
 
-private[scalacheck] object GenFunMacro:
+private[scalacheck] object GenMacro:
 
   def typeImpl[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Gen[T]]] =
     import quotes.reflect.*
@@ -17,18 +17,18 @@ private[scalacheck] object GenFunMacro:
     val tpe = TypeRepr.of[T].dealias
     val sym = tpe.typeSymbol
     if !sym.isClassDef then
-      report.errorAndAbort(s"genFun[T] expects a class type, got ${tpe.show}")
+      report.errorAndAbort(s"gen[T] expects a class type, got ${tpe.show}")
     if sym.flags.is(Flags.Trait) then
-      report.errorAndAbort(s"genFun[T] cannot instantiate trait ${tpe.show}")
+      report.errorAndAbort(s"gen[T] cannot instantiate trait ${tpe.show}")
     if sym.flags.is(Flags.Abstract) then
-      report.errorAndAbort(s"genFun[T] cannot instantiate abstract class ${tpe.show}")
+      report.errorAndAbort(s"gen[T] cannot instantiate abstract class ${tpe.show}")
     if sym.flags.is(Flags.Module) then
       report.errorAndAbort(
-        s"genFun[T] cannot register an object; use value(Gen.const(...)) instead"
+        s"gen[T] cannot register an object; use gen(theObject) instead"
       )
     val ctor = sym.primaryConstructor
     if ctor == Symbol.noSymbol then
-      report.errorAndAbort(s"genFun[T]: ${tpe.show} has no primary constructor")
+      report.errorAndAbort(s"gen[T]: ${tpe.show} has no primary constructor")
 
     val valueParamLists: List[List[Symbol]] =
       ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
@@ -105,31 +105,92 @@ private[scalacheck] object GenFunMacro:
       case '[ins] =>
         '{ TypedEntry[ins & Tuple, Gen[T]]($entryExpr) }
 
-  /** Value-driven: `genFun(f)` where `f: (A, B, ...) => R`. Extracts the function's parameter types +
-   * return type, wraps each in `Gen`, and emits an entry whose closure sequences the per-input `Gen`s.
+  /** Value-driven: `gen(x)`. Dispatches on the inferred type:
+   *
+   *   - Function `(A, ...) => R`: builds an entry whose closure sequences the per-input `Gen`s and
+   *     applies `f`. If `R = Gen[T]` for some `T`, the entry's output is `Gen[T]` — the closure uses
+   *     `combineGensFlat` and the last step is a `flatMap` so we don't double-wrap into `Gen[Gen[T]]`.
+   *   - `Gen[T]`: registered as a zero-input entry of output `Gen[T]`.
+   *   - Any other value `T`: wrapped via `Gen.const` into a zero-input entry of output `Gen[T]`.
+   *
+   * Literal constant types (e.g. `gen(42)` ⇒ `Gen[Int]`, not `Gen[42]`) are widened to their base
+   * type so the registered Gen is discoverable by its natural type.
+   */
+  def valueImpl[X: Type](x: Expr[X])(using Quotes): Expr[TypedEntry[? <: Tuple, ?]] =
+    import quotes.reflect.*
+
+    val tpe = TypeRepr.of[X].dealias
+    val effectiveTpe = tpe match
+      case ConstantType(_) => tpe.widen
+      case _               => tpe
+    val genSym = TypeRepr.of[Gen[Any]].typeSymbol
+
+    effectiveTpe match
+      case AppliedType(tycon, _) if isFunctionType(tycon) =>
+        functionValueImpl(effectiveTpe, x)
+      case AppliedType(tycon, List(inner)) if tycon.typeSymbol == genSym =>
+        genPassthroughImpl(inner, x)
+      case _ =>
+        constLiftImpl(effectiveTpe, x)
+
+  /** `gen(g: Gen[T])` — register the existing Gen as a zero-input entry. */
+  private def genPassthroughImpl(using Quotes)(
+      inner: quotes.reflect.TypeRepr,
+      x: Expr[?]
+  ): Expr[TypedEntry[? <: Tuple, ?]] =
+    inner.asType match
+      case '[t] =>
+        val genExpr = x.asExprOf[Gen[t]]
+        '{
+          TypedEntry[EmptyTuple, Gen[t]](
+            Entry(Nil, summon[Tag[Gen[t]]].tag, _ => $genExpr)
+          )
+        }
+
+  /** `gen(v: T)` for non-function, non-Gen `v` — wrap in `Gen.const`. The passed `tpe` may have been
+   * widened from the original argument type (e.g. literal `42` widened from `42` to `Int`); the
+   * subtyping cast in `asExprOf` is safe because the widened type is always a supertype.
+   */
+  private def constLiftImpl(using Quotes)(
+      tpe: quotes.reflect.TypeRepr,
+      x: Expr[?]
+  ): Expr[TypedEntry[? <: Tuple, ?]] =
+    tpe.asType match
+      case '[t] =>
+        val xt = x.asExprOf[t]
+        '{
+          TypedEntry[EmptyTuple, Gen[t]](
+            Entry(Nil, summon[Tag[Gen[t]]].tag, _ => Gen.const($xt))
+          )
+        }
+
+  /** `gen(f)` where `f: (A, B, ...) => R`. Extracts the function's parameter types + return type,
+   * wraps each in `Gen`, and emits an entry whose closure sequences the per-input `Gen`s.
    *
    * If `R = Gen[T]` for some `T`, the entry's output is `Gen[T]` (not `Gen[Gen[T]]`): the closure
    * uses `combineGensFlat` and the last step is a `flatMap` into `f(a, b, ...)`. This lets you
    * register Gen-returning helpers directly, e.g.
    * {{{
    *   def genShelleyAddress(network: Network): Gen[ShelleyAddress] = ...
-   *   val registry = genFun(genShelleyAddress) +: value(network: Network)
+   *   val registry = gen(genShelleyAddress) +: gen(network: Network)
    *   registry.make[Gen[ShelleyAddress]]
    * }}}
    *
    * Otherwise (the common case, `R` is a plain type), the closure uses `combineGens` with a `map`
    * at the end and the entry's output is `Gen[R]`.
    */
-  def valueImpl[Fn: Type](f: Expr[Fn])(using Quotes): Expr[TypedEntry[? <: Tuple, ?]] =
+  private def functionValueImpl(using Quotes)(
+      fnTpe: quotes.reflect.TypeRepr,
+      f: Expr[?]
+  ): Expr[TypedEntry[? <: Tuple, ?]] =
     import quotes.reflect.*
 
-    val tpe = TypeRepr.of[Fn].dealias
-    val (paramTypes, retType) = tpe match
+    val (paramTypes, retType) = fnTpe match
       case AppliedType(tycon, targs) if isFunctionType(tycon) =>
         (targs.init, targs.last)
       case other =>
         report.errorAndAbort(
-          s"genFun(f) expects a FunctionN value (lambda or eta-expanded method), got ${other.show}"
+          s"gen(f) expects a FunctionN value (lambda or eta-expanded method), got ${other.show}"
         )
 
     val genParamTypes: List[TypeRepr] = paramTypes.map { pt =>
@@ -158,10 +219,7 @@ private[scalacheck] object GenFunMacro:
         val buildFn: Expr[Seq[Any] => r] = '{ (vs: Seq[Any]) =>
           ${
             import quotes.reflect.*
-            val innerParams = TypeRepr.of[Fn].dealias match
-              case AppliedType(_, targs) => targs.init
-              case _                     => Nil
-            val argTerms: List[Term] = innerParams.zipWithIndex.map { (pt, i) =>
+            val argTerms: List[Term] = paramTypes.zipWithIndex.map { (pt, i) =>
               pt.asType match
                 case '[p] => '{ vs(${ Expr(i) }).asInstanceOf[p] }.asTerm
             }

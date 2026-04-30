@@ -17,7 +17,7 @@ import registry.{Entry, TypedEntry}
  * (uniform, weighted, deterministic), or use `specialize[Ctx, Chooser](...)` to scope a chooser to a
  * particular build context.
  *
- * Typical use: prepend `genTrait[T]` *above* the per-subtype `genFun[Sub_i]` entries so that
+ * Typical use: prepend `genTrait[T]` *above* the per-subtype `gen[Sub_i]` entries so that
  * `make[Gen[T]]` picks up the combined generator rather than subtype-matching the first `Gen[Sub_i]`.
  *
  * Analogous to the Haskell `registry-hedgehog`'s `makeGenerators` / `Chooser` combo.

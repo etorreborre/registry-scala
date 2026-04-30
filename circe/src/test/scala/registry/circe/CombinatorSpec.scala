@@ -16,8 +16,7 @@ class CombinatorSpec extends Specification:
   "jsonEncoder / jsonDecoder bridges" >> {
     val r =
       jsonEncoder[Int] *:
-        jsonDecoder[Int] *:
-        Registry.empty
+        jsonDecoder[Int]
 
     val e = r.make[Encoder[Int]]
     val d = r.make[Decoder[Int]]
@@ -31,8 +30,7 @@ class CombinatorSpec extends Specification:
       encodeListOf[Int] *:
         decodeListOf[Int] *:
         jsonEncoder[Int] *:
-        jsonDecoder[Int] *:
-        Registry.empty
+        jsonDecoder[Int]
 
     val e = r.make[Encoder[List[Int]]]
     val d = r.make[Decoder[List[Int]]]
@@ -46,8 +44,7 @@ class CombinatorSpec extends Specification:
       encodeOptionOf[Int] *:
         decodeOptionOf[Int] *:
         jsonEncoder[Int] *:
-        jsonDecoder[Int] *:
-        Registry.empty
+        jsonDecoder[Int]
 
     val e = r.make[Encoder[Option[Int]]]
     val d = r.make[Decoder[Option[Int]]]
@@ -65,8 +62,7 @@ class CombinatorSpec extends Specification:
         bridgeKeyEncoder[String] *:
         bridgeKeyDecoder[String] *:
         jsonEncoder[Int] *:
-        jsonDecoder[Int] *:
-        Registry.empty
+        jsonDecoder[Int]
 
     val e = r.make[Encoder[Map[String, Int]]]
     val d = r.make[Decoder[Map[String, Int]]]
@@ -85,8 +81,7 @@ class CombinatorSpec extends Specification:
         jsonEncoder[Int] *:
         jsonDecoder[Int] *:
         jsonEncoder[String] *:
-        jsonDecoder[String] *:
-        Registry.empty
+        jsonDecoder[String]
 
     val e = r.make[Encoder[(Int, String)]]
     val d = r.make[Decoder[(Int, String)]]

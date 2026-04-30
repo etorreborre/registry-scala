@@ -13,7 +13,7 @@ import registry.{Registry, Resolve, TypedEntry}
  *
  * Two ways to declare a share:
  *   - Registry-level via `r.share[A]`: names a type to pin across the whole resolution.
- *   - Entry-level via `genFun(f).share` / `value(g).share`: marks a specific entry; its output type
+ *   - Entry-level via `gen(f).share` / `gen(g).share`: marks a specific entry; its output type
  *     is pinned automatically when the registry is built via `.shared` / `.share[_]`.
  *
  * Sampling is threaded through `Gen.flatMap`: each shared `Gen[A]` is sampled once at the outer

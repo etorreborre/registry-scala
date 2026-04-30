@@ -16,7 +16,7 @@ import registry.{Entry, Registry, TypeRendering}
   * Singletons (case objects, no-arg enum cases) are detected via `summon[ValueOf[V]]` and registered
   * with no inputs.
   */
-private[scalacheck] object GenSumMacro:
+private[scalacheck] object SumMacro:
 
   def impl[T: Type](using Quotes): Expr[Registry[? <: Tuple, ? <: Tuple]] =
     import quotes.reflect.*
@@ -26,7 +26,7 @@ private[scalacheck] object GenSumMacro:
     val childSyms = tSym.children
     if childSyms.isEmpty then
       report.errorAndAbort(
-        s"genSum[T] expects a sealed trait / sealed abstract class / Scala 3 enum with subtypes; got ${tTpe.show}"
+        s"sum[T] expects a sealed trait / sealed abstract class / Scala 3 enum with subtypes; got ${tTpe.show}"
       )
 
     val childTpes: List[TypeRepr] = childSyms.map(mkChildTpe(tTpe, _))
@@ -37,7 +37,7 @@ private[scalacheck] object GenSumMacro:
         // Some(...) when this variant has its own internal entry (case class / case object /
         // enum singleton). None when the variant is itself a sealed (sub-)trait — its `Gen[…]`
         // is consumed by `genTrait[T]` but expected to come from the surrounding registry
-        // (typically a sibling `genSum[V]`).
+        // (typically a sibling `sum[V]`).
         entryExpr: Option[Expr[Entry]]
     )
 
@@ -52,7 +52,7 @@ private[scalacheck] object GenSumMacro:
               VariantData(ct, Nil, Some(buildSingletonEntry[c](valueOfExpr)))
             case None if ct.typeSymbol.children.nonEmpty =>
               // Sub-sealed trait / abstract class: leave Gen[V] for the surrounding registry
-              // (typically a sibling `genSum[V]`).
+              // (typically a sibling `sum[V]`).
               VariantData(ct, Nil, None)
             case None =>
               val (genFieldTpes, expr) = buildParametrizedEntry[c](ct)

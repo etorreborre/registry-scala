@@ -12,14 +12,14 @@ class GenTraitSpec extends Specification:
     "combine per-subtype gens into a Gen[T] for a sealed trait" >> {
       val r =
         genTrait[Animal] +:
-          genFun[Dog] +:
-          genFun[Cat] +:
+          gen[Dog] +:
+          gen[Cat] +:
           value(Chooser.uniform) +:
-          value(Gen.alphaStr: Gen[String]) +:
-          value(Gen.choose(1, 9): Gen[Int])
+          gen(Gen.alphaStr) +:
+          gen(Gen.choose(1, 9))
 
-      val gen = r.make[Gen[Animal]]
-      val samples = (0 until 50).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genAnimal = r.make[Gen[Animal]]
+      val samples = (0 until 50).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isInstanceOf[Dog]) must beTrue
       samples.exists(_.isInstanceOf[Cat]) must beTrue
     }
@@ -28,24 +28,24 @@ class GenTraitSpec extends Specification:
       val r =
         genTrait[Color] +:
           value(Chooser.uniform) +:
-          value(Gen.const(Color.Red): Gen[Color.Red.type]) +:
-          value(Gen.const(Color.Green): Gen[Color.Green.type]) +:
-          value(Gen.const(Color.Blue): Gen[Color.Blue.type])
+          gen[Color.Red.type](Color.Red) +:
+          gen[Color.Green.type](Color.Green) +:
+          gen[Color.Blue.type](Color.Blue)
 
-      val gen = r.make[Gen[Color]]
-      val samples = (0 until 30).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genColor = r.make[Gen[Color]]
+      val samples = (0 until 30).map(i => genColor.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.toSet must contain(Color.Red, Color.Green, Color.Blue)
     }
 
     "produce a single subtype reliably when the sum has only one case" >> {
       val r =
         genTrait[Single] +:
-          genFun[OnlyCase] +:
+          gen[OnlyCase] +:
           value(Chooser.uniform) +:
-          value(Gen.const(99): Gen[Int])
+          gen(99)
 
-      val gen = r.make[Gen[Single]]
-      val sample = gen.pureApply(Gen.Parameters.default, Seed(1L))
+      val genSingle = r.make[Gen[Single]]
+      val sample = genSingle.pureApply(Gen.Parameters.default, Seed(1L))
       sample must beAnInstanceOf[OnlyCase]
     }
   }
@@ -55,14 +55,14 @@ class GenTraitSpec extends Specification:
       // weights match Mirror.SumOf order: (Dog, Cat) for sealed trait Animal below.
       val r =
         genTrait[Animal] +:
-          genFun[Dog] +:
-          genFun[Cat] +:
+          gen[Dog] +:
+          gen[Cat] +:
           value(Chooser.weighted(9, 1)) +: // 9x more dogs than cats
-          value(Gen.alphaStr: Gen[String]) +:
-          value(Gen.choose(1, 9): Gen[Int])
+          gen(Gen.alphaStr) +:
+          gen(Gen.choose(1, 9))
 
-      val gen = r.make[Gen[Animal]]
-      val samples = (0 until 200).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genAnimal = r.make[Gen[Animal]]
+      val samples = (0 until 200).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       val dogs = samples.count(_.isInstanceOf[Dog])
       val cats = samples.count(_.isInstanceOf[Cat])
       // Expect roughly 180 / 20, but allow wide margins for sampling noise.
@@ -73,14 +73,14 @@ class GenTraitSpec extends Specification:
       // genTrait[Animal] gets (Dog, Cat) via Mirror — index 1 = Cat.
       val r =
         genTrait[Animal] +:
-          genFun[Dog] +:
-          genFun[Cat] +:
+          gen[Dog] +:
+          gen[Cat] +:
           value(Chooser.only(1)) +:
-          value(Gen.alphaStr: Gen[String]) +:
-          value(Gen.choose(1, 9): Gen[Int])
+          gen(Gen.alphaStr) +:
+          gen(Gen.choose(1, 9))
 
-      val gen = r.make[Gen[Animal]]
-      val samples = (0 until 20).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genAnimal = r.make[Gen[Animal]]
+      val samples = (0 until 20).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples must contain(beAnInstanceOf[Cat]).foreach
     }
 
@@ -92,66 +92,66 @@ class GenTraitSpec extends Specification:
 
       val r =
         genTrait[Animal] +:
-          genFun[Dog] +:
-          genFun[Cat] +:
+          gen[Dog] +:
+          gen[Cat] +:
           value(lastOnly) +:
-          value(Gen.alphaStr: Gen[String]) +:
-          value(Gen.choose(1, 9): Gen[Int])
+          gen(Gen.alphaStr) +:
+          gen(Gen.choose(1, 9))
 
-      val gen = r.make[Gen[Animal]]
-      val sample = gen.pureApply(Gen.Parameters.default, Seed(1L))
+      val genAnimal = r.make[Gen[Animal]]
+      val sample = genAnimal.pureApply(Gen.Parameters.default, Seed(1L))
       // Last variant in Mirror.SumOf[Animal] order is Cat.
       sample must beAnInstanceOf[Cat]
     }
   }; br
 
-  "genSum[T] (convenience bundle)" should {
-    "bundle genTrait[T] + genFun[Sub_i] for every variant + Chooser.uniform — user only adds leaf gens" >> {
+  "sum[T] (convenience bundle)" should {
+    "bundle genTrait[T] + gen[Sub_i] for every variant + Chooser.uniform — user only adds leaf gens" >> {
       val r =
-        genSum[Animal] +:
-          value(Gen.alphaStr: Gen[String]) +:
-          value(Gen.choose(1, 9): Gen[Int])
+        sum[Animal] +:
+          gen(Gen.alphaStr) +:
+          gen(Gen.choose(1, 9))
 
-      val gen = r.make[Gen[Animal]]
-      val samples = (0 until 50).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genAnimal = r.make[Gen[Animal]]
+      val samples = (0 until 50).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isInstanceOf[Dog]) must beTrue
       samples.exists(_.isInstanceOf[Cat]) must beTrue
     }
 
     "let users override the default Chooser by prepending their own" >> {
       val r =
-        value(Chooser.only(0)) +: // overrides genSum's internal Chooser.uniform (LIFO: head wins)
-          genSum[Animal] +:
-          value(Gen.alphaStr: Gen[String]) +:
-          value(Gen.choose(1, 9): Gen[Int])
+        value(Chooser.only(0)) +: // overrides sum's internal Chooser.uniform (LIFO: head wins)
+          sum[Animal] +:
+          gen(Gen.alphaStr) +:
+          gen(Gen.choose(1, 9))
 
-      val gen = r.make[Gen[Animal]]
-      val samples = (0 until 10).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genAnimal = r.make[Gen[Animal]]
+      val samples = (0 until 10).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples must contain(beAnInstanceOf[Dog]).foreach // index 0 = Dog per Mirror.SumOf[Animal] order
     }
 
     "work for a Scala 3 enum of no-arg cases" >> {
-      val r = genSum[Color]
-      val gen = r.make[Gen[Color]]
-      val samples = (0 until 60).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val r = sum[Color]
+      val genColor = r.make[Gen[Color]]
+      val samples = (0 until 60).map(i => genColor.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.toSet must contain(Color.Red, Color.Green, Color.Blue)
     }
 
     "work for a mixed enum (case-class cases + no-arg cases)" >> {
       val r =
-        genSum[Shape] +:
-          value(Gen.choose(1.0, 10.0): Gen[Double])
+        sum[Shape] +:
+          gen(Gen.choose(1.0, 10.0))
 
-      val gen = r.make[Gen[Shape]]
-      val samples = (0 until 60).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val genShape = r.make[Gen[Shape]]
+      val samples = (0 until 60).map(i => genShape.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isInstanceOf[Shape.Circle]) must beTrue
       samples.exists(_ == Shape.Square)            must beTrue
     }
 
     "work for a sealed trait whose variants are case objects" >> {
-      val r = genSum[Status]
-      val gen = r.make[Gen[Status]]
-      val samples = (0 until 40).map(i => gen.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      val r = sum[Status]
+      val genStatus = r.make[Gen[Status]]
+      val samples = (0 until 40).map(i => genStatus.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.toSet must contain(Status.Active, Status.Inactive)
     }
   }

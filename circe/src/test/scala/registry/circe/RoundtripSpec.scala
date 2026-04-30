@@ -100,5 +100,4 @@ class RoundtripSpec extends Specification:
       value(ConstructorEncoder.default) *:
       value(ConstructorsDecoder.default) *:
       value(KeyEncoder.stringKeyEncoder) *:
-      value(KeyDecoder.stringKeyDecoder) *:
-      Registry.empty
+      value(KeyDecoder.stringKeyDecoder)

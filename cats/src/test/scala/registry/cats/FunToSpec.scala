@@ -13,8 +13,7 @@ class FunToSpec extends Specification:
       val r =
         funTo[Option, Person] *:
           valTo[Option]("Alice") *:
-          valTo[Option](30) *:
-          Registry.empty
+          valTo[Option](30)
 
       r.make[Option[Person]] === Some(Person("Alice", 30))
     }
@@ -23,8 +22,7 @@ class FunToSpec extends Specification:
       val r =
         funTo[Option, Person] *:
           value(None: Option[String]) *:
-          valTo[Option](30) *:
-          Registry.empty
+          valTo[Option](30)
 
       r.make[Option[Person]] === None
     }
@@ -34,8 +32,7 @@ class FunToSpec extends Specification:
       val r =
         funTo[[a] =>> Either[String, a], Person] *:
           valTo[[a] =>> Either[String, a]]("Alice") *:
-          value(Left("bad age"): Either[String, Int]) *:
-          Registry.empty
+          value(Left("bad age"): Either[String, Int])
 
       r.make[Either[String, Person]] === Left("bad age")
     }
@@ -44,8 +41,7 @@ class FunToSpec extends Specification:
       val r =
         funTo[Id, Person] *:
           valTo[Id]("Bob") *:
-          valTo[Id](42) *:
-          Registry.empty
+          valTo[Id](42)
 
       r.make[Id[Person]] === Person("Bob", 42)
     }
@@ -57,8 +53,7 @@ class FunToSpec extends Specification:
       val r =
         funTo[Option](formatPerson) *:
           valTo[Option]("Alice") *:
-          valTo[Option](30) *:
-          Registry.empty
+          valTo[Option](30)
 
       r.make[Option[Greeting]] === Some(Greeting("Alice (30)"))
     }
@@ -67,8 +62,7 @@ class FunToSpec extends Specification:
       val r =
         funTo[Option](Person.apply) *:
           valTo[Option]("Bob") *:
-          valTo[Option](42) *:
-          Registry.empty
+          valTo[Option](42)
 
       r.make[Option[Person]] === Some(Person("Bob", 42))
     }
@@ -76,8 +70,7 @@ class FunToSpec extends Specification:
     "lift a single-arg function" >> {
       val r =
         funTo[Option]((n: Int) => Greeting(s"n=$n")) *:
-          valTo[Option](21) *:
-          Registry.empty
+          valTo[Option](21)
 
       r.make[Option[Greeting]] === Some(Greeting("n=21"))
     }
@@ -86,8 +79,7 @@ class FunToSpec extends Specification:
       val r =
         funTo[Option]((n: String, a: Int) => Greeting(s"$n/$a")) *:
           value(None: Option[String]) *:
-          valTo[Option](30) *:
-          Registry.empty
+          valTo[Option](30)
 
       r.make[Option[Greeting]] === None
     }
@@ -97,8 +89,7 @@ class FunToSpec extends Specification:
         funTo[Option, Outer] *:
           funTo[Option, Inner] *:
           valTo[Option]("x") *:
-          valTo[Option](7) *:
-          Registry.empty
+          valTo[Option](7)
 
       r.make[Option[Outer]] === Some(Outer(Inner("x"), 7))
     }

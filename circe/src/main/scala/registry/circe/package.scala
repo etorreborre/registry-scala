@@ -109,8 +109,7 @@ package object circe:
   def defaultEncoderOptions =
     value(ConstructorEncoder.default) *:
       value(KeyEncoder.stringKeyEncoder) *:
-      value(JsonOptions.default) *:
-      Registry.empty
+      value(JsonOptions.default)
 
   /**
    * Default entries required by the `makeDecoder[T]` macro: a `ConstructorsDecoder`, a `JsonOptions`,
@@ -119,5 +118,4 @@ package object circe:
   def defaultDecoderOptions =
     value(ConstructorsDecoder.default) *:
       value(KeyDecoder.stringKeyDecoder) *:
-      value(JsonOptions.default) *:
-      Registry.empty
+      value(JsonOptions.default)

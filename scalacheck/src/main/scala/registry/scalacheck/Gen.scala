@@ -5,17 +5,22 @@ import org.scalacheck.{Arbitrary, Gen}
 import registry.{Entry, TypedEntry}
 
 /**
- * Register a case class / plain class primary constructor as a ScalaCheck generator: `gen[Foo]`.
+ * Register a type as a ScalaCheck generator. The macro inspects `T` and dispatches:
  *
- * Returns a [[registry.TypedEntry]] whose `Ins` tuple is `(Gen[P0], Gen[P1], …)` (the constructor's
- * parameter types, each wrapped in `Gen`) and whose `Out` is `Gen[T]`. At runtime the entry's closure
- * sequences the generators via `flatMap` / `map` (through [[GenCombine.combineGens]]) and applies the
- * primary constructor to the collected sample values.
+ *   - **Class type** (`gen[Foo]`): emits a [[registry.TypedEntry]] whose `Ins` tuple is
+ *     `(Gen[P0], Gen[P1], …)` (the primary constructor's parameter types, each wrapped in `Gen`)
+ *     and whose `Out` is `Gen[T]`. At runtime the closure sequences the generators via
+ *     `flatMap` / `map` (through [[GenCombine.combineGens]]) and applies the primary constructor
+ *     to the collected sample values.
+ *   - **Sealed trait / sealed abstract class / Scala 3 `enum`** (`gen[Animal]`): expands into a
+ *     [[registry.Registry]] bundling `genTrait[T]` + one entry per variant (auto-built from each
+ *     variant's primary constructor or its singleton value) + a default `Chooser.uniform`. This
+ *     subsumes the standalone `sum[T]` form.
  *
  * Analogous to the Haskell `registry-hedgehog`'s `genFun = funTo @Gen`. Mirrors `registry-cats`'s
  * `funTo[F](f)` for the value-driven overload, with `Gen` hard-coded as the effect.
  */
-transparent inline def gen[T]: TypedEntry[? <: Tuple, Gen[T]] =
+transparent inline def gen[T]: Any =
   ${ GenMacro.typeImpl[T] }
 
 /**

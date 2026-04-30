@@ -4,11 +4,29 @@ import scala.quoted.*
 import izumi.reflect.Tag
 import izumi.reflect.macrortti.LightTypeTag
 import org.scalacheck.Gen
-import registry.{Entry, TypedEntry}
+import registry.{Entry, Registry, TypedEntry}
 
 private[scalacheck] object GenMacro:
 
-  def typeImpl[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Gen[T]]] =
+  /** Type-driven `gen[T]` dispatch.
+   *
+   *   - If `T` is a sealed trait / sealed abstract class / Scala 3 enum (has compile-time children),
+   *     delegate to [[SumMacro.impl]] to produce a Registry bundling `genTrait[T]` + per-variant
+   *     entries + `Chooser.uniform`.
+   *   - Otherwise, build a single-entry `TypedEntry[..., Gen[T]]` from `T`'s primary constructor.
+   *
+   * The return type is `Any` because the two branches yield different shapes (Registry vs.
+   * TypedEntry); transparent inline at the call site recovers the precise type so the registry
+   * composition operators (`+:`, `*:`, etc.) still resolve correctly.
+   */
+  def typeImpl[T: Type](using Quotes): Expr[Any] =
+    import quotes.reflect.*
+    val tpe = TypeRepr.of[T].dealias
+    val sym = tpe.typeSymbol
+    if sym.children.nonEmpty then SumMacro.impl[T]
+    else classImpl[T]
+
+  private def classImpl[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Gen[T]]] =
     import quotes.reflect.*
 
     // Dealias so that nested / path-dependent references like `Outer.Inner` resolve to the underlying
@@ -17,7 +35,9 @@ private[scalacheck] object GenMacro:
     val tpe = TypeRepr.of[T].dealias
     val sym = tpe.typeSymbol
     if !sym.isClassDef then
-      report.errorAndAbort(s"gen[T] expects a class type, got ${tpe.show}")
+      // Newtype-shaped types (opaque aliases, abstract type members) aren't class defs and have no
+      // primary constructor to walk. Fall back to a unique 1-arg `apply` factory on the companion.
+      return newtypeImpl[T](tpe)
     if sym.flags.is(Flags.Trait) then
       report.errorAndAbort(s"gen[T] cannot instantiate trait ${tpe.show}")
     if sym.flags.is(Flags.Abstract) then
@@ -101,6 +121,96 @@ private[scalacheck] object GenMacro:
       '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
 
     val insTpe = buildTupleType(genParamTypes)
+    (insTpe.asType: @unchecked) match
+      case '[ins] =>
+        '{ TypedEntry[ins & Tuple, Gen[T]]($entryExpr) }
+
+  /** Newtype-shaped derivation: `T` is an opaque type alias or other non-class type. Looks for a
+   * unique single-argument `apply` factory on a companion-like module and emits an entry whose
+   * `Ins` is `(Gen[U]) *: EmptyTuple` (where `U` is that apply's parameter type) and whose `Out`
+   * is `Gen[T]`. The runtime closure invokes `Companion.apply(u)` to wrap each generated `U`.
+   *
+   * Companion-module lookup tries, in order:
+   *   - `sym.companionModule` — sibling `object` (top-level opaque or paired type alias).
+   *   - `sym.owner.companionModule` — opaque declared inside an `object`; the apply lives on the
+   *     enclosing module value, reached via its module class.
+   *   - same-named module declared in `sym.owner` — opaque + same-named `object` companion, where
+   *     the compiler doesn't always link the two via `companionModule`.
+   */
+  private def newtypeImpl[T: Type](using Quotes)(
+      tpe: quotes.reflect.TypeRepr
+  ): Expr[TypedEntry[? <: Tuple, Gen[T]]] =
+    import quotes.reflect.*
+    val sym = tpe.typeSymbol
+    if sym == Symbol.noSymbol then
+      report.errorAndAbort(s"gen[T] expects a class type, got ${tpe.show}")
+
+    val owner = sym.owner
+    val sameNameInOwner: Symbol =
+      if owner != Symbol.noSymbol then
+        owner.declarations
+          .find(d => d.name == sym.name && d.flags.is(Flags.Module))
+          .getOrElse(Symbol.noSymbol)
+      else Symbol.noSymbol
+
+    val moduleCandidates: List[Symbol] =
+      List(sym.companionModule, sameNameInOwner, owner.companionModule)
+        .filter(s => s != Symbol.noSymbol && s.flags.is(Flags.Module))
+        .distinct
+
+    def applyMethodsOf(m: Symbol): List[Symbol] =
+      val cls = if m.moduleClass != Symbol.noSymbol then m.moduleClass else m
+      cls.declaredMethods.filter(_.name == "apply")
+
+    val applies: List[(Symbol, Symbol, TypeRepr)] =
+      for
+        m <- moduleCandidates
+        applyMethod <- applyMethodsOf(m)
+        result <- m.termRef.select(applyMethod).widen match
+          case MethodType(_, List(paramType), _) => Some((m, applyMethod, paramType))
+          case _                                 => None
+      yield result
+
+    val (moduleSym, _, paramType) = applies match
+      case List(unique) => unique
+      case Nil =>
+        report.errorAndAbort(
+          s"gen[T] expects a class type, got ${tpe.show}. " +
+            s"No single-argument `apply` factory was found on a companion either; " +
+            s"register a Gen[${tpe.show}] explicitly with gen(myGen)."
+        )
+      case _ =>
+        report.errorAndAbort(
+          s"gen[${tpe.show}]: multiple single-argument `apply` overloads found on the companion; " +
+            s"register a Gen[${tpe.show}] explicitly with gen(myGen)."
+        )
+
+    val tpeType: Type[?] = tpe.asType
+    val buildFn: Expr[Seq[Any] => T] = ((tpeType, paramType.asType): @unchecked) match
+      case ('[t], '[p]) =>
+        '{ (vs: Seq[Any]) =>
+          ${
+            val argTerm: Term = '{ vs(0).asInstanceOf[p] }.asTerm
+            val moduleRef: Term = Ref(moduleSym)
+            Select.unique(moduleRef, "apply").appliedTo(argTerm).asExprOf[t]
+          }
+        }.asInstanceOf[Expr[Seq[Any] => T]]
+
+    val genParamType: TypeRepr = paramType.asType match
+      case '[p] => TypeRepr.of[Gen[p]]
+
+    val inputTagExpr: Expr[LightTypeTag] = genParamType.asType match
+      case '[gp] => '{ summon[Tag[gp]].tag }
+    val outputTagExpr: Expr[LightTypeTag] = '{ summon[Tag[Gen[T]]].tag }
+
+    val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
+      GenCombine.combineGens[T](args.asInstanceOf[Seq[Gen[?]]], $buildFn)
+    }
+
+    val entryExpr: Expr[Entry] =
+      '{ Entry(List($inputTagExpr), $outputTagExpr, $closure) }
+
+    val insTpe = buildTupleType(List(genParamType))
     (insTpe.asType: @unchecked) match
       case '[ins] =>
         '{ TypedEntry[ins & Tuple, Gen[T]]($entryExpr) }

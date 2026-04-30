@@ -105,10 +105,10 @@ class GenTraitSpec extends Specification:
     }
   }; br
 
-  "sum[T] (convenience bundle)" should {
+  "gen[T] (convenience bundle)" should {
     "bundle genTrait[T] + gen[Sub_i] for every variant + Chooser.uniform — user only adds leaf gens" >> {
       val r =
-        sum[Animal] +:
+        gen[Animal] +:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(1, 9))
 
@@ -121,7 +121,7 @@ class GenTraitSpec extends Specification:
     "let users override the default Chooser by prepending their own" >> {
       val r =
         value(Chooser.only(0)) +: // overrides sum's internal Chooser.uniform (LIFO: head wins)
-          sum[Animal] +:
+          gen[Animal] +:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(1, 9))
 
@@ -131,7 +131,7 @@ class GenTraitSpec extends Specification:
     }
 
     "work for a Scala 3 enum of no-arg cases" >> {
-      val r = sum[Color]
+      val r = gen[Color]
       val genColor = r.make[Gen[Color]]
       val samples = (0 until 60).map(i => genColor.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.toSet must contain(Color.Red, Color.Green, Color.Blue)
@@ -139,7 +139,7 @@ class GenTraitSpec extends Specification:
 
     "work for a mixed enum (case-class cases + no-arg cases)" >> {
       val r =
-        sum[Shape] +:
+        gen[Shape] +:
           gen(Gen.choose(1.0, 10.0))
 
       val genShape = r.make[Gen[Shape]]
@@ -149,7 +149,7 @@ class GenTraitSpec extends Specification:
     }
 
     "work for a sealed trait whose variants are case objects" >> {
-      val r = sum[Status]
+      val r = gen[Status]
       val genStatus = r.make[Gen[Status]]
       val samples = (0 until 40).map(i => genStatus.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.toSet must contain(Status.Active, Status.Inactive)

@@ -333,6 +333,91 @@ class RuntimeRegistrySpec extends Specification:
     }
   }; br
 
+  "refine" should {
+    "compose with `+:` to add a single-context refinement to the registry" >> {
+      val r = refine[Person, String]("eric") +: fun[Person] +: value("name")
+      r.make[Person] === Person("eric")
+      r.make[String] === "name" // direct String make, no Person context → default
+    }
+
+    "compose with `*:` identically to `+:`" >> {
+      val r = refine[Person, String]("eric") *: fun[Person] *: value("name")
+      r.make[Person] === Person("eric")
+    }
+
+    "compose with `-:` identically to `+:`" >> {
+      val r = refine[Person, String]("eric") -: fun[Person] -: value("name")
+      r.make[Person] === Person("eric")
+    }
+
+    "support a tuple Path for multi-element specialization paths" >> {
+      // Specialize Host along the [App, Db] path, exactly like specializePath.
+      val r =
+        refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db")) +:
+          fun[Chain.App] +:
+          fun[Chain.Db] +:
+          fun[Chain.DbConfig] +:
+          value(Chain.Host("base")) +:
+          value(5432) +:
+          value(Chain.AppName("x"))
+
+      r.make[Chain.App].db.config.host === Chain.Host("via-db")
+    }
+
+    "behave identically to specialize for a single-type Path" >> {
+      val base = fun[DbConfig] +: value(Host("base")) +: value(5432)
+      val a    = refine[DbConfig, Host](Host("specialized")) +: base
+      val b    = base.specialize[DbConfig, Host](Host("specialized"))
+
+      a.make[DbConfig] === b.make[DbConfig]
+    }
+
+    "behave identically to specializePath for a tuple Path" >> {
+      val base =
+        fun[Chain.App] +:
+          fun[Chain.Db] +:
+          fun[Chain.DbConfig] +:
+          value(Chain.Host("base")) +:
+          value(5432) +:
+          value(Chain.AppName("x"))
+      val a = refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db")) +: base
+      val b = base.specializePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
+
+      a.make[Chain.App].db.config.host === b.make[Chain.App].db.config.host
+    }
+
+    "chain multiple refinements with +:" >> {
+      // Two refinements: one for the App-context Host, one for the AppName at top level.
+      val r =
+        refine[Chain.App, Chain.Host](Chain.Host("in-app")) +:
+          refine[Chain.App, Chain.AppName](Chain.AppName("named")) +:
+          fun[Chain.App] +:
+          fun[Chain.Db] +:
+          fun[Chain.DbConfig] +:
+          value(Chain.Host("base")) +:
+          value(5432) +:
+          value(Chain.AppName("default"))
+
+      val app = r.make[Chain.App]
+      app.db.config.host === Chain.Host("in-app")
+      app.name === Chain.AppName("named")
+    }
+
+    "attach to a single TypedEntry, producing a 1-entry registry with the refinement" >> {
+      // refine[Person, String]("eric") +: fun[Person] — fun[Person] is just a TypedEntry, not a Registry yet.
+      // The Refinement overload on TypedEntry kicks in and produces a Registry.
+      val r = refine[Person, String]("eric") +: fun[Person]
+      // The String input still has to come from somewhere — but the refinement supplies it
+      // because resolving Person pushes Person onto the stack, the spec fires for String.
+      r.make[Person] === Person("eric")
+    }
+
+    "not fire when the path doesn't appear in the resolution stack" >> {
+      val r = refine[Chain.DbConfig, Host](Host("never")) +: value(Host("h"))
+      r.make[Host] === Host("h")
+    }
+  }; br
+
   "make" should {
     "stay runtime-only — compile even when a dep is missing, fail at runtime" >> {
       val r = fun[DbConfig] *: value(Host("h"))

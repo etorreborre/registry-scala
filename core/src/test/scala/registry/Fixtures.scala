@@ -36,6 +36,8 @@ object Subtype:
 
 case class Wrap(value: Int)
 
+case class Person(name: String)
+
 object NameClash:
   // Two distinct types named `Coin` — same short name, different packages. Used to verify
   // the macro error formatter disambiguates colliding short names.

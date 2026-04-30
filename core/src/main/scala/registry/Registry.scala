@@ -77,6 +77,22 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
   def -:[LIns <: Tuple, LOuts <: Tuple](l: Registry[LIns, LOuts]): Registry[AllIns, AllOuts] =
     Registry(l.entries ++ entries, l.tweaks ++ tweaks, l.specializations ++ specializations)
 
+  /**
+   * Append a [[Refinement]] (path-scoped specialization) to this registry. All three of `+:`, `*:`, `-:`
+   * accept refinements and behave identically — a refinement adds no entries and does not change the
+   * type-level `AllIns` / `AllOuts` accounting.
+   */
+  def +:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
+    Registry(entries, tweaks, specializations :+ (r.pathTags, r.targetTag, r.value))
+
+  /** See [[+:]] for [[Refinement]] — `*:` is identical for refinements. */
+  def *:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
+    Registry(entries, tweaks, specializations :+ (r.pathTags, r.targetTag, r.value))
+
+  /** See [[+:]] for [[Refinement]] — `-:` is identical for refinements. */
+  def -:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
+    Registry(entries, tweaks, specializations :+ (r.pathTags, r.targetTag, r.value))
+
   /** Merge two registries. Left operand's entries come first, so on duplicate outputs the left wins. */
   def <+>[OIns <: Tuple, OOuts <: Tuple](
       other: Registry[OIns, OOuts]

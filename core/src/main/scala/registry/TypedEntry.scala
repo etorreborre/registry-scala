@@ -49,3 +49,18 @@ final case class TypedEntry[Ins <: Tuple, Out](entry: Entry):
   /** `leftRawEntry -: rightEntry` — overload for manually-constructed `Entry` on the left. */
   def -:(l: Entry): Registry[Ins, Out *: EmptyTuple] =
     Registry(l :: entry :: Nil)
+
+  /**
+   * Attach a [[Refinement]] to this entry, producing a 1-entry registry with the refinement preloaded.
+   * `+:`, `*:`, `-:` all behave identically for refinements.
+   */
+  def +:[Path, T](r: Refinement[Path, T]): Registry[Ins, Out *: EmptyTuple] =
+    Registry(entry :: Nil, Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
+
+  /** See [[+:]] for [[Refinement]] — `*:` is identical for refinements. */
+  def *:[Path, T](r: Refinement[Path, T]): Registry[Ins, Out *: EmptyTuple] =
+    Registry(entry :: Nil, Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
+
+  /** See [[+:]] for [[Refinement]] — `-:` is identical for refinements. */
+  def -:[Path, T](r: Refinement[Path, T]): Registry[Ins, Out *: EmptyTuple] =
+    Registry(entry :: Nil, Nil, (r.pathTags, r.targetTag, r.value) :: Nil)

@@ -108,6 +108,18 @@ class RegistrySpec extends Specification:
       r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
 
+    "accept a subtype output as covering a supertype input slot" >> {
+      // Regression: the strict prepend check used to require `=:=` (exact equality), so a
+      // `Sub`-producing entry wouldn't satisfy a `Super`-needing slot even though it does at
+      // runtime (Resolve.go uses `<:<`). With `<:<` parity, a function from Sub builds cleanly
+      // when only Super is required.
+      val r =
+        fun((s: Subtype.Iface) => s.label) +:  // input Iface, output String
+          value(Subtype.Impl("hi"))            // produces Impl which extends Iface
+
+      r.make[String] === "hi"
+    }
+
     "fail to compile naming the missing inputs" >> {
       val errs = typeCheckErrors("""
         import registry.*

@@ -180,6 +180,34 @@ class GenSpec extends Specification:
       sample.label === "HELLO"
       sample.value === 7
     }
+
+    "accept a function whose parameter is already Gen[X] (no Gen[Gen[X]] double-wrap)" >> {
+      // Regression: `gen(f)` for `f: Gen[Int] => Tagged` should register `Gen[Int]` as the input,
+      // not `Gen[Gen[Int]]` — otherwise the registry searches for a producer of `Gen[Gen[Int]]`
+      // and fails with "No entry produces Gen[Gen[Int]]".
+      def mkTagged(g: Gen[Int]): Gen[Tagged] = g.map(Tagged("g", _))
+
+      val r =
+        gen(mkTagged) +:
+          gen(Gen.choose(1, 5))
+
+      val sample = r.makeGen[Tagged].pureApply(Gen.Parameters.default, Seed(101L))
+      sample.label === "g"
+      sample.value must beBetween(1, 5)
+    }
+
+    "derive gen[T] for a case class whose field is already Gen[X] (passthrough)" >> {
+      // Regression: a case class field of type `Gen[Int]` should resolve via the registered
+      // `Gen[Int]` directly, not require a non-existent `Gen[Gen[Int]]` producer.
+      val r =
+        gen[HasGen] +:
+          gen("k") +:
+          gen(Gen.choose(1, 5))
+
+      val sample = r.makeGen[HasGen].pureApply(Gen.Parameters.default, Seed(103L))
+      sample.label === "k"
+      sample.gen.pureApply(Gen.Parameters.default, Seed(0L)) must beBetween(1, 5)
+    }
   }
 
   "arb[T]" should {
@@ -207,3 +235,5 @@ object Outer:
 case class Box[T](item: T)
 case class Inner2[T](value: T)
 case class Outer2[T](inner: Inner2[T])
+
+case class HasGen(label: String, gen: Gen[Int])

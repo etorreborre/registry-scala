@@ -7,13 +7,24 @@ private[scalacheck] object GenCombine:
   /**
    * Sequence a list of untyped `Gen[?]` into a `Gen[T]` by collecting their generated values and then
    * applying `build` to the vector of collected values. Used by the `gen` macro-emitted closures.
+   *
+   * `passthrough(i) == true` means the `Gen[?]` at slot `i` is itself the value `build` expects —
+   * include it as-is rather than sampling from it. This supports parameters whose declared type is
+   * already `Gen[X]`: the registry resolves a `Gen[X]` value, and `build` wants that `Gen[X]`, not
+   * a sampled `X`.
    */
-  def combineGens[T](gens: Seq[Gen[?]], build: Seq[Any] => T): Gen[T] =
+  def combineGens[T](
+      gens: Seq[Gen[?]],
+      passthrough: Seq[Boolean],
+      build: Seq[Any] => T
+  ): Gen[T] =
     if gens.isEmpty then Gen.const(build(Nil))
     else
       gens
-        .foldLeft(Gen.const(Vector.empty[Any]): Gen[Vector[Any]]) { (accGen, g) =>
-          accGen.flatMap(acc => g.map(v => acc :+ v))
+        .zip(passthrough)
+        .foldLeft(Gen.const(Vector.empty[Any]): Gen[Vector[Any]]) {
+          case (accGen, (g, true))  => accGen.map(_ :+ g)
+          case (accGen, (g, false)) => accGen.flatMap(acc => g.map(v => acc :+ v))
         }
         .map(values => build(values.toSeq))
 
@@ -23,12 +34,18 @@ private[scalacheck] object GenCombine:
    * result from `combineGens` applied to a Gen-returning builder. Used by `gen(f)` when `f`
    * returns `Gen[?]`.
    */
-  def combineGensFlat[T](gens: Seq[Gen[?]], build: Seq[Any] => Gen[T]): Gen[T] =
+  def combineGensFlat[T](
+      gens: Seq[Gen[?]],
+      passthrough: Seq[Boolean],
+      build: Seq[Any] => Gen[T]
+  ): Gen[T] =
     if gens.isEmpty then build(Nil)
     else
       gens
-        .foldLeft(Gen.const(Vector.empty[Any]): Gen[Vector[Any]]) { (accGen, g) =>
-          accGen.flatMap(acc => g.map(v => acc :+ v))
+        .zip(passthrough)
+        .foldLeft(Gen.const(Vector.empty[Any]): Gen[Vector[Any]]) {
+          case (accGen, (g, true))  => accGen.map(_ :+ g)
+          case (accGen, (g, false)) => accGen.flatMap(acc => g.map(v => acc :+ v))
         }
         .flatMap(values => build(values.toSeq))
 

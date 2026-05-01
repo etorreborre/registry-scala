@@ -57,7 +57,11 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
   def *:[LIns <: Tuple, LOuts <: Tuple](
       l: Registry[LIns, LOuts]
   ): Registry[Concat[LIns, AllIns], Concat[LOuts, AllOuts]] =
-    Registry(l.entries ++ entries, l.tweaks ++ tweaks, l.specializations ++ specializations)
+    Registry(
+      l.entries ++ entries,
+      l.tweaks ++ tweaks,
+      l.specializations ++ specializations
+    )
 
   /**
    * Untracked prepend: `entry -: registry`. Adds the entry at runtime but does NOT update the type-level
@@ -75,7 +79,11 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * type-level accounting — the left side is invisible to `makeSafe`.
    */
   def -:[LIns <: Tuple, LOuts <: Tuple](l: Registry[LIns, LOuts]): Registry[AllIns, AllOuts] =
-    Registry(l.entries ++ entries, l.tweaks ++ tweaks, l.specializations ++ specializations)
+    Registry(
+      l.entries ++ entries,
+      l.tweaks ++ tweaks,
+      l.specializations ++ specializations
+    )
 
   /**
    * Append a [[Refinement]] (path-scoped specialization) to this registry. All three of `+:`, `*:`, `-:`
@@ -83,15 +91,44 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * type-level `AllIns` / `AllOuts` accounting.
    */
   def +:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
-    Registry(entries, tweaks, specializations :+ (r.pathTags, r.targetTag, r.value))
+    copy(specializations = specializations :+ (r.pathTags, r.targetTag, r.value))
 
   /** See [[+:]] for [[Refinement]] — `*:` is identical for refinements. */
   def *:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
-    Registry(entries, tweaks, specializations :+ (r.pathTags, r.targetTag, r.value))
+    copy(specializations = specializations :+ (r.pathTags, r.targetTag, r.value))
 
   /** See [[+:]] for [[Refinement]] — `-:` is identical for refinements. */
   def -:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
-    Registry(entries, tweaks, specializations :+ (r.pathTags, r.targetTag, r.value))
+    copy(specializations = specializations :+ (r.pathTags, r.targetTag, r.value))
+
+  /** `memoize[T] +: registry` — memoizes every entry whose output is a subtype of `T`. */
+  def +:[T](m: Memoize[T]): Registry[AllIns, AllOuts] =
+    copy(entries =
+      entries.map(e =>
+        if e.output <:< m.targetTag then Registry.withMemoization(e) else e
+      )
+    )
+
+  /** `share[T] +: registry` — sets the `shared` flag on every entry whose output is a subtype of
+   * `T`. The flag is then picked up by share-aware build paths (e.g. `Registry.makeGen` in
+   * scalacheck) to pin one sample of `T` across all consumers in a single build. */
+  def +:[T](s: Share[T]): Registry[AllIns, AllOuts] =
+    copy(entries =
+      entries.map(e =>
+        if e.output <:< s.targetTag then e.copy(shared = true) else e
+      )
+    )
+
+  /** `const[T] +: registry` — combination of [[Share]] and [[Memoize]]: sets `shared` AND wraps
+   * the matching entries' `invoke` with the marker's `memoizer`. Default memoizer caches the
+   * invoke *result*; scalacheck's `const[T]` factory overrides it to also pin the sampled value
+   * across separate `makeGen` calls. Roughly: `const[T] +: r ≈ share[T] +: memoize[T] +: r`. */
+  def +:[T](c: Const[T]): Registry[AllIns, AllOuts] =
+    copy(entries =
+      entries.map(e =>
+        if e.output <:< c.targetTag then c.memoizer(e.copy(shared = true)) else e
+      )
+    )
 
   /** Merge two registries. Left operand's entries come first, so on duplicate outputs the left wins. */
   def <+>[OIns <: Tuple, OOuts <: Tuple](
@@ -115,7 +152,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * in registration order (the first-registered tweak runs first, later tweaks wrap its result).
    */
   def tweak[A](f: A => A)(using tag: Tag[A]): Registry[AllIns, AllOuts] =
-    Registry(entries, tweaks :+ (tag.tag.repr, f.asInstanceOf[Any => Any]), specializations)
+    copy(tweaks = tweaks :+ (tag.tag.repr, f.asInstanceOf[Any => Any]))
 
   /**
    * Memoize every entry whose output is a subtype of `A`: once resolved, the entry's value is cached and
@@ -141,11 +178,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * lookup. Shorthand for [[specializePath]] with a single-element path.
    */
   def specialize[Ctx, T](v: T)(using ctxTag: Tag[Ctx], tTag: Tag[T]): Registry[AllIns, AllOuts] =
-    Registry(
-      entries,
-      tweaks,
-      specializations :+ (List(ctxTag.tag), tTag.tag, v.asInstanceOf[Any])
-    )
+    copy(specializations = specializations :+ (List(ctxTag.tag), tTag.tag, v.asInstanceOf[Any]))
 
   /**
    * Path-scoped override: when the resolution stack contains the types of `Path` as a subsequence (in
@@ -161,11 +194,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
   ): Registry[AllIns, AllOuts] =
     val pathTags =
       summonAll[Tuple.Map[Path, [s] =>> Tag[s]]].toList.asInstanceOf[List[Tag[?]]]
-    Registry(
-      entries,
-      tweaks,
-      specializations :+ (pathTags.map(_.tag), tTag.tag, v.asInstanceOf[Any])
-    )
+    copy(specializations = specializations :+ (pathTags.map(_.tag), tTag.tag, v.asInstanceOf[Any]))
 
   /** Build a value of type `T`. Runtime-only; throws if a dependency is missing. */
   def make[T](using tag: Tag[T]): T =

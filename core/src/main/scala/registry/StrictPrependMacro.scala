@@ -123,7 +123,10 @@ private[registry] object StrictPrependMacro:
       subject: Option[String]
   ): Unit =
     import q.reflect.*
-    val missing = newIns.filterNot(i => producedBelow.exists(_ =:= i))
+    // Subtype-aware: an output `o` satisfies an input slot of type `i` whenever `o <:< i`. This
+    // mirrors the runtime resolver in `Resolve.go` and lets a `Gen[Sub]` cover a `Gen[Super]` slot
+    // (Gen is covariant), instead of demanding strict type equality.
+    val missing = newIns.filterNot(i => producedBelow.exists(_ <:< i))
     if missing.nonEmpty then report.errorAndAbort(formatError(missing, producedBelow, subject))
 
   private def tupleElems(using Quotes)(tpe: quotes.reflect.TypeRepr): List[quotes.reflect.TypeRepr] =
@@ -170,7 +173,7 @@ private[registry] object StrictPrependMacro:
         "+: cannot prepend this entry because some inputs cannot be produced by the rest of the registry."
 
     val compact = s"$header\n\n$missingPart\n\n$outsPart"
-    val long    = s"$outsPart\n\n$missingPart\n\n$header\n"
+    val long    = s"$outsPart\n\n$missingPart\n\n$header\n\n"
     val totalLines = compact.count(_ == '\n') + 1
 
     if totalLines <= CompactLayoutMaxLines then compact else long

@@ -51,9 +51,45 @@ transparent inline def gen[X](inline x: X): TypedEntry[? <: Tuple, ?] =
 def arb[T](using arbT: Arbitrary[T], tag: Tag[Gen[T]]): TypedEntry[EmptyTuple, Gen[T]] =
   TypedEntry(Entry(Nil, tag.tag, _ => arbT.arbitrary))
 
+// `makeGen[T]` lives on `Registry` in `Share.scala` — share-aware: when any `.share` markers
+// (entry-level flag or registry-level `share[A]` tag) are present, it routes through the share
+// build path; otherwise it's a plain `r.make[Gen[T]]`.
+
 /**
- * `registry.makeGen[T]` is shorthand for `registry.make[Gen[T]]`. Lets you read out a generator
- * directly without writing the `Gen[…]` wrapper at every call site.
+ * Marker factories scoped to `Gen[T]`. Each builds a [[registry.Memoize]] / [[registry.Share]] /
+ * [[registry.Const]] keyed on `Gen[T]` (rather than `T`), so prepending via `+:` retroactively
+ * marks the matching Gen entry without touching its registration site.
+ *
+ * Three increasingly-strong pinnings:
+ *
+ *   - `memoize[T]` — caches the entry's invoke RESULT (the produced `Gen` instance). Sampling
+ *     still varies per seed; this is purely about avoiding rebuilding the `Gen`.
+ *   - `share[T]` — pins one sampled value of `T` ACROSS ALL CONSUMERS within a single
+ *     `makeGen[U]` resolution tree. Different `makeGen` calls (or different test iterations)
+ *     each pick a fresh sample.
+ *   - `const[T]` — pins one sampled value for the REGISTRY'S LIFETIME: every consumer in every
+ *     `makeGen` call on that registry observes the SAME sampled value, regardless of seed. Use
+ *     this for "fixture" data that is shared across the entire test run (e.g. a `MultiNodeConfig`
+ *     produced once and reused).
+ *
+ * {{{
+ *   memoize[Version] +: gen(genVersion)   // cache the Gen[Version] instance
+ *   share[Version]   +: gen(genVersion)   // pin sample within one makeGen call
+ *   const[Version]   +: gen(genVersion)   // pin sample across all makeGen calls
+ * }}}
  */
-extension [AllIns <: Tuple, AllOuts <: Tuple](r: registry.Registry[AllIns, AllOuts])
-  def makeGen[T](using tag: Tag[Gen[T]]): Gen[T] = r.make[Gen[T]]
+def memoize[T](using tag: Tag[Gen[T]]): registry.Memoize[T] = registry.Memoize(tag.tag)
+def share[T](using tag: Tag[Gen[T]]): registry.Share[T]     = registry.Share(tag.tag)
+def const[T](using tag: Tag[Gen[T]]): registry.Const[T] =
+  registry.Const(tag.tag, withConstSampling)
+
+extension [Ins <: Tuple, T](e: TypedEntry[Ins, Gen[T]])
+  /** Mark an entry's output as shared: whenever its `Gen[T]` is requested during a single
+   * `makeGen` call, all consumers see the same sampled value. */
+  def share: TypedEntry[Ins, Gen[T]] =
+    TypedEntry(e.entry.copy(shared = true))
+
+  /** `gen(g).const` — pins ONE sampled value of `T` for the registry's lifetime: shared across all
+   * consumers in any one tree AND the same value is returned across separate `makeGen` calls. */
+  def const: TypedEntry[Ins, Gen[T]] =
+    TypedEntry(withConstSampling(e.entry.copy(shared = true)))

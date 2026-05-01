@@ -194,10 +194,13 @@ private[scalacheck] object SumMacro:
     val flatParams: List[Symbol] = valueParamLists.flatten
     val paramTypes: List[TypeRepr] = flatParams.map(childTpe.memberType)
 
-    val genParamTypes: List[TypeRepr] = paramTypes.map { pt =>
-      pt.asType match
-        case '[p] => TypeRepr.of[Gen[p]]
-    }
+    val (genParamTypes, passthroughMask): (List[TypeRepr], List[Boolean]) =
+      paramTypes.map { pt =>
+        if GenMacro.isGenType(pt) then (pt, true)
+        else
+          pt.asType match
+            case '[p] => (TypeRepr.of[Gen[p]], false)
+      }.unzip
 
     val inputTagExprs: List[Expr[LightTypeTag]] = genParamTypes.map { gt =>
       gt.asType match
@@ -242,8 +245,9 @@ private[scalacheck] object SumMacro:
       }
     }
 
+    val passthroughExpr: Expr[List[Boolean]] = Expr(passthroughMask)
     val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
-      GenCombine.combineGens[V](args.asInstanceOf[Seq[Gen[?]]], $buildFn)
+      GenCombine.combineGens[V](args.asInstanceOf[Seq[Gen[?]]], $passthroughExpr, $buildFn)
     }
 
     val entryExpr: Expr[Entry] = '{

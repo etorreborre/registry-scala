@@ -58,11 +58,15 @@ private[scalacheck] object GenMacro:
     // Substitute manually using the type-arg list carried by tpe.
     val paramTypes: List[TypeRepr] = flatParams.map(p => substTypeParams(tpe, tpe.memberType(p)))
 
-    // Wrap each input type in Gen[_] — the entry's declared inputs.
-    val genParamTypes: List[TypeRepr] = paramTypes.map { pt =>
-      pt.asType match
-        case '[p] => TypeRepr.of[Gen[p]]
-    }
+    // Wrap each input type in Gen[_] — except parameters that are already `Gen[X]`, which we register
+    // as-is (passthrough) so the registry doesn't have to produce an unnecessary `Gen[Gen[X]]`.
+    val (genParamTypes, passthroughMask): (List[TypeRepr], List[Boolean]) =
+      paramTypes.map { pt =>
+        if isGenType(pt) then (pt, true)
+        else
+          pt.asType match
+            case '[p] => (TypeRepr.of[Gen[p]], false)
+      }.unzip
 
     val inputTagExprs: List[Expr[LightTypeTag]] = genParamTypes.map { gt =>
       gt.asType match
@@ -117,8 +121,9 @@ private[scalacheck] object GenMacro:
           }
         }.asInstanceOf[Expr[Seq[Any] => T]]
 
+    val passthroughExpr: Expr[List[Boolean]] = Expr(passthroughMask)
     val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
-      GenCombine.combineGens[T](args.asInstanceOf[Seq[Gen[?]]], $buildFn)
+      GenCombine.combineGens[T](args.asInstanceOf[Seq[Gen[?]]], $passthroughExpr, $buildFn)
     }
 
     val entryExpr: Expr[Entry] =
@@ -200,15 +205,20 @@ private[scalacheck] object GenMacro:
           }
         }.asInstanceOf[Expr[Seq[Any] => T]]
 
-    val genParamType: TypeRepr = paramType.asType match
-      case '[p] => TypeRepr.of[Gen[p]]
+    val isPassthrough: Boolean = isGenType(paramType)
+    val genParamType: TypeRepr =
+      if isPassthrough then paramType
+      else
+        paramType.asType match
+          case '[p] => TypeRepr.of[Gen[p]]
 
     val inputTagExpr: Expr[LightTypeTag] = genParamType.asType match
       case '[gp] => '{ summon[Tag[gp]].tag }
     val outputTagExpr: Expr[LightTypeTag] = '{ summon[Tag[Gen[T]]].tag }
 
+    val passthroughExpr: Expr[List[Boolean]] = Expr(List(isPassthrough))
     val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
-      GenCombine.combineGens[T](args.asInstanceOf[Seq[Gen[?]]], $buildFn)
+      GenCombine.combineGens[T](args.asInstanceOf[Seq[Gen[?]]], $passthroughExpr, $buildFn)
     }
 
     val entryExpr: Expr[Entry] =
@@ -307,10 +317,15 @@ private[scalacheck] object GenMacro:
           s"gen(f) expects a FunctionN value (lambda or eta-expanded method), got ${other.show}"
         )
 
-    val genParamTypes: List[TypeRepr] = paramTypes.map { pt =>
-      pt.asType match
-        case '[p] => TypeRepr.of[Gen[p]]
-    }
+    // Pass `Gen[X]` parameters straight through (no extra wrap) so the registry doesn't have to
+    // produce a `Gen[Gen[X]]`. The corresponding `passthrough` slot is true.
+    val (genParamTypes, passthroughMask): (List[TypeRepr], List[Boolean]) =
+      paramTypes.map { pt =>
+        if isGenType(pt) then (pt, true)
+        else
+          pt.asType match
+            case '[p] => (TypeRepr.of[Gen[p]], false)
+      }.unzip
 
     val inputTagExprs: List[Expr[LightTypeTag]] = genParamTypes.map { gt =>
       gt.asType match
@@ -319,10 +334,9 @@ private[scalacheck] object GenMacro:
 
     // If retType is Gen[X], the output type of the entry is Gen[X] — X is the inner payload.
     // Otherwise, the output is Gen[retType].
-    val genSym = TypeRepr.of[Gen[Any]].typeSymbol
     val retIsGen: Option[TypeRepr] = retType.dealias match
-      case AppliedType(tycon, List(inner)) if tycon.typeSymbol == genSym => Some(inner)
-      case _                                                             => None
+      case AppliedType(_, List(inner)) if isGenType(retType) => Some(inner)
+      case _                                                 => None
 
     val outputPayloadType: TypeRepr = retIsGen.getOrElse(retType)
     val outputTagExpr: Expr[LightTypeTag] = outputPayloadType.asType match
@@ -341,6 +355,7 @@ private[scalacheck] object GenMacro:
           }
         }
 
+        val passthroughExpr: Expr[List[Boolean]] = Expr(passthroughMask)
         val closure: Expr[Seq[Any] => Any] = retIsGen match
           case Some(innerTpe) =>
             innerTpe.asType match
@@ -349,12 +364,17 @@ private[scalacheck] object GenMacro:
                 '{ (args: Seq[Any]) =>
                   GenCombine.combineGensFlat[inner](
                     args.asInstanceOf[Seq[Gen[?]]],
+                    $passthroughExpr,
                     $buildFn.asInstanceOf[Seq[Any] => Gen[inner]]
                   )
                 }
           case None =>
             '{ (args: Seq[Any]) =>
-              GenCombine.combineGens[r](args.asInstanceOf[Seq[Gen[?]]], $buildFn)
+              GenCombine.combineGens[r](
+                args.asInstanceOf[Seq[Gen[?]]],
+                $passthroughExpr,
+                $buildFn
+              )
             }
 
         val entryExpr: Expr[Entry] =
@@ -372,6 +392,14 @@ private[scalacheck] object GenMacro:
   private def isFunctionType(using Quotes)(tycon: quotes.reflect.TypeRepr): Boolean =
     val name = tycon.typeSymbol.fullName
     name.startsWith("scala.Function") || name.startsWith("scala.ContextFunction")
+
+  /** True iff `tpe` (after dealiasing) is `Gen[X]` for some `X`. */
+  private[scalacheck] def isGenType(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean =
+    import q.reflect.*
+    val genSym = TypeRepr.of[Gen[Any]].typeSymbol
+    tpe.dealias match
+      case AppliedType(tycon, List(_)) if tycon.typeSymbol == genSym => true
+      case _                                                         => false
 
   /** Substitute `tpe`'s type-arg list into `inType`. For `tpe = Box[Int]` and
    * `inType = T` (a type-param ref of `Box`'s class), returns `Int`. No-op when `tpe` isn't an

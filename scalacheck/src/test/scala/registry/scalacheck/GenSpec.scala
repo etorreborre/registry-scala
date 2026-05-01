@@ -59,6 +59,30 @@ class GenSpec extends Specification:
       sample.value must beBetween(1, 10)
     }
 
+    "substitute type parameters when deriving a parameterized case class" >> {
+      // Regression: gen[Box[Int]] should require Gen[Int] as input, not Gen[T] (the unsubstituted
+      // type parameter name from Box's primary constructor).
+      val r =
+        gen[Box[Int]] +:
+          gen(Gen.choose(1, 99))
+
+      val sample = r.make[Gen[Box[Int]]].pureApply(Gen.Parameters.default, Seed(5L))
+      sample.item must beBetween(1, 99)
+    }
+
+    "substitute nested type parameters when one parameterized type contains another" >> {
+      // Regression: gen[Outer2[Int]] depends on Inner2[Int] (where Outer2 holds an Inner2[T]). The
+      // macro must substitute T at every level when computing the entry's input types — otherwise
+      // it asks for `Gen[Inner2[T]]` and won't unify with the registered `Gen[Inner2[Int]]`.
+      val r =
+        gen[Outer2[Int]] +:
+          gen[Inner2[Int]] +:
+          gen(Gen.choose(1, 99))
+
+      val sample = r.make[Gen[Outer2[Int]]].pureApply(Gen.Parameters.default, Seed(7L))
+      sample.inner.value must beBetween(1, 99)
+    }
+
     "derive a Gen for a case class nested inside its companion object" >> {
       // Regression: before dealias was added, TypeRepr.of[Outer.Inner].typeSymbol.isClassDef returned
       // false for case classes declared inside a companion, forcing the user to fall back to gen(f).
@@ -179,3 +203,7 @@ case class Greeting(text: String)
 case class Outer(label: String, inner: Outer.Inner)
 object Outer:
   case class Inner(count: Int)
+
+case class Box[T](item: T)
+case class Inner2[T](value: T)
+case class Outer2[T](inner: Inner2[T])

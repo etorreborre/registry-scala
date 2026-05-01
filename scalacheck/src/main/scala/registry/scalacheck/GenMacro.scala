@@ -53,7 +53,10 @@ private[scalacheck] object GenMacro:
     val valueParamLists: List[List[Symbol]] =
       ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
     val flatParams: List[Symbol] = valueParamLists.flatten
-    val paramTypes: List[TypeRepr] = flatParams.map(tpe.memberType)
+    // memberType(p) returns the param's declared type without substituting class type parameters,
+    // so for `tpe = Box[Int]` and `case class Box[T](item: T)` it yields `T` rather than `Int`.
+    // Substitute manually using the type-arg list carried by tpe.
+    val paramTypes: List[TypeRepr] = flatParams.map(p => substTypeParams(tpe, tpe.memberType(p)))
 
     // Wrap each input type in Gen[_] — the entry's declared inputs.
     val genParamTypes: List[TypeRepr] = paramTypes.map { pt =>
@@ -83,7 +86,8 @@ private[scalacheck] object GenMacro:
             val innerValueParamLists: List[List[Symbol]] =
               innerCtor.paramSymss.filterNot(_.headOption.exists(_.isType))
             val innerFlat: List[Symbol] = innerValueParamLists.flatten
-            val innerParamTypes: List[TypeRepr] = innerFlat.map(innerTpe.memberType)
+            val innerParamTypes: List[TypeRepr] =
+              innerFlat.map(p => substTypeParams(innerTpe, innerTpe.memberType(p)))
 
             val argTerms: List[Term] = innerParamTypes.zipWithIndex.map { (pt, i) =>
               pt.asType match
@@ -368,6 +372,25 @@ private[scalacheck] object GenMacro:
   private def isFunctionType(using Quotes)(tycon: quotes.reflect.TypeRepr): Boolean =
     val name = tycon.typeSymbol.fullName
     name.startsWith("scala.Function") || name.startsWith("scala.ContextFunction")
+
+  /** Substitute `tpe`'s type-arg list into `inType`. For `tpe = Box[Int]` and
+   * `inType = T` (a type-param ref of `Box`'s class), returns `Int`. No-op when `tpe` isn't an
+   * applied type or when its head has no type parameters.
+   */
+  private def substTypeParams(using Quotes)(
+      tpe: quotes.reflect.TypeRepr,
+      inType: quotes.reflect.TypeRepr
+  ): quotes.reflect.TypeRepr =
+    import quotes.reflect.*
+    tpe match
+      case AppliedType(tycon, typeArgs) =>
+        val tparams = tycon.typeSymbol.primaryConstructor.paramSymss
+          .find(_.headOption.exists(_.isType))
+          .getOrElse(Nil)
+        if tparams.length == typeArgs.length && tparams.nonEmpty then
+          inType.substituteTypes(tparams, typeArgs)
+        else inType
+      case _ => inType
 
   private def buildTupleType(using
       Quotes

@@ -3,6 +3,7 @@ package registry.scalacheck
 import izumi.reflect.Tag
 import org.scalacheck.Gen
 import registry.{Entry, TypedEntry}
+import scala.reflect.ClassTag
 
 /**
  * Container combinators — each is a `TypedEntry` that takes one or more element-level `Gen[T]` inputs
@@ -87,6 +88,41 @@ def indexedSeqOfMinMax[T](min: Int, max: Int)(using
     outTag: Tag[Gen[IndexedSeq[T]]]
 ): TypedEntry[Gen[T] *: EmptyTuple, Gen[IndexedSeq[T]]] =
   mk1[T, IndexedSeq[T]](g => Gen.chooseNum(min, max).flatMap(Gen.containerOfN[Vector, T](_, g)))
+
+/** Register `Gen[T] => Gen[IArray[T]]` — zero-or-more. Requires a `ClassTag[T]` because
+ * `IArray.from` is element-type specialized. */
+def iArrayOf[T](using
+    ct: ClassTag[T],
+    inTag: Tag[Gen[T]],
+    outTag: Tag[Gen[IArray[T]]]
+): TypedEntry[Gen[T] *: EmptyTuple, Gen[IArray[T]]] =
+  mk1[T, IArray[T]](g => Gen.listOf(g).map(IArray.from(_)))
+
+/** Register `Gen[T] => Gen[IArray[T]]` — one-or-more. */
+def nonEmptyIArrayOf[T](using
+    ct: ClassTag[T],
+    inTag: Tag[Gen[T]],
+    outTag: Tag[Gen[IArray[T]]]
+): TypedEntry[Gen[T] *: EmptyTuple, Gen[IArray[T]]] =
+  mk1[T, IArray[T]](g => Gen.nonEmptyListOf(g).map(IArray.from(_)))
+
+/** Register `Gen[T] => Gen[IArray[T]]` — exactly `n` elements. */
+def iArrayOfN[T](n: Int)(using
+    ct: ClassTag[T],
+    inTag: Tag[Gen[T]],
+    outTag: Tag[Gen[IArray[T]]]
+): TypedEntry[Gen[T] *: EmptyTuple, Gen[IArray[T]]] =
+  mk1[T, IArray[T]](g => Gen.listOfN(n, g).map(IArray.from(_)))
+
+/** Register `Gen[T] => Gen[IArray[T]]` — size between `min` and `max` inclusive. */
+def iArrayOfMinMax[T](min: Int, max: Int)(using
+    ct: ClassTag[T],
+    inTag: Tag[Gen[T]],
+    outTag: Tag[Gen[IArray[T]]]
+): TypedEntry[Gen[T] *: EmptyTuple, Gen[IArray[T]]] =
+  mk1[T, IArray[T]](g =>
+    Gen.chooseNum(min, max).flatMap(Gen.listOfN(_, g)).map(IArray.from(_))
+  )
 
 /** Register `Gen[T] => Gen[Set[T]]` via `Gen.containerOf[Set, T]`. */
 def setOf[T](using

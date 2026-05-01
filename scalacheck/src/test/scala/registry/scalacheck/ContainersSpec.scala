@@ -139,6 +139,51 @@ class ContainersSpec extends Specification:
     }
   }
 
+  "iArrayOf[T]" should {
+    "build a Gen[IArray[T]] from a registered Gen[T]" >> {
+      val r =
+        iArrayOf[Int] +:
+          gen(Gen.choose(1, 9))
+
+      val sample = r.make[Gen[IArray[Int]]].pureApply(Gen.Parameters.default, Seed(3L))
+      sample.toSeq must contain(beBetween(1, 9)).foreach
+    }
+  }
+
+  "nonEmptyIArrayOf[T]" should {
+    "always produce a non-empty IArray" >> {
+      val r =
+        nonEmptyIArrayOf[Int] +:
+          gen(Gen.choose(1, 9))
+
+      val sample = r.make[Gen[IArray[Int]]].pureApply(Gen.Parameters.default.withSize(5), Seed(2L))
+      sample.length must beGreaterThan(0)
+    }
+  }
+
+  "iArrayOfN[T](n)" should {
+    "produce an IArray of exactly n elements" >> {
+      val r =
+        iArrayOfN[Int](4) +:
+          gen(Gen.choose(0, 100))
+
+      r.make[Gen[IArray[Int]]].pureApply(Gen.Parameters.default, Seed(1L)).length === 4
+    }
+  }
+
+  "iArrayOfMinMax[T]" should {
+    "produce IArrays with size in [min, max]" >> {
+      val r =
+        iArrayOfMinMax[Int](2, 5) +:
+          gen(Gen.choose(0, 100))
+
+      val genArr = r.make[Gen[IArray[Int]]]
+      val samples =
+        (0 until 30).map(i => genArr.pureApply(Gen.Parameters.default, Seed(i.toLong)))
+      samples.map(_.length) must contain(beBetween(2, 5)).foreach
+    }
+  }
+
   "container helpers compose with gen" >> {
     case class Bag(items: List[String])
     val r =

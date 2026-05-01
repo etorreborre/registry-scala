@@ -18,7 +18,7 @@ class GenTraitSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(1, 9))
 
-      val genAnimal = r.make[Gen[Animal]]
+      val genAnimal = r.makeGen[Animal]
       val samples = (0 until 50).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isInstanceOf[Dog]) must beTrue
       samples.exists(_.isInstanceOf[Cat]) must beTrue
@@ -32,7 +32,7 @@ class GenTraitSpec extends Specification:
           gen[Color.Green.type](Color.Green) +:
           gen[Color.Blue.type](Color.Blue)
 
-      val genColor = r.make[Gen[Color]]
+      val genColor = r.makeGen[Color]
       val samples = (0 until 30).map(i => genColor.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.toSet must contain(Color.Red, Color.Green, Color.Blue)
     }
@@ -44,7 +44,7 @@ class GenTraitSpec extends Specification:
           value(Chooser.uniform) +:
           gen(99)
 
-      val genSingle = r.make[Gen[Single]]
+      val genSingle = r.makeGen[Single]
       val sample = genSingle.pureApply(Gen.Parameters.default, Seed(1L))
       sample must beAnInstanceOf[OnlyCase]
     }
@@ -61,7 +61,7 @@ class GenTraitSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(1, 9))
 
-      val genAnimal = r.make[Gen[Animal]]
+      val genAnimal = r.makeGen[Animal]
       val samples = (0 until 200).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       val dogs = samples.count(_.isInstanceOf[Dog])
       val cats = samples.count(_.isInstanceOf[Cat])
@@ -79,7 +79,7 @@ class GenTraitSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(1, 9))
 
-      val genAnimal = r.make[Gen[Animal]]
+      val genAnimal = r.makeGen[Animal]
       val samples = (0 until 20).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples must contain(beAnInstanceOf[Cat]).foreach
     }
@@ -98,7 +98,7 @@ class GenTraitSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(1, 9))
 
-      val genAnimal = r.make[Gen[Animal]]
+      val genAnimal = r.makeGen[Animal]
       val sample = genAnimal.pureApply(Gen.Parameters.default, Seed(1L))
       // Last variant in Mirror.SumOf[Animal] order is Cat.
       sample must beAnInstanceOf[Cat]
@@ -112,7 +112,7 @@ class GenTraitSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(1, 9))
 
-      val genAnimal = r.make[Gen[Animal]]
+      val genAnimal = r.makeGen[Animal]
       val samples = (0 until 50).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isInstanceOf[Dog]) must beTrue
       samples.exists(_.isInstanceOf[Cat]) must beTrue
@@ -125,14 +125,14 @@ class GenTraitSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(1, 9))
 
-      val genAnimal = r.make[Gen[Animal]]
+      val genAnimal = r.makeGen[Animal]
       val samples = (0 until 10).map(i => genAnimal.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples must contain(beAnInstanceOf[Dog]).foreach // index 0 = Dog per Mirror.SumOf[Animal] order
     }
 
     "work for a Scala 3 enum of no-arg cases" >> {
       val r = gen[Color]
-      val genColor = r.make[Gen[Color]]
+      val genColor = r.makeGen[Color]
       val samples = (0 until 60).map(i => genColor.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.toSet must contain(Color.Red, Color.Green, Color.Blue)
     }
@@ -142,7 +142,7 @@ class GenTraitSpec extends Specification:
         gen[Shape] +:
           gen(Gen.choose(1.0, 10.0))
 
-      val genShape = r.make[Gen[Shape]]
+      val genShape = r.makeGen[Shape]
       val samples = (0 until 60).map(i => genShape.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isInstanceOf[Shape.Circle]) must beTrue
       samples.exists(_ == Shape.Square)            must beTrue
@@ -150,7 +150,7 @@ class GenTraitSpec extends Specification:
 
     "work for a sealed trait whose variants are case objects" >> {
       val r = gen[Status]
-      val genStatus = r.make[Gen[Status]]
+      val genStatus = r.makeGen[Status]
       val samples = (0 until 40).map(i => genStatus.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.toSet must contain(Status.Active, Status.Inactive)
     }

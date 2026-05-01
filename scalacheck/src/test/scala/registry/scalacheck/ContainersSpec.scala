@@ -14,7 +14,7 @@ class ContainersSpec extends Specification:
         listOf[Int] +:
           gen(Gen.choose(1, 9))
 
-      val sample = r.make[Gen[List[Int]]].pureApply(Gen.Parameters.default, Seed(3L))
+      val sample = r.makeGen[List[Int]].pureApply(Gen.Parameters.default, Seed(3L))
       sample must contain(beBetween(1, 9)).foreach
     }
   }
@@ -25,7 +25,7 @@ class ContainersSpec extends Specification:
         nonEmptyListOf[Int] +:
           gen(Gen.choose(1, 9))
 
-      val sample = r.make[Gen[List[Int]]].pureApply(Gen.Parameters.default.withSize(5), Seed(2L))
+      val sample = r.makeGen[List[Int]].pureApply(Gen.Parameters.default.withSize(5), Seed(2L))
       sample must not(beEmpty)
     }
   }
@@ -36,7 +36,7 @@ class ContainersSpec extends Specification:
         listOfN[Int](4) +:
           gen(Gen.choose(0, 100))
 
-      r.make[Gen[List[Int]]].pureApply(Gen.Parameters.default, Seed(1L)) must haveSize(4)
+      r.makeGen[List[Int]].pureApply(Gen.Parameters.default, Seed(1L)) must haveSize(4)
     }
   }
 
@@ -46,7 +46,7 @@ class ContainersSpec extends Specification:
         listOfMinMax[Int](2, 5) +:
           gen(Gen.choose(0, 100)) 
 
-      val genList = r.make[Gen[List[Int]]]
+      val genList = r.makeGen[List[Int]]
       val samples = (0 until 30).map(i => genList.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.map(_.size) must contain(beBetween(2, 5)).foreach
     }
@@ -58,7 +58,7 @@ class ContainersSpec extends Specification:
         optionOf[Int] +:
           gen(7)
 
-      val genOpt = r.make[Gen[Option[Int]]]
+      val genOpt = r.makeGen[Option[Int]]
       val samples = (0 until 50).map(i => genOpt.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isDefined) must beTrue
       samples.exists(_.isEmpty) must beTrue
@@ -72,7 +72,7 @@ class ContainersSpec extends Specification:
         setOf[Int] +:
           gen(Gen.choose(1, 5)) 
 
-      val sample = r.make[Gen[Set[Int]]].pureApply(Gen.Parameters.default, Seed(4L))
+      val sample = r.makeGen[Set[Int]].pureApply(Gen.Parameters.default, Seed(4L))
       sample must contain(beBetween(1, 5)).foreach
     }
   }
@@ -84,7 +84,7 @@ class ContainersSpec extends Specification:
           gen("oops") +:
           gen(42) 
 
-      val genE = r.make[Gen[Either[String, Int]]]
+      val genE = r.makeGen[Either[String, Int]]
       val samples = (0 until 30).map(i => genE.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isLeft) must beTrue
       samples.exists(_.isRight) must beTrue
@@ -99,7 +99,7 @@ class ContainersSpec extends Specification:
           gen(Gen.alphaLowerStr.suchThat(_.nonEmpty)) +:
           gen(Gen.choose(0, 100))
 
-      val sample = r.make[Gen[Map[String, Int]]].pureApply(Gen.Parameters.default, Seed(8L))
+      val sample = r.makeGen[Map[String, Int]].pureApply(Gen.Parameters.default, Seed(8L))
       sample.values must contain(beBetween(0, 100)).foreach
     }
   }
@@ -110,7 +110,7 @@ class ContainersSpec extends Specification:
         nonEmptyListOfN[Int](3) +:
           gen(Gen.choose(0, 100)) 
 
-      r.make[Gen[List[Int]]].pureApply(Gen.Parameters.default, Seed(1L)) must haveSize(3)
+      r.makeGen[List[Int]].pureApply(Gen.Parameters.default, Seed(1L)) must haveSize(3)
     }
 
     "reject n < 1" >> {
@@ -124,7 +124,7 @@ class ContainersSpec extends Specification:
         setOfN[Int](5) +:
           gen(Gen.choose(1, 100))
 
-      r.make[Gen[Set[Int]]].pureApply(Gen.Parameters.default, Seed(2L)) must haveSize(5)
+      r.makeGen[Set[Int]].pureApply(Gen.Parameters.default, Seed(2L)) must haveSize(5)
     }
   }
 
@@ -135,7 +135,7 @@ class ContainersSpec extends Specification:
           gen(Gen.choose(1, 1000)) +:
           gen(Gen.alphaStr)
 
-      r.make[Gen[Map[Int, String]]].pureApply(Gen.Parameters.default, Seed(3L)) must haveSize(4)
+      r.makeGen[Map[Int, String]].pureApply(Gen.Parameters.default, Seed(3L)) must haveSize(4)
     }
   }
 
@@ -145,7 +145,7 @@ class ContainersSpec extends Specification:
         iArrayOf[Int] +:
           gen(Gen.choose(1, 9))
 
-      val sample = r.make[Gen[IArray[Int]]].pureApply(Gen.Parameters.default, Seed(3L))
+      val sample = r.makeGen[IArray[Int]].pureApply(Gen.Parameters.default, Seed(3L))
       sample.toSeq must contain(beBetween(1, 9)).foreach
     }
   }
@@ -156,7 +156,7 @@ class ContainersSpec extends Specification:
         nonEmptyIArrayOf[Int] +:
           gen(Gen.choose(1, 9))
 
-      val sample = r.make[Gen[IArray[Int]]].pureApply(Gen.Parameters.default.withSize(5), Seed(2L))
+      val sample = r.makeGen[IArray[Int]].pureApply(Gen.Parameters.default.withSize(5), Seed(2L))
       sample.length must beGreaterThan(0)
     }
   }
@@ -167,7 +167,7 @@ class ContainersSpec extends Specification:
         iArrayOfN[Int](4) +:
           gen(Gen.choose(0, 100))
 
-      r.make[Gen[IArray[Int]]].pureApply(Gen.Parameters.default, Seed(1L)).length === 4
+      r.makeGen[IArray[Int]].pureApply(Gen.Parameters.default, Seed(1L)).length === 4
     }
   }
 
@@ -177,7 +177,7 @@ class ContainersSpec extends Specification:
         iArrayOfMinMax[Int](2, 5) +:
           gen(Gen.choose(0, 100))
 
-      val genArr = r.make[Gen[IArray[Int]]]
+      val genArr = r.makeGen[IArray[Int]]
       val samples =
         (0 until 30).map(i => genArr.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.map(_.length) must contain(beBetween(2, 5)).foreach
@@ -191,5 +191,5 @@ class ContainersSpec extends Specification:
         listOf[String] +:
         gen(Gen.alphaStr)
 
-    r.make[Gen[Bag]].pureApply(Gen.Parameters.default, Seed(1L)) must beAnInstanceOf[Bag]
+    r.makeGen[Bag].pureApply(Gen.Parameters.default, Seed(1L)) must beAnInstanceOf[Bag]
   }

@@ -50,3 +50,10 @@ transparent inline def gen[X](inline x: X): TypedEntry[? <: Tuple, ?] =
  */
 def arb[T](using arbT: Arbitrary[T], tag: Tag[Gen[T]]): TypedEntry[EmptyTuple, Gen[T]] =
   TypedEntry(Entry(Nil, tag.tag, _ => arbT.arbitrary))
+
+/**
+ * `registry.makeGen[T]` is shorthand for `registry.make[Gen[T]]`. Lets you read out a generator
+ * directly without writing the `Gen[…]` wrapper at every call site.
+ */
+extension [AllIns <: Tuple, AllOuts <: Tuple](r: registry.Registry[AllIns, AllOuts])
+  def makeGen[T](using tag: Tag[Gen[T]]): Gen[T] = r.make[Gen[T]]

@@ -25,7 +25,7 @@ class ShareSpec extends Specification:
         gen(Bundle.apply) +:
           gen(Gen.choose(1, 1_000_000))
 
-      val sample = r.make[Gen[Bundle]].pureApply(Gen.Parameters.default, Seed(1L))
+      val sample = r.makeGen[Bundle].pureApply(Gen.Parameters.default, Seed(1L))
       (sample.a == sample.b && sample.b == sample.c) must beFalse
     }
 
@@ -97,7 +97,7 @@ class ShareSpec extends Specification:
           gen(Gen.choose(1, 1_000_000)).share
 
       // No `.shared` / `.share[_]` — sharing is inert.
-      val sample = r.make[Gen[Bundle]].pureApply(Gen.Parameters.default, Seed(17L))
+      val sample = r.makeGen[Bundle].pureApply(Gen.Parameters.default, Seed(17L))
       (sample.a == sample.b && sample.b == sample.c) must beFalse
     }
 

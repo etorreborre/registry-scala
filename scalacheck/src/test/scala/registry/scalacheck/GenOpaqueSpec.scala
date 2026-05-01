@@ -17,7 +17,7 @@ class GenOpaqueSpec extends Specification:
         gen[Wrap.Tag] +:
           gen(Gen.alphaStr)
 
-      val sample = r.make[Gen[Wrap.Tag]].pureApply(Gen.Parameters.default, Seed(7L))
+      val sample = r.makeGen[Wrap.Tag].pureApply(Gen.Parameters.default, Seed(7L))
       Wrap.unwrap(sample) must beAnInstanceOf[String]
     }
 
@@ -29,7 +29,7 @@ class GenOpaqueSpec extends Specification:
           gen(Gen.const(IArray.fill[Byte](8)(0)))
 
       val sample =
-        r.make[Gen[SignatureBox.Signature]].pureApply(Gen.Parameters.default, Seed(13L))
+        r.makeGen[SignatureBox.Signature].pureApply(Gen.Parameters.default, Seed(13L))
       SignatureBox.bytes(sample).length === 8
     }
 
@@ -39,7 +39,7 @@ class GenOpaqueSpec extends Specification:
           gen[Wrap.Tag] +:
           gen(Gen.alphaStr)
 
-      val sample = r.make[Gen[Tagged]].pureApply(Gen.Parameters.default, Seed(11L))
+      val sample = r.makeGen[Tagged].pureApply(Gen.Parameters.default, Seed(11L))
       sample must beAnInstanceOf[Tagged]
       Wrap.unwrap(sample.tag) must beAnInstanceOf[String]
     }

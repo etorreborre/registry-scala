@@ -15,7 +15,7 @@ class GenSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(0, 120))
 
-      val genPerson = r.make[Gen[Person]]
+      val genPerson = r.makeGen[Person]
       val sample = genPerson.pureApply(Gen.Parameters.default, Seed(42L))
       sample must beAnInstanceOf[Person]
       sample.age must beBetween(0, 120)
@@ -28,7 +28,7 @@ class GenSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(10000, 99999))
 
-      val genWithAddress = r.make[Gen[WithAddress]]
+      val genWithAddress = r.makeGen[WithAddress]
       val sample = genWithAddress.pureApply(Gen.Parameters.default, Seed(7L))
       sample must beAnInstanceOf[WithAddress]
       sample.address must beAnInstanceOf[Address]
@@ -41,7 +41,7 @@ class GenSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(0, 120))
 
-      val genPerson = r.make[Gen[Person]]
+      val genPerson = r.makeGen[Person]
       val s1 = genPerson.pureApply(Gen.Parameters.default, Seed(1L))
       val s2 = genPerson.pureApply(Gen.Parameters.default, Seed(2L))
       s1 !== s2
@@ -53,7 +53,7 @@ class GenSpec extends Specification:
           gen("FIXED") +:
           gen(Gen.choose(1, 10))
 
-      val genTagged = r.make[Gen[Tagged]]
+      val genTagged = r.makeGen[Tagged]
       val sample = genTagged.pureApply(Gen.Parameters.default, Seed(3L))
       sample.label === "FIXED"
       sample.value must beBetween(1, 10)
@@ -66,7 +66,7 @@ class GenSpec extends Specification:
         gen[Box[Int]] +:
           gen(Gen.choose(1, 99))
 
-      val sample = r.make[Gen[Box[Int]]].pureApply(Gen.Parameters.default, Seed(5L))
+      val sample = r.makeGen[Box[Int]].pureApply(Gen.Parameters.default, Seed(5L))
       sample.item must beBetween(1, 99)
     }
 
@@ -79,7 +79,7 @@ class GenSpec extends Specification:
           gen[Inner2[Int]] +:
           gen(Gen.choose(1, 99))
 
-      val sample = r.make[Gen[Outer2[Int]]].pureApply(Gen.Parameters.default, Seed(7L))
+      val sample = r.makeGen[Outer2[Int]].pureApply(Gen.Parameters.default, Seed(7L))
       sample.inner.value must beBetween(1, 99)
     }
 
@@ -92,7 +92,7 @@ class GenSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(1, 100))
 
-      val genOuter = r.make[Gen[Outer]]
+      val genOuter = r.makeGen[Outer]
       val sample = genOuter.pureApply(Gen.Parameters.default, Seed(11L))
       sample must beAnInstanceOf[Outer]
       sample.inner must beAnInstanceOf[Outer.Inner]
@@ -110,7 +110,7 @@ class GenSpec extends Specification:
           gen("Alice") *:
           gen(30)
 
-      r.make[Gen[Greeting]].pureApply(Gen.Parameters.default, Seed(1L)) === Greeting("Alice (30)")
+      r.makeGen[Greeting].pureApply(Gen.Parameters.default, Seed(1L)) === Greeting("Alice (30)")
     }
 
     "accept an eta-expanded constructor reference: gen(Ctor.apply)" >> {
@@ -119,7 +119,7 @@ class GenSpec extends Specification:
           gen("Bob") *:
           gen(42)
 
-      r.make[Gen[Person]].pureApply(Gen.Parameters.default, Seed(3L)) === Person("Bob", 42)
+      r.makeGen[Person].pureApply(Gen.Parameters.default, Seed(3L)) === Person("Bob", 42)
     }
 
     "lift a single-arg function" >> {
@@ -127,7 +127,7 @@ class GenSpec extends Specification:
         gen((n: Int) => Greeting(s"n=$n")) *:
           gen(21)
 
-      r.make[Gen[Greeting]].pureApply(Gen.Parameters.default, Seed(5L)) === Greeting("n=21")
+      r.makeGen[Greeting].pureApply(Gen.Parameters.default, Seed(5L)) === Greeting("n=21")
     }
 
     "accept a Gen-returning function: entry output is Gen[T] (not Gen[Gen[T]])" >> {
@@ -141,7 +141,7 @@ class GenSpec extends Specification:
           gen(42)
 
       // Resolves as Gen[Person], not Gen[Gen[Person]].
-      val sample = r.make[Gen[Person]].pureApply(Gen.Parameters.default, Seed(9L))
+      val sample = r.makeGen[Person].pureApply(Gen.Parameters.default, Seed(9L))
       sample must beAnInstanceOf[Person]
       sample.age === 42
     }
@@ -155,7 +155,7 @@ class GenSpec extends Specification:
           gen("T") +:
           gen(10)
 
-      val sample = r.make[Gen[Tagged]].pureApply(Gen.Parameters.default, Seed(13L))
+      val sample = r.makeGen[Tagged].pureApply(Gen.Parameters.default, Seed(13L))
       sample.label === "T"
       sample.value must beBetween(1, 10)
     }
@@ -166,7 +166,7 @@ class GenSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(0, 120))
 
-      val sample = r.make[Gen[Person]].pureApply(Gen.Parameters.default, Seed(17L))
+      val sample = r.makeGen[Person].pureApply(Gen.Parameters.default, Seed(17L))
       sample must beAnInstanceOf[Person]
     }
 
@@ -176,7 +176,7 @@ class GenSpec extends Specification:
           gen("HELLO") +:
           gen(7)
 
-      val sample = r.make[Gen[Tagged]].pureApply(Gen.Parameters.default, Seed(19L))
+      val sample = r.makeGen[Tagged].pureApply(Gen.Parameters.default, Seed(19L))
       sample.label === "HELLO"
       sample.value === 7
     }
@@ -189,7 +189,7 @@ class GenSpec extends Specification:
           arb[String] +:
           arb[Int]
 
-      val sample = r.make[Gen[Person]].pureApply(Gen.Parameters.default, Seed(23L))
+      val sample = r.makeGen[Person].pureApply(Gen.Parameters.default, Seed(23L))
       sample must beAnInstanceOf[Person]
     }
   }

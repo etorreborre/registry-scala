@@ -19,7 +19,7 @@ class RecurseSpec extends Specification:
           gen(Leaf: Tree)
 
       val samples = (0 until 30).map(i =>
-        r.make[Gen[Tree]].pureApply(Gen.Parameters.default.withSize(8), Seed(i.toLong))
+        r.makeGen[Tree].pureApply(Gen.Parameters.default.withSize(8), Seed(i.toLong))
       )
       samples must contain(Leaf)
       samples.exists(_.isInstanceOf[Node]) must beTrue
@@ -37,7 +37,7 @@ class RecurseSpec extends Specification:
         case Node(l, r) => 1 + math.max(depth(l), depth(r))
 
       val samples = (0 until 50).map(i =>
-        r.make[Gen[Tree]].pureApply(Gen.Parameters.default.withSize(100), Seed(i.toLong))
+        r.makeGen[Tree].pureApply(Gen.Parameters.default.withSize(100), Seed(i.toLong))
       )
       samples.map(depth) must contain(be_<=(2)).foreach
     }
@@ -49,7 +49,7 @@ class RecurseSpec extends Specification:
         Gen.zip(self, self).map((l, r) => Node(l, r): Tree)
       } *: Registry.empty
 
-      r.make[Gen[Tree]] must throwA[RuntimeException].like { case e =>
+      r.makeGen[Tree] must throwA[RuntimeException].like { case e =>
         e.getMessage must contain("cycle").or(contain("No entry"))
       }
     }

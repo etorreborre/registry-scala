@@ -92,7 +92,7 @@ private[scalacheck] object SumMacro:
 
     ((insTuple.asType, outsTuple.asType): @unchecked) match
       case ('[ins], '[outs]) =>
-        '{ Registry[ins & Tuple, outs & Tuple]($entriesExpr, Nil, Nil) }
+        '{ Registry[ins & Tuple, outs & Tuple]($entriesExpr, Nil) }
 
   // ---- helpers -----------------------------------------------------------------------------------
 

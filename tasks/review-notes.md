@@ -79,6 +79,22 @@ No fixes in this pass — fixes happen as separate follow-ups after triage.
   refinement vocabulary now — consistent with the existing `Refinement`
   type and `refine[Path, T]` factory.
 
+- `[done]` **`tweak` removed**. The combinator was redundant: prepending
+  `fun((t: T) => f(t))` above an existing `T` producer achieves the same
+  post-resolution transformation via ordinary entry composition (LIFO
+  selects the wrapper, recursive `T` lookup pulls the underlying value).
+  Removed `Registry.tweak[A]`, the `tweaks` field, `Resolve.applyTweaks`,
+  and the `tweaks` parameter from `Resolve.resolve` / `Resolve.go`.
+  Internal use in `scalacheck/Share.scala` (where the share build pinned
+  sampled `Gen[A]` values via a tweak) rewritten to prepend a value-style
+  `Entry(Nil, head, _ => Gen.const(sample))` instead — same effect through
+  LIFO selection. Tests: removed the dedicated "tweak" group; added a
+  small "transformation via prepended fun" group covering the equivalent
+  patterns. Docs (`customization.md`, `resolution.md`, `modules/core.md`,
+  `memoization.md`, `scalacheck/README.md`, scaladoc on Share.scala)
+  updated. Lost-by-removal: the rare "compose tweaks across `<+>`" use
+  case (a transformation registered on an empty registry, then merged).
+
 - `[doc]` **`Registry.memoize[A]` returns a new registry with a fresh
   cache**. Calling it twice on the same registry yields two independent
   caches. Documented in `concepts/memoization.md`; mentioning in the

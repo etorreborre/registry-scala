@@ -12,9 +12,6 @@ import registry.TypeChecks.*
  * The phantom type parameters power the compile-time-checked [[makeSafe]]; the runtime-only [[make]]
  * ignores them.
  *
- * `tweaks` is a list of post-resolution transformations keyed by the stable `LightTypeTag.repr` of the
- * *requested* type, applied in registration order.
- *
  * `refinements` is a list of context-sensitive overrides: each refinement says "whenever the
  * resolution stack contains the types of `path` as a subsequence (in order, not necessarily
  * contiguous) and we're resolving `target`, return the given value instead of running the normal
@@ -22,7 +19,6 @@ import registry.TypeChecks.*
  */
 final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     entries: List[Entry],
-    tweaks: List[(String, Any => Any)] = Nil,
     refinements: List[(List[LightTypeTag], LightTypeTag, Any)] = Nil
 ):
 
@@ -49,7 +45,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * check — missing dependencies surface at `makeSafe` time. LIFO.
    */
   def *:[EIns <: Tuple, EOut](e: TypedEntry[EIns, EOut]): Registry[Concat[EIns, AllIns], EOut *: AllOuts] =
-    Registry(e.entry :: entries, tweaks, refinements)
+    Registry(e.entry :: entries, refinements)
 
   /**
    * Tracked merge: `left *: right` combines both registries' entries and tracks combined types.
@@ -58,33 +54,25 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
   def *:[LIns <: Tuple, LOuts <: Tuple](
       l: Registry[LIns, LOuts]
   ): Registry[Concat[LIns, AllIns], Concat[LOuts, AllOuts]] =
-    Registry(
-      l.entries ++ entries,
-      l.tweaks ++ tweaks,
-      l.refinements ++ refinements
-    )
+    Registry(l.entries ++ entries, l.refinements ++ refinements)
 
   /**
    * Untracked prepend: `entry -: registry`. Adds the entry at runtime but does NOT update the type-level
    * `AllIns` / `AllOuts` accounting — the entry is invisible to `makeSafe`. Escape hatch for dynamic use cases.
    */
   def -:[EIns <: Tuple, EOut](e: TypedEntry[EIns, EOut]): Registry[AllIns, AllOuts] =
-    Registry(e.entry :: entries, tweaks, refinements)
+    Registry(e.entry :: entries, refinements)
 
   /** Untracked prepend of a raw `Entry`. Like [[-:]] but for manually-constructed entries. */
   def -:(e: Entry): Registry[AllIns, AllOuts] =
-    Registry(e :: entries, tweaks, refinements)
+    Registry(e :: entries, refinements)
 
   /**
    * Untracked merge: `left -: right` combines both registries' entries but keeps only the receiver's
    * type-level accounting — the left side is invisible to `makeSafe`.
    */
   def -:[LIns <: Tuple, LOuts <: Tuple](l: Registry[LIns, LOuts]): Registry[AllIns, AllOuts] =
-    Registry(
-      l.entries ++ entries,
-      l.tweaks ++ tweaks,
-      l.refinements ++ refinements
-    )
+    Registry(l.entries ++ entries, l.refinements ++ refinements)
 
   /**
    * Append a [[Refinement]] (path-scoped override) to this registry. All three of `+:`, `*:`, `-:`
@@ -116,26 +104,13 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
   def <+>[OIns <: Tuple, OOuts <: Tuple](
       other: Registry[OIns, OOuts]
   ): Registry[Concat[AllIns, OIns], Concat[AllOuts, OOuts]] =
-    Registry(
-      entries ++ other.entries,
-      tweaks ++ other.tweaks,
-      refinements ++ other.refinements
-    )
+    Registry(entries ++ other.entries, refinements ++ other.refinements)
 
   /**
-   * Drop all type-level tracking. The entries, tweaks, and refinements are preserved, so [[make]]
-   * still works, but [[makeSafe]] can no longer verify anything.
+   * Drop all type-level tracking. The entries and refinements are preserved, so [[make]] still
+   * works, but [[makeSafe]] can no longer verify anything.
    */
-  def erase: Registry[EmptyTuple, EmptyTuple] = Registry(entries, tweaks, refinements)
-
-
-  /**
-   * Register a post-resolution transformation on any resolved value of type `A`. Applied every time the
-   * registry resolves an `A` — directly or as an input to another entry. Multiple `tweak[A]` calls compose
-   * in registration order (the first-registered tweak runs first, later tweaks wrap its result).
-   */
-  def tweak[A](f: A => A)(using tag: Tag[A]): Registry[AllIns, AllOuts] =
-    copy(tweaks = tweaks :+ (tag.tag.repr, f.asInstanceOf[Any => Any]))
+  def erase: Registry[EmptyTuple, EmptyTuple] = Registry(entries, refinements)
 
   /**
    * Memoize every entry whose output is a subtype of `A`: once resolved, the entry's value is cached and
@@ -144,8 +119,8 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * `IO.memoize` for true effect-result memoization on top).
    *
    * The cache is stored in the entry's closure (via `AtomicReference`), so it survives all `copy`-based
-   * combinators (`+:`, `*:`, `tweak`, `refine`, etc.). Each call to `memoize[A]` creates a *new*
-   * registry with a *fresh* cache; the original is unaffected.
+   * combinators (`+:`, `*:`, `refine`, etc.). Each call to `memoize[A]` creates a *new* registry with a
+   * *fresh* cache; the original is unaffected.
    */
   def memoize[A](using tag: Tag[A]): Registry[AllIns, AllOuts] =
     val targetTag = tag.tag
@@ -189,7 +164,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
 
   /** Build a value of type `T`. Runtime-only; throws if a dependency is missing. */
   def make[T](using tag: Tag[T]): T =
-    Resolve.resolve(entries, tweaks, refinements, tag.tag).asInstanceOf[T]
+    Resolve.resolve(entries, refinements, tag.tag).asInstanceOf[T]
 
   /**
    * Build a value of type `T` with compile-time checks: `T` must be produced, and every required input
@@ -200,7 +175,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     ${ MakeSafeMacro.impl[T, AllIns, AllOuts]('this, 'tag) }
 
 object Registry:
-  val empty: Registry[EmptyTuple, EmptyTuple] = Registry(Nil, Nil, Nil)
+  val empty: Registry[EmptyTuple, EmptyTuple] = Registry(Nil, Nil)
 
   /**
    * Wrap an entry's `invoke` closure with a cache. First call computes and stores the result; subsequent

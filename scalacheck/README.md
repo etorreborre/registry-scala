@@ -100,7 +100,7 @@ scope a chooser to a particular build context — e.g., uniform everywhere, but 
 | `value(gen: Gen[T])`               | Register a leaf generator (uses core `value` directly — no new machinery).                                                                                                                                                                      |
 
 All the core registry operators work unchanged — `+:` (strict), `*:` (tracked), `-:`
-(untyped), `<+>` (merge), `make`, `makeSafe`, `erase`, `tweak`, `refine`, `memoize`.
+(untyped), `<+>` (merge), `make`, `makeSafe`, `erase`, `refine`, `memoize`.
 Subtype-aware resolution is inherited from core: `Gen[List[Int]]` satisfies a request for
 `Gen[Seq[Int]]` because `Gen[+T]` is covariant.
 

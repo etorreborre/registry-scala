@@ -35,7 +35,6 @@ codecs.
 
 | Method                              | Effect                                                |
 |-------------------------------------|-------------------------------------------------------|
-| `tweak[A](f)`                       | wrap every resolved `A` with `f`                      |
 | `refine[Ctx, T](v)`                 | when building inside `Ctx`, return `v` for `T`        |
 | `refinePath[(A, B, ...), T](v)`     | same, but require the path as a subsequence           |
 | `refine[Path, T](v)` (factory)      | refinement as a value; composes with `+:`/`*:`/`-:`   |
@@ -97,7 +96,7 @@ a1 eq a2
   lookup, cycle detection.
 - [Safety](../concepts/safety.md) — `make` vs `makeSafe`, the `=:=` vs
   `<:<` asymmetry.
-- [Customization](../concepts/customization.md) — tweak, refine,
-  refinePath, erase.
+- [Customization](../concepts/customization.md) — refine, refinePath,
+  erase.
 - [Memoization](../concepts/memoization.md) — sharing instances across the
   graph.

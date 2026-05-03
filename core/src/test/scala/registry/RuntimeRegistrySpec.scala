@@ -152,46 +152,31 @@ class RuntimeRegistrySpec extends Specification:
     }
   }; br
 
-  "tweak" should {
-    "post-process a value of the tweaked type" >> {
-      val r = (value(42) +: Registry.empty).tweak[Int](_ + 1)
+  // Post-resolution transformation pattern: a `fun(t: T => T)` entry prepended above an existing
+  // `T` producer. LIFO selects the wrapping fun, whose recursive `T` input pulls the underlying
+  // value from below, then the fun transforms it. Replaces the older `r.tweak[T](f)` API.
+  "transformation via prepended fun" should {
+    "wrap a value-producing entry and post-process its output" >> {
+      val r = fun((n: Int) => n + 1) +: value(42)
       r.make[Int] === 43
     }
 
-    "compose multiple tweaks in registration order (first-registered runs first)" >> {
-      val r = (value(42) +: Registry.empty)
-        .tweak[Int](_ + 1) // 42 -> 43
-        .tweak[Int](_ * 2) // 43 -> 86
+    "compose multiple wrappers in chain order (innermost runs first)" >> {
+      val r =
+        fun((n: Int) => n * 2) +: // 43 -> 86
+          fun((n: Int) => n + 1) +: //  42 -> 43
+          value(42)
       r.make[Int] === 86
     }
 
-    "apply to values resolved recursively as inputs to a larger build" >> {
-      // Tweak the Host, then build a DbConfig that uses it. The tweak runs on the Host value
-      // that feeds into DbConfig's constructor, so the final config has the upper-cased host.
+    "wrap a value used as an input to a larger build" >> {
+      // Wrap Host with toUpperCase, then build a DbConfig that uses it.
       val r =
-        (fun[DbConfig] +: value(Host("h")) +: value(5432) +: Registry.empty)
-          .tweak[Host](h => Host(h.value.toUpperCase))
-
+        fun((h: Host) => Host(h.value.toUpperCase)) +:
+          fun[DbConfig] +:
+          value(Host("h")) +:
+          value(5432)
       r.make[DbConfig] === DbConfig(Host("H"), 5432)
-    }
-
-    "leave unrelated types untouched" >> {
-      val r = (value("hi") +: value(42) +: Registry.empty).tweak[Int](_ + 1000)
-      r.make[Int] === 1042
-      r.make[String] === "hi"
-    }
-
-    "be preserved across +: prepends" >> {
-      val base = (value(1) +: Registry.empty).tweak[Int](_ * 10)
-      val r = fun[Wrap] +: base
-      r.make[Wrap] === Wrap(10) // the tweak fires on the Int input before Wrap's ctor runs
-    }
-
-    "merge tweaks across <+>" >> {
-      val left = (value(5) +: Registry.empty).tweak[Int](_ + 1) // 5 -> 6
-      val right = Registry.empty.tweak[Int](_ * 10) // applied second; 6 -> 60
-      val merged = left <+> right
-      merged.make[Int] === 60
     }
   }; br
 
@@ -339,24 +324,24 @@ class RuntimeRegistrySpec extends Specification:
       calls === 2
     }
 
-    "tweak interaction — invoke runs once per make, tweak applies per consumer" >> {
-      var invokes = 0
-      var tweakHits = 0
+    "transformation via prepended fun — wrapper runs once and is shared across consumers" >> {
+      // The wrapping `fun` entry produces Wrap; both Pair fields read the same wrapped value
+      // from the per-make cache, so the wrapper invokes once.
+      var underlying = 0
+      var wraps      = 0
       case class Pair(a: Wrap, b: Wrap)
       val r =
-        (fun[Pair] +:
-          fun((_: Int) => { invokes += 1; Wrap(invokes) }) +:
-          value(0) +:
-          Registry.empty).tweak[Wrap] { w =>
-          tweakHits += 1
-          Wrap(w.value + 100)
-        }
+        fun((w: Wrap) => { wraps += 1; Wrap(w.value + 100) }) +:
+          fun[Pair] +:
+          fun((_: Int) => { underlying += 1; Wrap(underlying) }) +:
+          value(0)
 
       val p = r.make[Pair]
       p.a === Wrap(101)
       p.b === Wrap(101)
-      invokes === 1
-      tweakHits === 2
+      p.a must beTheSameAs(p.b)
+      underlying === 1
+      wraps === 1
     }
 
     "refinement interaction — refined values are NOT cached, so unrelated paths see fresh values" >> {

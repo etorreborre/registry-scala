@@ -7,12 +7,11 @@ object Resolve:
 
   def resolve(
       entries: List[Entry],
-      tweaks: List[(String, Any => Any)],
       refinements: List[(List[LightTypeTag], LightTypeTag, Any)],
       want: LightTypeTag
   ): Any =
     val cache = scala.collection.mutable.Map.empty[String, Any]
-    go(entries, tweaks, refinements, want, List.empty, List.empty, cache)._1
+    go(entries, refinements, want, List.empty, List.empty, cache)._1
 
   /** `inFlightEntries` tracks specific [[Entry]] instances already consumed in the current resolution
    * path — used to skip them when resolving inputs of the same type, which is what makes recursive
@@ -21,10 +20,9 @@ object Resolve:
    * `inFlightTypes` tracks the requested types along the path — used for cycle error messages and
    * refinement-path matching.
    *
-   * `cache` holds the *pre-tweak* invoke result of every non-`fresh` entry whose resolution did not
-   * involve a refinement, keyed on the chosen entry's output `repr`. A cache hit returns the stored
-   * value (tweaks are then re-applied per consumer based on `want`). Entries marked `fresh = true`
-   * bypass the cache on both read and write.
+   * `cache` holds the invoke result of every non-`fresh` entry whose resolution did not involve a
+   * refinement, keyed on the chosen entry's output `repr`. A cache hit returns the stored value
+   * directly. Entries marked `fresh = true` bypass the cache on both read and write.
    *
    * The second component of the return tuple is `refined`: `true` if a refinement fired during this
    * resolution (directly or in any descendant). Refined values are path-dependent — caching them
@@ -33,7 +31,6 @@ object Resolve:
    */
   private def go(
       entries: List[Entry],
-      tweaks: List[(String, Any => Any)],
       refinements: List[(List[LightTypeTag], LightTypeTag, Any)],
       want: LightTypeTag,
       inFlightEntries: List[Entry],
@@ -47,7 +44,7 @@ object Resolve:
 
     refinement match
       case Some((_, _, v)) =>
-        (applyTweaks(v, want, tweaks), true)
+        (v, true)
       case None            =>
         // Subtype-aware entry lookup — skip entries already in flight so that a recursive entry
         // (same input/output type) picks a *different* entry for its input, enabling `genRecursive`.
@@ -60,29 +57,21 @@ object Resolve:
               sys.error(formatCycle(want, inFlightTypes :+ want))
             else sys.error(formatMissing(want, entries.map(_.output.repr).distinct))
           case Some(entry) =>
-            // Cache the *pre-tweak* invoke result keyed on the chosen entry's output. This way,
-            // two consumers asking for `Cat` vs `Animal` that both resolve to the same Cat entry
-            // share the underlying instance, but each gets its own by-type tweaks applied.
+            // Cache the invoke result keyed on the chosen entry's output. Two consumers asking for
+            // `Cat` vs `Animal` that resolve to the same Cat entry share the underlying instance.
             val key = entry.output.repr
             if !entry.fresh && cache.contains(key) then
-              (applyTweaks(cache(key), want, tweaks), false)
+              (cache(key), false)
             else
               val nextEntries = inFlightEntries :+ entry
               val nextTypes   = inFlightTypes :+ want
               val resolved =
-                entry.inputs.map(go(entries, tweaks, refinements, _, nextEntries, nextTypes, cache))
+                entry.inputs.map(go(entries, refinements, _, nextEntries, nextTypes, cache))
               val args            = resolved.map(_._1)
               val anyChildRefined = resolved.exists(_._2)
               val invoked         = entry.invoke(args)
               if !entry.fresh && !anyChildRefined then cache.update(key, invoked)
-              (applyTweaks(invoked, want, tweaks), anyChildRefined)
-
-  /** Apply every tweak whose key matches `want.repr`, in registration order. */
-  private def applyTweaks(base: Any, want: LightTypeTag, tweaks: List[(String, Any => Any)]): Any =
-    val key = want.repr
-    tweaks.foldLeft(base) { case (acc, (tweakKey, f)) =>
-      if tweakKey == key then f(acc) else acc
-    }
+              (invoked, anyChildRefined)
 
   /** True iff the elements of `needle` appear (in order, not necessarily contiguous) in `haystack`,
    * compared by `LightTypeTag.repr`.

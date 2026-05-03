@@ -16,8 +16,9 @@ import registry.{Entry, Registry, Resolve, TypedEntry}
  *     automatically when `makeGen[T]` is called.
  *
  * Sampling is threaded through `Gen.flatMap`: each shared `Gen[A]` is sampled once at the outer
- * level, then a `Gen[A] => Gen.const(sample)` tweak is installed before the rest of the graph is
- * resolved. Shared types are sampled in **dependency order**: if a shared type `B` appears in the
+ * level, then a fresh value-style entry producing `Gen.const(sample)` is prepended to the
+ * registry before the rest of the graph is resolved (LIFO selection makes the pinned entry win).
+ * Shared types are sampled in **dependency order**: if a shared type `B` appears in the
  * resolution chain of another shared type `A` (i.e. `A`'s generator transitively consumes `B`),
  * `B` is sampled and pinned first so `A`'s sample observes the pinned `B`.
  */
@@ -91,17 +92,17 @@ private def build[AllIns <: Tuple, AllOuts <: Tuple](
 ): Gen[Any] =
   pending match
     case Nil =>
-      Resolve
-        .resolve(r.entries, r.tweaks, r.refinements, want)
-        .asInstanceOf[Gen[Any]]
+      Resolve.resolve(r.entries, r.refinements, want).asInstanceOf[Gen[Any]]
 
     case head :: rest =>
-      val sharedGen = Resolve
-        .resolve(r.entries, r.tweaks, r.refinements, head)
-        .asInstanceOf[Gen[Any]]
+      val sharedGen =
+        Resolve.resolve(r.entries, r.refinements, head).asInstanceOf[Gen[Any]]
       sharedGen.flatMap { sample =>
-        val pinToConst: Any => Any = (_: Any) => Gen.const(sample)
-        build(r.copy(tweaks = r.tweaks :+ (head.repr, pinToConst)), rest, want)
+        // Pin the sampled `Gen[A]` for the rest of the build by prepending a value-style entry
+        // that produces `Gen.const(sample)`. LIFO selection makes this entry win over any other
+        // `Gen[A]` producer further down the chain.
+        val pinned = Entry(Nil, head, _ => Gen.const(sample))
+        build(r.copy(entries = pinned :: r.entries), rest, want)
       }
 
 /**

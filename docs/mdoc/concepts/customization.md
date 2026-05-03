@@ -1,15 +1,17 @@
 # Customization
 
-Three knobs change how a registry resolves: **tweaks** transform values
-post-resolution, **refinements** override what gets returned for a given
-type when the resolver is on a particular path through the graph, and
-**erase** drops type-level tracking entirely.
+Two knobs change how a registry resolves: **refinements** override what
+gets returned for a given type when the resolver is on a particular path
+through the graph, and **erase** drops type-level tracking entirely. A
+third pattern — wrapping a registered value with a transforming `fun` —
+isn't a separate combinator but worth calling out below.
 
-## `tweak[A]` — transform on the way out
+## Transforming a value with a wrapping `fun`
 
-`tweak[A](f)` registers a function applied to **every** resolved `A`,
-whether it's the top-level value or an input to another entry. Multiple
-tweaks compose in registration order.
+Need to post-process a registered value? Prepend a `fun(t: T => T)` above
+an existing `T` producer. LIFO selects the wrapper first; its recursive
+`T` input pulls the underlying value from below; the wrapper transforms
+it.
 
 ```scala mdoc:silent
 import registry.*
@@ -18,16 +20,27 @@ case class Greeting(text: String)
 
 val r =
   fun[Greeting] +:
-  value("hello")
+    fun((s: String) => s.toUpperCase) +:
+    value("hello")
 ```
 
 ```scala mdoc
 r.make[Greeting]
-r.tweak[String](_.toUpperCase).make[Greeting]
 ```
 
-Tweaks are by-type (`Tag[A]`-keyed), so they fire wherever an `A` appears in
-the dependency graph. They don't move entries around — they wrap values.
+Multiple wrappers compose by stacking — innermost runs first:
+
+```scala mdoc
+val n =
+  fun((x: Int) => x * 2)  +: //  43 -> 86
+    fun((x: Int) => x + 1) +: //  42 -> 43
+    value(42)
+n.make[Int]
+```
+
+Within a single `make` call the wrapper is invoked once and shared across
+all consumers (per-make cache; see [Memoization](memoization.md)). To opt
+out, mark the wrapping entry `.fresh`.
 
 ## `refine[Ctx, T]` — context-scoped override
 

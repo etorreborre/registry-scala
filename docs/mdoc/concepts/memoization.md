@@ -114,8 +114,9 @@ val r = gen[Bundle] +: gen(Gen.choose(0, 1_000_000)).share
 
 Mechanism: when any entry has `shared = true`, `makeGen[T]` takes a
 different build path that samples each shared `Gen[A]` once at the outer
-level and installs a tweak `Gen[A] => Gen.const(sampled)` before resolving
-the rest. Details in [modules/scalacheck.md](../modules/scalacheck.md).
+level and prepends a value-style entry producing `Gen.const(sampled)`
+before resolving the rest. LIFO selection makes the pinned entry win.
+Details in [modules/scalacheck.md](../modules/scalacheck.md).
 
 `share` pins one sample per `makeGen` call. Its stronger sibling, `const`,
 also pins across separate `makeGen` calls (sample once, hold forever).

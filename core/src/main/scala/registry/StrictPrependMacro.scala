@@ -19,7 +19,6 @@ private[registry] object StrictPrependMacro:
     '{
       Registry[Concat[EIns, AllIns], EOut *: AllOuts](
         ${ e }.entry :: ${ self }.entries,
-        ${ self }.tweaks,
         ${ self }.refinements
       )
     }
@@ -44,7 +43,6 @@ private[registry] object StrictPrependMacro:
     '{
       Registry[Concat[LIns, RIns], Concat[LOuts, ROuts]](
         ${ l }.entries ++ ${ self }.entries,
-        ${ l }.tweaks ++ ${ self }.tweaks,
         ${ l }.refinements ++ ${ self }.refinements
       )
     }
@@ -63,7 +61,6 @@ private[registry] object StrictPrependMacro:
     '{
       Registry[Concat[LIns, RIns], LOut *: ROut *: EmptyTuple](
         ${ l }.entry :: ${ self }.entry :: Nil,
-        Nil,
         Nil
       )
     }
@@ -87,7 +84,6 @@ private[registry] object StrictPrependMacro:
     '{
       Registry[Concat[LIns, RIns], Concat[LOuts, ROut *: EmptyTuple]](
         ${ l }.entries ++ (${ self }.entry :: Nil),
-        ${ l }.tweaks,
         ${ l }.refinements
       )
     }

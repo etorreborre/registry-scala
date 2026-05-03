@@ -72,19 +72,19 @@ final case class TypedEntry[Ins <: Tuple, Out](entry: Entry):
    * marker's target. Same generic shape as the registry-level `+:` for markers. */
   def +:[T](m: Marker[T]): Registry[Ins, Out *: EmptyTuple] =
     val newEntry = if entry.output <:< m.targetTag then m.transform(entry) else entry
-    Registry(newEntry :: Nil, Nil, Nil)
+    Registry(newEntry :: Nil, Nil)
 
   /**
    * Attach a [[Refinement]] to this entry, producing a 1-entry registry with the refinement preloaded.
    * `+:`, `*:`, `-:` all behave identically for refinements.
    */
   def +:[Path, T](r: Refinement[Path, T]): Registry[Ins, Out *: EmptyTuple] =
-    Registry(entry :: Nil, Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
+    Registry(entry :: Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
 
   /** See [[+:]] for [[Refinement]] — `*:` is identical for refinements. */
   def *:[Path, T](r: Refinement[Path, T]): Registry[Ins, Out *: EmptyTuple] =
-    Registry(entry :: Nil, Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
+    Registry(entry :: Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
 
   /** See [[+:]] for [[Refinement]] — `-:` is identical for refinements. */
   def -:[Path, T](r: Refinement[Path, T]): Registry[Ins, Out *: EmptyTuple] =
-    Registry(entry :: Nil, Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
+    Registry(entry :: Nil, (r.pathTags, r.targetTag, r.value) :: Nil)

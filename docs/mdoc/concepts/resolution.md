@@ -14,8 +14,7 @@ needs, and invokes it.
 3. If no candidate exists and `T` is already in flight, raise a **cycle**
    error. Otherwise, raise a **missing-type** error.
 4. Recursively resolve each input of the chosen entry.
-5. Invoke the entry, then apply any [`tweak[T]`](customization.md) functions
-   in registration order.
+5. Invoke the entry and return the result.
 
 ## LIFO precedence
 

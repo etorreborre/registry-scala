@@ -9,40 +9,40 @@ codecs.
 
 ### Entries
 
-| Factory       | Use                                     | File              |
-| ------------- | --------------------------------------- | ----------------- |
-| `fun[T]`      | Register `T`'s primary constructor      | `Fun.scala`       |
-| `fun(f)`      | Register a function or lambda           | `Fun.scala`       |
-| `value(x)`    | Register a constant (zero inputs)       | `Fun.scala`       |
+| Factory    | Use                                | File        |
+|------------|------------------------------------|-------------|
+| `fun[T]`   | Register `T`'s primary constructor | `Fun.scala` |
+| `fun(f)`   | Register a function or lambda      | `Fun.scala` |
+| `value(x)` | Register a constant (zero inputs)  | `Fun.scala` |
 
 ### Combinators
 
-| Op       | Tracks types | Compile-checked | Notes                         |
-| -------- | ------------ | --------------- | ----------------------------- |
-| `+:`     | yes          | yes             | strict; bottom-up build order |
-| `*:`     | yes          | no              | sketch mode; defer to `makeSafe` |
-| `-:`     | no           | no              | escape hatch; invisible to `makeSafe` |
-| `<+>`    | yes          | no              | merge; left wins on duplicates |
+| Op    | Tracks types | Compile-checked | Notes                                 |
+|-------|--------------|-----------------|---------------------------------------|
+| `+:`  | yes          | yes             | strict; bottom-up build order         |
+| `*:`  | yes          | no              | sketch mode; defer to `makeSafe`      |
+| `-:`  | no           | no              | escape hatch; invisible to `makeSafe` |
+| `<+>` | yes          | no              | merge; left wins on duplicates        |
 
 ### Building
 
-| Method          | When checked  | What it does                          |
-| --------------- | ------------- | ------------------------------------- |
-| `make[T]`       | runtime       | resolve and return; throws on failure |
-| `makeSafe[T]`   | compile time  | check `T` produced + inputs covered, then `make` |
+| Method        | When checked | What it does                                     |
+|---------------|--------------|--------------------------------------------------|
+| `make[T]`     | runtime      | resolve and return; throws on failure            |
+| `makeSafe[T]` | compile time | check `T` produced + inputs covered, then `make` |
 
 ### Customization
 
-| Method                                       | Effect                                  |
-| -------------------------------------------- | --------------------------------------- |
-| `tweak[A](f)`                                | wrap every resolved `A` with `f`        |
-| `specialize[Ctx, T](v)`                      | when building inside `Ctx`, return `v` for `T` |
-| `specializePath[(A, B, ...), T](v)`          | same, but require the path as a subsequence |
-| `refine[Path, T](v)`                         | refinement as a value; composes with `+:`/`*:`/`-:` |
-| `memoize[A]`                                 | cache every entry whose output is `A` (subtype-aware) |
-| `memoizeAll`                                 | cache every entry                       |
-| `entry.memoize`                              | cache one entry, inline                 |
-| `erase`                                      | drop type-level tracking                |
+| Method                              | Effect                                                |
+|-------------------------------------|-------------------------------------------------------|
+| `tweak[A](f)`                       | wrap every resolved `A` with `f`                      |
+| `specialize[Ctx, T](v)`             | when building inside `Ctx`, return `v` for `T`        |
+| `specializePath[(A, B, ...), T](v)` | same, but require the path as a subsequence           |
+| `refine[Path, T](v)`                | refinement as a value; composes with `+:`/`*:`/`-:`   |
+| `memoize[A]`                        | cache every entry whose output is `A` (subtype-aware) |
+| `memoizeAll`                        | cache every entry                                     |
+| `entry.memoize`                     | cache one entry, inline                               |
+| `erase`                             | drop type-level tracking                              |
 
 ## A worked example
 

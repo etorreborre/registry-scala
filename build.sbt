@@ -75,8 +75,20 @@ lazy val catsInterop = (project in file("cats"))
     )
   )
 
+lazy val docs = (project in file("docs"))
+  .enablePlugins(MdocPlugin)
+  .dependsOn(core, scalacheck, circe, catsInterop)
+  .settings(commonSettings)
+  .settings(
+    name := "registry-docs",
+    publish / skip := true,
+    mdocIn  := baseDirectory.value / "mdoc",
+    mdocOut := baseDirectory.value / "target" / "mdoc",
+    scalacOptions ++= Seq("-Wunused:nowarn")
+  )
+
 lazy val root = (project in file("."))
-  .aggregate(core, bench, scalacheck, circe, catsInterop)
+  .aggregate(core, bench, scalacheck, circe, catsInterop, docs)
   .settings(commonSettings)
   .settings(
     name := "registry-scala",

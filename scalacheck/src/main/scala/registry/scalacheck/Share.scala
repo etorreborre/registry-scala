@@ -24,14 +24,14 @@ import registry.{Entry, Registry, Resolve, TypedEntry}
 
 extension [AllIns <: Tuple, AllOuts <: Tuple](r: Registry[AllIns, AllOuts])
   /**
-   * Build a `Gen[T]`. When any entry carries the `shared` flag (set via the entry-level `.share`
-   * / `.const` or via the standalone `share[T] +:` / `const[T] +:` factory), the resolution runs
-   * through the share build path so each shared `Gen` is sampled once and pinned across all
-   * consumers in the dependency tree. When no sharing is declared, delegates to plain
+   * Build a `Gen[T]`. When any entry is a [[GenEntry]] with `shared = true` (set via the entry-
+   * level `.share` / `.const` or via the standalone `share[T] +:` / `const[T] +:` factory), the
+   * resolution runs through the share build path so each shared `Gen` is sampled once and pinned
+   * across all consumers in the dependency tree. When no sharing is declared, delegates to plain
    * `Resolve.resolve`.
    */
   def makeGen[T](using tag: Tag[Gen[T]]): Gen[T] =
-    val entryShared = r.entries.filter(_.shared).map(_.output)
+    val entryShared = r.entries.collect { case g: GenEntry if g.shared => g.output }
     if entryShared.isEmpty then r.make[Gen[T]]
     else
       val ordered = topoSortShared(dedupe(entryShared), r.entries)
@@ -127,7 +127,7 @@ private[scalacheck] def withConstSampling(entry: Entry): Entry =
       sample.compareAndSet(None, Some(fresh))
       Gen.const(sample.get.get)
     }
-  Registry.withMemoization(entry.copy(invoke = pinningInvoke))
+  Registry.withMemoization(entry.withInvoke(pinningInvoke))
 
 // Entry-level `.share` and `.const` extensions live in `Gen.scala` so they're co-located with
 // the `share[T]` / `const[T]` factories.

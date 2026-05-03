@@ -59,26 +59,19 @@ final case class TypedEntry[Ins <: Tuple, Out](entry: Entry):
   def memoize: TypedEntry[Ins, Out] =
     TypedEntry(Registry.withMemoization(entry))
 
-  /** `memoize[T] +: entry` — memoizes this entry iff its output is a subtype of `T`. */
-  def +:[T](m: Memoize[T]): Registry[Ins, Out *: EmptyTuple] =
-    val newEntry =
-      if entry.output <:< m.targetTag then Registry.withMemoization(entry)
-      else entry
-    Registry(newEntry :: Nil, Nil, Nil)
+  /**
+   * Opt this entry out of the resolver's per-`make` value cache: every appearance of its output
+   * type in the dependency graph triggers a fresh `invoke`. Use sparingly — for types that should
+   * genuinely be distinct per consumer (UUIDs, timestamps, request IDs, …). The default is to
+   * share one value across all consumers within a single `make` call.
+   */
+  def fresh: TypedEntry[Ins, Out] =
+    TypedEntry(entry.withFresh())
 
-  /** `share[T] +: entry` — sets the `shared` flag on this entry iff its output is a subtype of `T`. */
-  def +:[T](s: Share[T]): Registry[Ins, Out *: EmptyTuple] =
-    val newEntry =
-      if entry.output <:< s.targetTag then entry.copy(shared = true)
-      else entry
-    Registry(newEntry :: Nil, Nil, Nil)
-
-  /** `const[T] +: entry` — sets `shared` AND applies the marker's `memoizer` iff this entry's
-   * output is a subtype of `T`. */
-  def +:[T](c: Const[T]): Registry[Ins, Out *: EmptyTuple] =
-    val newEntry =
-      if entry.output <:< c.targetTag then c.memoizer(entry.copy(shared = true))
-      else entry
+  /** `marker +: entry` — apply a [[Marker]] to this entry iff its output is a subtype of the
+   * marker's target. Same generic shape as the registry-level `+:` for markers. */
+  def +:[T](m: Marker[T]): Registry[Ins, Out *: EmptyTuple] =
+    val newEntry = if entry.output <:< m.targetTag then m.transform(entry) else entry
     Registry(newEntry :: Nil, Nil, Nil)
 
   /**

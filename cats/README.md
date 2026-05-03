@@ -38,7 +38,7 @@ r.make[Either[String, Person]]    // Left("bad age")
 
 ## Memoizing effectful values
 
-Core's [`memoize`](../core/README.md) caches the resolved `F[A]` *value* — every `make[F[A]]` returns
+Core's `memoize` caches the resolved `F[A]` *value* — every `make[F[A]]` returns
 the same reference. Running that `F[A]` still re-executes the effect each time (the registry's cache
 is at the *value* level, not the *result* level).
 

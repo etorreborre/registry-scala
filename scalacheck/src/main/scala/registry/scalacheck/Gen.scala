@@ -79,17 +79,18 @@ def arb[T](using arbT: Arbitrary[T], tag: Tag[Gen[T]]): TypedEntry[EmptyTuple, G
  * }}}
  */
 def memoize[T](using tag: Tag[Gen[T]]): registry.Memoize[T] = registry.Memoize(tag.tag)
-def share[T](using tag: Tag[Gen[T]]): registry.Share[T]     = registry.Share(tag.tag)
-def const[T](using tag: Tag[Gen[T]]): registry.Const[T] =
-  registry.Const(tag.tag, withConstSampling)
+def share[T](using tag: Tag[Gen[T]]): Share[T]              = Share(tag.tag)
+def const[T](using tag: Tag[Gen[T]]): Const[T] =
+  Const(tag.tag, withConstSampling)
 
 extension [Ins <: Tuple, T](e: TypedEntry[Ins, Gen[T]])
   /** Mark an entry's output as shared: whenever its `Gen[T]` is requested during a single
-   * `makeGen` call, all consumers see the same sampled value. */
+   * `makeGen` call, all consumers see the same sampled value. Promotes the underlying [[Entry]]
+   * to a [[GenEntry]] (so the flag survives prepend into a registry). */
   def share: TypedEntry[Ins, Gen[T]] =
-    TypedEntry(e.entry.copy(shared = true))
+    TypedEntry(GenEntry.from(e.entry).withShared(true))
 
   /** `gen(g).const` — pins ONE sampled value of `T` for the registry's lifetime: shared across all
    * consumers in any one tree AND the same value is returned across separate `makeGen` calls. */
   def const: TypedEntry[Ins, Gen[T]] =
-    TypedEntry(withConstSampling(e.entry.copy(shared = true)))
+    TypedEntry(withConstSampling(GenEntry.from(e.entry).withShared(true)))

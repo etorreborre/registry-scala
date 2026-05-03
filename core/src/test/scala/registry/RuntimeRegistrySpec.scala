@@ -268,6 +268,161 @@ class RuntimeRegistrySpec extends Specification:
     }
   }; br
 
+  "share within a make call" should {
+    "two consumers of the same type within one make get the same instance (default)" >> {
+      var calls = 0
+      case class Pair(a: Wrap, b: Wrap)
+      val r =
+        fun[Pair] +:
+          fun((_: Int) => { calls += 1; Wrap(calls) }) +:
+          value(0) +:
+          Registry.empty
+
+      val p = r.make[Pair]
+      p.a must beTheSameAs(p.b)
+      calls === 1
+    }
+
+    "the per-make cache is reset between make calls" >> {
+      var calls = 0
+      val r =
+        fun((_: Int) => { calls += 1; Wrap(calls) }) +:
+          value(0) +:
+          Registry.empty
+
+      val a = r.make[Wrap]
+      val b = r.make[Wrap]
+      a !== b // different make calls → different invokes
+      calls === 2
+    }
+
+    "subtype lookup shares — asking for Iface and Impl in one make returns the same Impl instance" >> {
+      var calls = 0
+      case class Holder(via: Subtype.Iface, direct: Subtype.Impl)
+      val r =
+        fun[Holder] +:
+          fun((s: String) => { calls += 1; Subtype.Impl(s) }) +:
+          value("x") +:
+          Registry.empty
+
+      val h = r.make[Holder]
+      h.via must beTheSameAs(h.direct) // same Impl instance for both fields
+      calls === 1
+    }
+
+    "entry.fresh opt-out — each consumer triggers a fresh invoke" >> {
+      var calls = 0
+      case class Pair(a: Wrap, b: Wrap)
+      val r =
+        fun[Pair] +:
+          fun((_: Int) => { calls += 1; Wrap(calls) }).fresh +:
+          value(0) +:
+          Registry.empty
+
+      val p = r.make[Pair]
+      p.a !== p.b
+      calls === 2
+    }
+
+    "Registry.fresh[A] opt-out — sets the flag on every entry whose output is <:< A" >> {
+      var calls = 0
+      case class Pair(a: Wrap, b: Wrap)
+      val base =
+        fun[Pair] +:
+          fun((_: Int) => { calls += 1; Wrap(calls) }) +:
+          value(0) +:
+          Registry.empty
+
+      val r = base.fresh[Wrap]
+      val p = r.make[Pair]
+      p.a !== p.b
+      calls === 2
+    }
+
+    "tweak interaction — invoke runs once per make, tweak applies per consumer" >> {
+      var invokes = 0
+      var tweakHits = 0
+      case class Pair(a: Wrap, b: Wrap)
+      val r =
+        (fun[Pair] +:
+          fun((_: Int) => { invokes += 1; Wrap(invokes) }) +:
+          value(0) +:
+          Registry.empty).tweak[Wrap] { w =>
+          tweakHits += 1
+          Wrap(w.value + 100)
+        }
+
+      val p = r.make[Pair]
+      p.a === Wrap(101)
+      p.b === Wrap(101)
+      invokes === 1
+      tweakHits === 2
+    }
+
+    "specialization interaction — spec-influenced values are NOT cached, so unrelated paths see fresh values" >> {
+      // App contains Server and Worker; both consume Logger; Logger consumes String.
+      // specialize[Server, String] makes the Server-side String "server-"; the Worker side stays "default".
+      // If the resolver naively cached the Logger built under the Server (with the spec'd String),
+      // Worker would see Logger("server-") too. The propagated specInfluenced flag prevents that.
+      val r =
+        (fun[ShareSpecApp] +:
+          fun[ShareServer] +:
+          fun[ShareWorker] +:
+          fun[ShareLogger] +:
+          value("default") +:
+          Registry.empty).specialize[ShareServer, String]("server-")
+
+      val app = r.make[ShareSpecApp]
+      app.s.log === ShareLogger("server-")
+      app.w.log === ShareLogger("default")
+      app.s.log !== app.w.log // distinct instances
+    }
+
+    "without specialization — both Server and Worker share the same Logger" >> {
+      val r =
+        fun[ShareSpecApp] +:
+          fun[ShareServer] +:
+          fun[ShareWorker] +:
+          fun[ShareLogger] +:
+          value("default") +:
+          Registry.empty
+
+      val app = r.make[ShareSpecApp]
+      app.s.log must beTheSameAs(app.w.log)
+    }
+
+    "memoize composes with share-by-default — within and across make calls" >> {
+      var invokes = 0
+      case class Pair(a: Wrap, b: Wrap)
+      val r =
+        (fun[Pair] +:
+          fun((_: Int) => { invokes += 1; Wrap(invokes) }) +:
+          value(0) +:
+          Registry.empty).memoize[Wrap]
+
+      val p1 = r.make[Pair]
+      val p2 = r.make[Pair]
+      p1.a must beTheSameAs(p1.b) // shared within p1
+      p1.a must beTheSameAs(p2.a) // shared across p1 and p2 (memoize)
+      invokes === 1
+    }
+
+    "recursive entry — base case is shared in the same make call" >> {
+      // Recursive entry: Int → Int (n + 1). Base: 0. With share-by-default the base 0 is computed
+      // once, the recursive entry consumes it, and the final cache holds (Int -> 1) post-overwrite.
+      var baseInvokes = 0
+      var recInvokes = 0
+      val r =
+        fun((n: Int) => { recInvokes += 1; n + 1 }) *:
+          fun((_: Unit) => { baseInvokes += 1; 0 }) +:
+          value(())
+
+      r.make[Int] === 1
+      baseInvokes === 1
+      recInvokes === 1
+    }
+  }; br
+
   "specialize" should {
     "override a type's value only when building inside the given context" >> {
       // Default Host is "default"; inside a DbConfig build, use "specialized".

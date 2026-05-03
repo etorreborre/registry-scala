@@ -129,7 +129,7 @@ class ShareSpec extends Specification:
         share[Opaques.Major] +:
           gen(Opaques.genMajor)
 
-      r.entries.count(_.shared) === 1
+      r.entries.count { case g: GenEntry => g.shared; case _ => false } === 1
     }
   }
 

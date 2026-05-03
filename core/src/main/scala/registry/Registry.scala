@@ -101,33 +101,14 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
   def -:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
     copy(specializations = specializations :+ (r.pathTags, r.targetTag, r.value))
 
-  /** `memoize[T] +: registry` — memoizes every entry whose output is a subtype of `T`. */
-  def +:[T](m: Memoize[T]): Registry[AllIns, AllOuts] =
+  /**
+   * `marker +: registry` — apply a [[Marker]] to every entry whose output is a subtype of the
+   * marker's `targetTag`. Used by `memoize[A] +: r` (core) and module markers like `share[T] +:`
+   * and `const[T] +:` (registry-scalacheck), which all extend [[Marker]].
+   */
+  def +:[T](m: Marker[T]): Registry[AllIns, AllOuts] =
     copy(entries =
-      entries.map(e =>
-        if e.output <:< m.targetTag then Registry.withMemoization(e) else e
-      )
-    )
-
-  /** `share[T] +: registry` — sets the `shared` flag on every entry whose output is a subtype of
-   * `T`. The flag is then picked up by share-aware build paths (e.g. `Registry.makeGen` in
-   * scalacheck) to pin one sample of `T` across all consumers in a single build. */
-  def +:[T](s: Share[T]): Registry[AllIns, AllOuts] =
-    copy(entries =
-      entries.map(e =>
-        if e.output <:< s.targetTag then e.copy(shared = true) else e
-      )
-    )
-
-  /** `const[T] +: registry` — combination of [[Share]] and [[Memoize]]: sets `shared` AND wraps
-   * the matching entries' `invoke` with the marker's `memoizer`. Default memoizer caches the
-   * invoke *result*; scalacheck's `const[T]` factory overrides it to also pin the sampled value
-   * across separate `makeGen` calls. Roughly: `const[T] +: r ≈ share[T] +: memoize[T] +: r`. */
-  def +:[T](c: Const[T]): Registry[AllIns, AllOuts] =
-    copy(entries =
-      entries.map(e =>
-        if e.output <:< c.targetTag then c.memoizer(e.copy(shared = true)) else e
-      )
+      entries.map(e => if e.output <:< m.targetTag then m.transform(e) else e)
     )
 
   /** Merge two registries. Left operand's entries come first, so on duplicate outputs the left wins. */
@@ -171,6 +152,15 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
   /** Memoize every entry in the registry. Equivalent to applying `memoize[T]` once per output type. */
   def memoizeAll: Registry[AllIns, AllOuts] =
     copy(entries = entries.map(Registry.withMemoization))
+
+  /**
+   * Opt every entry whose output is a subtype of `A` out of the resolver's per-`make` cache.
+   * Each consumer of `A` triggers a fresh `invoke`. The default is to share — use this only for
+   * types that should genuinely be distinct per consumer (e.g. UUIDs, fresh request IDs).
+   */
+  def fresh[A](using tag: Tag[A]): Registry[AllIns, AllOuts] =
+    val targetTag = tag.tag
+    copy(entries = entries.map(e => if e.output <:< targetTag then e.withFresh() else e))
 
   /**
    * Context-scoped override: when the resolver is currently *inside* a build of `Ctx` (i.e. `Ctx` appears
@@ -217,12 +207,11 @@ object Registry:
    */
   private[registry] def withMemoization(entry: Entry): Entry =
     val ref = new java.util.concurrent.atomic.AtomicReference[Option[Any]](None)
-    entry.copy(invoke =
-      args =>
-        ref.get() match
-          case Some(cached) => cached
-          case None =>
-            val result = entry.invoke(args)
-            ref.compareAndSet(None, Some(result))
-            ref.get().get // either the value we just set, or another concurrent writer's — both are valid
+    entry.withInvoke(args =>
+      ref.get() match
+        case Some(cached) => cached
+        case None =>
+          val result = entry.invoke(args)
+          ref.compareAndSet(None, Some(result))
+          ref.get().get // either the value we just set, or another concurrent writer's — both are valid
     )

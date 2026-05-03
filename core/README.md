@@ -17,11 +17,11 @@ case class App(db: Db, name: String)
 
 val r =
   fun[App] +:
-  fun[Db] +:
-  fun[DbConfig] +:
-  value("localhost") +:
-  value(5432) +:
-  value("my-app")
+    fun[Db] +:
+    fun[DbConfig] +:
+    value("localhost") +:
+    value(5432) +:
+    value("my-app")
 
 val app: App = r.make[App]
 ```

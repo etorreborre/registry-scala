@@ -46,3 +46,9 @@ object NameClash:
   object second:
     case class Coin(value: Long)
   case class NeedsFirst(coin: first.Coin)
+
+// Fixtures for the share-within-a-make tests. Top-level so `fun[T]` macros can reflect on them.
+case class ShareLogger(prefix: String)
+case class ShareServer(log: ShareLogger)
+case class ShareWorker(log: ShareLogger)
+case class ShareSpecApp(s: ShareServer, w: ShareWorker)

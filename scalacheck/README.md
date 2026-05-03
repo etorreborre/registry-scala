@@ -82,7 +82,7 @@ Built-in Choosers:
 | `Chooser.only(i: Int)`       | Always pick the i-th variant. Useful for deterministic tests.                                                    |
 | custom                       | Implement `trait Chooser { def pickOne[T](gens: Seq[Gen[T]]): Gen[T] }` and register it with `value(myChooser)`. |
 
-Because the `Chooser` is a plain registry value, you can also `specialize[Ctx, Chooser](...)` to
+Because the `Chooser` is a plain registry value, you can also `r.refine[Ctx, Chooser](...)` to
 scope a chooser to a particular build context — e.g., uniform everywhere, but weighted inside
 `make[Gen[SpecialModel]]`.
 
@@ -100,7 +100,7 @@ scope a chooser to a particular build context — e.g., uniform everywhere, but 
 | `value(gen: Gen[T])`               | Register a leaf generator (uses core `value` directly — no new machinery).                                                                                                                                                                      |
 
 All the core registry operators work unchanged — `+:` (strict), `*:` (tracked), `-:`
-(untyped), `<+>` (merge), `make`, `makeSafe`, `erase`, `tweak`, `specialize`, `memoize`.
+(untyped), `<+>` (merge), `make`, `makeSafe`, `erase`, `tweak`, `refine`, `memoize`.
 Subtype-aware resolution is inherited from core: `Gen[List[Int]]` satisfies a request for
 `Gen[Seq[Int]]` because `Gen[+T]` is covariant.
 

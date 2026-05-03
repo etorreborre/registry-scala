@@ -36,9 +36,9 @@ codecs.
 | Method                              | Effect                                                |
 |-------------------------------------|-------------------------------------------------------|
 | `tweak[A](f)`                       | wrap every resolved `A` with `f`                      |
-| `specialize[Ctx, T](v)`             | when building inside `Ctx`, return `v` for `T`        |
-| `specializePath[(A, B, ...), T](v)` | same, but require the path as a subsequence           |
-| `refine[Path, T](v)`                | refinement as a value; composes with `+:`/`*:`/`-:`   |
+| `refine[Ctx, T](v)`                 | when building inside `Ctx`, return `v` for `T`        |
+| `refinePath[(A, B, ...), T](v)`     | same, but require the path as a subsequence           |
+| `refine[Path, T](v)` (factory)      | refinement as a value; composes with `+:`/`*:`/`-:`   |
 | `memoize[A]`                        | cache every entry whose output is `A` (subtype-aware) |
 | `memoizeAll`                        | cache every entry                                     |
 | `entry.memoize`                     | cache one entry, inline                               |
@@ -71,13 +71,13 @@ app.makeSafe[App]
 Override the host without rewriting the registry:
 
 ```scala mdoc
-app.specialize[Db, Host](Host("override")).make[App]
+app.refine[Db, Host](Host("override")).make[App]
 ```
 
 Override the host only when reached via `App` → `Db`:
 
 ```scala mdoc
-app.specializePath[(App, Db), Host](Host("via-app-db")).make[App]
+app.refinePath[(App, Db), Host](Host("via-app-db")).make[App]
 ```
 
 Memoize `Db` so two consumers share one connection (mock here):
@@ -97,7 +97,7 @@ a1 eq a2
   lookup, cycle detection.
 - [Safety](../concepts/safety.md) — `make` vs `makeSafe`, the `=:=` vs
   `<:<` asymmetry.
-- [Customization](../concepts/customization.md) — tweak, specialize,
-  refine, erase.
+- [Customization](../concepts/customization.md) — tweak, refine,
+  refinePath, erase.
 - [Memoization](../concepts/memoization.md) — sharing instances across the
   graph.

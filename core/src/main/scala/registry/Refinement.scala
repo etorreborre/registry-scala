@@ -5,12 +5,12 @@ import izumi.reflect.macrortti.LightTypeTag
 import scala.compiletime.summonAll
 
 /**
- * A path-scoped specialization. When the resolution stack contains the types of `Path` (as a subsequence,
+ * A path-scoped refinement. When the resolution stack contains the types of `Path` (as a subsequence,
  * in order) and the resolver is looking for `T`, the registry returns [[value]] instead of doing the
  * normal lookup.
  *
- * Equivalent to [[Registry.specialize]] / [[Registry.specializePath]] but produced as a standalone value
- * that composes with entries via the `+:`, `*:`, and `-:` operators (all three behave identically — a
+ * Equivalent to [[Registry.refine]] / [[Registry.refinePath]] but produced as a standalone value that
+ * composes with entries via the `+:`, `*:`, and `-:` operators (all three behave identically — a
  * refinement adds nothing to the type-level `AllIns` / `AllOuts` accounting).
  */
 final case class Refinement[Path, T](
@@ -34,8 +34,8 @@ type PathTags[P] <: Tuple = P match
  * Build a [[Refinement]] for the given `Path` and target type `T`.
  *
  * `Path` may be a single type (1-element path) or a tuple of types — `refine[Foo, String]("x")` is the
- * standalone equivalent of `registry.specialize[Foo, String]("x")`, and `refine[(A, B), String]("x")` is
- * the equivalent of `specializePath[(A, B), String]("x")`.
+ * standalone equivalent of `r.refine[Foo, String]("x")`, and `refine[(A, B), String]("x")` is the
+ * equivalent of `r.refinePath[(A, B), String]("x")`.
  */
 inline def refine[Path, T](v: T)(using tTag: Tag[T]): Refinement[Path, T] =
   val tags = summonAll[PathTags[Path]].toList.asInstanceOf[List[Tag[?]]]

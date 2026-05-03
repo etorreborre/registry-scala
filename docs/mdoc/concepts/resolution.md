@@ -6,7 +6,7 @@ needs, and invokes it.
 
 ## The algorithm, in one paragraph
 
-1. **Specialization check**: if any path-scoped override applies (see
+1. **Refinement check**: if any path-scoped override applies (see
    [Customization](customization.md)), use its value and skip the rest.
 2. **Lookup**: scan the entries in order; pick the first whose output is a
    **subtype of `T`**. Entries already in flight on the current resolution

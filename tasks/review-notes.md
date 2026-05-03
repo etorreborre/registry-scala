@@ -16,17 +16,17 @@ No fixes in this pass — fixes happen as separate follow-ups after triage.
 - `[done]` **Share-by-default within a `make` call**. Aligned with Haskell
   `registry`. `Resolve.go` now threads a per-make `Map[String, Any]` keyed
   on the chosen entry's `output.repr`. Pre-tweak invoke result is cached;
-  tweaks still apply per consumer based on `want`. Specialized values are
-  not cached: `go` returns `(value, specialized)` and propagates the flag
-  up through every entry whose inputs touched a specialization, so a
-  Logger built under `specialize[Server, String]` doesn't poison Worker's
-  Logger lookup. Opt-out: `entry.fresh` / `Registry.fresh[A]`. 10 new core
-  tests in `RuntimeRegistrySpec`'s "share within a make call" group cover:
-  default sharing, cache reset between makes, subtype-shared lookup,
-  `entry.fresh`, `Registry.fresh[A]`, tweak interaction (invoke once,
-  tweak per consumer), spec-cache poisoning prevention, no-spec sharing,
-  memoize composition, recursive entry base sharing. Memoization page
-  rewritten. Files: `Entry.scala`, `Resolve.scala`, `TypedEntry.scala`,
+  tweaks still apply per consumer based on `want`. Refined values are not
+  cached: `go` returns `(value, refined)` and propagates the flag up
+  through every entry whose inputs touched a refinement, so a Logger built
+  under `refine[Server, String]` doesn't poison Worker's Logger lookup.
+  Opt-out: `entry.fresh` / `Registry.fresh[A]`. 10 new core tests in
+  `RuntimeRegistrySpec`'s "share within a make call" group cover: default
+  sharing, cache reset between makes, subtype-shared lookup, `entry.fresh`,
+  `Registry.fresh[A]`, tweak interaction (invoke once, tweak per consumer),
+  refinement-cache poisoning prevention, no-refinement sharing, memoize
+  composition, recursive entry base sharing. Memoization page rewritten.
+  Files: `Entry.scala`, `Resolve.scala`, `TypedEntry.scala`,
   `Registry.scala`, `Fixtures.scala`, `RuntimeRegistrySpec.scala`,
   `docs/mdoc/concepts/memoization.md`.
 
@@ -36,21 +36,19 @@ No fixes in this pass — fixes happen as separate follow-ups after triage.
   `MakeSafeMacro.scala:19-20` is the call site that should carry an internal
   comment pointing at the doc.
 
-- `[test-gap]` **`Share[T]` marker has no dedicated test in core**.
-  `Markers.scala:17` declares `Share[T]`; the only behavioral usage is in
-  `Registry.scala:115` (sets `shared = true` on matching entries). Coverage
-  exists indirectly in `registry-scalacheck` tests, but core itself never
-  exercises the flag.
+- `[done]` **`Share[T]` no longer a core concern** — moved to
+  `registry-scalacheck` as part of the Entry refactor; `ShareSpec` already
+  covers it there.
 
 - `[done]` **Core tests for share-by-default added** — see the `[done]`
   entry above for the full list. Test-gap closed.
 
-- `[ergonomic]` **`specializePath[(X,), T]` rejects 1-tuples at the call
+- `[ergonomic]` **`refinePath[(X,), T]` rejects 1-tuples at the call
   site**. Scala 3 type-level tuple syntax requires `*: EmptyTuple` or
   `Tuple1[X]` for a 1-element tuple; `(X,)` is a parser error. The
-  single-element case is fully covered by `specialize[Ctx, T]`, so this
-  isn't a bug — but a user trying `specializePath` uniformly will hit it.
-  Worth a doc note (and possibly a friendlier compile error).
+  single-element case is fully covered by `refine[Ctx, T]`, so this isn't
+  a bug — but a user trying `refinePath` uniformly will hit it. Worth a
+  doc note (and possibly a friendlier compile error).
 
 - `[ergonomic]` **`+:` on a lone entry needs `Registry.empty`**. A chain
   like `entry +: entry +: entry` resolves the rightmost as a `TypedEntry`,
@@ -58,11 +56,28 @@ No fixes in this pass — fixes happen as separate follow-ups after triage.
   `Registry`-shaped neighbor and forces `entry +: Registry.empty`. Not a
   bug; surprise factor. Already used implicitly across the doc pages.
 
-- `[refactor]` **Marker extension methods are duplicated between
-  `Registry.scala:104-131` and `TypedEntry.scala:62-98`**. The `+:[T](m:
-  Memoize[T])` / `+:[T](s: Share[T])` / `+:[T](c: Const[T])` blocks have
-  identical predicates (`<:< targetTag`) and near-identical bodies. Could
-  be unified by lifting the marker-application step into a shared helper.
+- `[done]` **Marker `+:` overloads unified**. Introduced a `Marker[T]`
+  trait in core with `targetTag` + `transform(Entry): Entry`. Memoize
+  extends it; `Share[T]` / `Const[T]` (now in scalacheck) extend it too.
+  `Registry` and `TypedEntry` now have a single polymorphic `+:[T](m:
+  Marker[T])` instead of three. Files: `Markers.scala`, `Registry.scala`,
+  `TypedEntry.scala`, `scalacheck/Markers.scala`.
+
+- `[done]` **Removed `shared` from core's `Entry`**. `Entry` is now a
+  non-sealed trait with `Entry.Basic` as the default implementation;
+  scalacheck adds `GenEntry extends Entry` with the `shared` flag.
+  `Share`/`Const` markers and their `+:` extensions moved to scalacheck.
+  Core no longer carries any scalacheck-specific concept. `withInvoke` /
+  `withFresh` methods replace `entry.copy(...)` calls. Files:
+  `Entry.scala`, `Markers.scala`, `Registry.scala`, `TypedEntry.scala`,
+  `scalacheck/GenEntry.scala`, `scalacheck/Markers.scala`,
+  `scalacheck/Gen.scala`, `scalacheck/Share.scala`, `scalacheck/ShareSpec.scala`.
+
+- `[done]` **`specialize` / `specializePath` renamed to `refine` /
+  `refinePath`**. The Registry methods, the `refinements` field, the
+  `refined` boolean in `Resolve.go`, comments, tests, and docs all use the
+  refinement vocabulary now — consistent with the existing `Refinement`
+  type and `refine[Path, T]` factory.
 
 - `[doc]` **`Registry.memoize[A]` returns a new registry with a fresh
   cache**. Calling it twice on the same registry yields two independent

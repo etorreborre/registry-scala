@@ -15,14 +15,15 @@ import registry.TypeChecks.*
  * `tweaks` is a list of post-resolution transformations keyed by the stable `LightTypeTag.repr` of the
  * *requested* type, applied in registration order.
  *
- * `specializations` is a list of context-sensitive overrides: each entry says "whenever the resolution
- * stack contains the types of `path` as a subsequence (in order, not necessarily contiguous) and we're
- * resolving `target`, return the given value instead of running the normal lookup".
+ * `refinements` is a list of context-sensitive overrides: each refinement says "whenever the
+ * resolution stack contains the types of `path` as a subsequence (in order, not necessarily
+ * contiguous) and we're resolving `target`, return the given value instead of running the normal
+ * lookup".
  */
 final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     entries: List[Entry],
     tweaks: List[(String, Any => Any)] = Nil,
-    specializations: List[(List[LightTypeTag], LightTypeTag, Any)] = Nil
+    refinements: List[(List[LightTypeTag], LightTypeTag, Any)] = Nil
 ):
 
   /**
@@ -48,7 +49,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * check — missing dependencies surface at `makeSafe` time. LIFO.
    */
   def *:[EIns <: Tuple, EOut](e: TypedEntry[EIns, EOut]): Registry[Concat[EIns, AllIns], EOut *: AllOuts] =
-    Registry(e.entry :: entries, tweaks, specializations)
+    Registry(e.entry :: entries, tweaks, refinements)
 
   /**
    * Tracked merge: `left *: right` combines both registries' entries and tracks combined types.
@@ -60,7 +61,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     Registry(
       l.entries ++ entries,
       l.tweaks ++ tweaks,
-      l.specializations ++ specializations
+      l.refinements ++ refinements
     )
 
   /**
@@ -68,11 +69,11 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * `AllIns` / `AllOuts` accounting — the entry is invisible to `makeSafe`. Escape hatch for dynamic use cases.
    */
   def -:[EIns <: Tuple, EOut](e: TypedEntry[EIns, EOut]): Registry[AllIns, AllOuts] =
-    Registry(e.entry :: entries, tweaks, specializations)
+    Registry(e.entry :: entries, tweaks, refinements)
 
   /** Untracked prepend of a raw `Entry`. Like [[-:]] but for manually-constructed entries. */
   def -:(e: Entry): Registry[AllIns, AllOuts] =
-    Registry(e :: entries, tweaks, specializations)
+    Registry(e :: entries, tweaks, refinements)
 
   /**
    * Untracked merge: `left -: right` combines both registries' entries but keeps only the receiver's
@@ -82,24 +83,24 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     Registry(
       l.entries ++ entries,
       l.tweaks ++ tweaks,
-      l.specializations ++ specializations
+      l.refinements ++ refinements
     )
 
   /**
-   * Append a [[Refinement]] (path-scoped specialization) to this registry. All three of `+:`, `*:`, `-:`
-   * accept refinements and behave identically — a refinement adds no entries and does not change the
-   * type-level `AllIns` / `AllOuts` accounting.
+   * Append a [[Refinement]] (path-scoped override) to this registry. All three of `+:`, `*:`, `-:`
+   * accept refinements and behave identically — a refinement adds no entries and does not change
+   * the type-level `AllIns` / `AllOuts` accounting.
    */
   def +:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
-    copy(specializations = specializations :+ (r.pathTags, r.targetTag, r.value))
+    copy(refinements = refinements :+ (r.pathTags, r.targetTag, r.value))
 
   /** See [[+:]] for [[Refinement]] — `*:` is identical for refinements. */
   def *:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
-    copy(specializations = specializations :+ (r.pathTags, r.targetTag, r.value))
+    copy(refinements = refinements :+ (r.pathTags, r.targetTag, r.value))
 
   /** See [[+:]] for [[Refinement]] — `-:` is identical for refinements. */
   def -:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
-    copy(specializations = specializations :+ (r.pathTags, r.targetTag, r.value))
+    copy(refinements = refinements :+ (r.pathTags, r.targetTag, r.value))
 
   /**
    * `marker +: registry` — apply a [[Marker]] to every entry whose output is a subtype of the
@@ -118,14 +119,15 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     Registry(
       entries ++ other.entries,
       tweaks ++ other.tweaks,
-      specializations ++ other.specializations
+      refinements ++ other.refinements
     )
 
   /**
-   * Drop all type-level tracking. The entries, tweaks, and specializations are preserved, so [[make]]
+   * Drop all type-level tracking. The entries, tweaks, and refinements are preserved, so [[make]]
    * still works, but [[makeSafe]] can no longer verify anything.
    */
-  def erase: Registry[EmptyTuple, EmptyTuple] = Registry(entries, tweaks, specializations)
+  def erase: Registry[EmptyTuple, EmptyTuple] = Registry(entries, tweaks, refinements)
+
 
   /**
    * Register a post-resolution transformation on any resolved value of type `A`. Applied every time the
@@ -142,7 +144,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * `IO.memoize` for true effect-result memoization on top).
    *
    * The cache is stored in the entry's closure (via `AtomicReference`), so it survives all `copy`-based
-   * combinators (`+:`, `*:`, `tweak`, `specialize`, etc.). Each call to `memoize[A]` creates a *new*
+   * combinators (`+:`, `*:`, `tweak`, `refine`, etc.). Each call to `memoize[A]` creates a *new*
    * registry with a *fresh* cache; the original is unaffected.
    */
   def memoize[A](using tag: Tag[A]): Registry[AllIns, AllOuts] =
@@ -163,32 +165,31 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     copy(entries = entries.map(e => if e.output <:< targetTag then e.withFresh() else e))
 
   /**
-   * Context-scoped override: when the resolver is currently *inside* a build of `Ctx` (i.e. `Ctx` appears
-   * anywhere in the resolution stack) and we're resolving `T`, return `v` instead of doing a normal
-   * lookup. Shorthand for [[specializePath]] with a single-element path.
+   * Context-scoped refinement: when the resolver is currently *inside* a build of `Ctx` (i.e. `Ctx`
+   * appears anywhere in the resolution stack) and we're resolving `T`, return `v` instead of doing
+   * a normal lookup. Shorthand for [[refinePath]] with a single-element path.
    */
-  def specialize[Ctx, T](v: T)(using ctxTag: Tag[Ctx], tTag: Tag[T]): Registry[AllIns, AllOuts] =
-    copy(specializations = specializations :+ (List(ctxTag.tag), tTag.tag, v.asInstanceOf[Any]))
+  def refine[Ctx, T](v: T)(using ctxTag: Tag[Ctx], tTag: Tag[T]): Registry[AllIns, AllOuts] =
+    copy(refinements = refinements :+ (List(ctxTag.tag), tTag.tag, v.asInstanceOf[Any]))
 
   /**
-   * Path-scoped override: when the resolution stack contains the types of `Path` as a subsequence (in
-   * order, not necessarily contiguous) and we're resolving `T`, return `v` instead of doing a normal
-   * lookup.
+   * Path-scoped refinement: when the resolution stack contains the types of `Path` as a subsequence
+   * (in order, not necessarily contiguous) and we're resolving `T`, return `v` instead of doing a
+   * normal lookup.
    *
-   * `[specializePath](_, _)` where `Path` is `Ctx *: EmptyTuple` is equivalent to
-   * `[specialize](_, _)[Ctx, T]`. Multi-element paths let you scope overrides to specific routes through
-   * the dependency graph.
+   * `refinePath[Ctx *: EmptyTuple, T]` is equivalent to `refine[Ctx, T]`. Multi-element paths let
+   * you scope overrides to specific routes through the dependency graph.
    */
-  transparent inline def specializePath[Path <: Tuple, T](v: T)(using
+  transparent inline def refinePath[Path <: Tuple, T](v: T)(using
       tTag: Tag[T]
   ): Registry[AllIns, AllOuts] =
     val pathTags =
       summonAll[Tuple.Map[Path, [s] =>> Tag[s]]].toList.asInstanceOf[List[Tag[?]]]
-    copy(specializations = specializations :+ (pathTags.map(_.tag), tTag.tag, v.asInstanceOf[Any]))
+    copy(refinements = refinements :+ (pathTags.map(_.tag), tTag.tag, v.asInstanceOf[Any]))
 
   /** Build a value of type `T`. Runtime-only; throws if a dependency is missing. */
   def make[T](using tag: Tag[T]): T =
-    Resolve.resolve(entries, tweaks, specializations, tag.tag).asInstanceOf[T]
+    Resolve.resolve(entries, tweaks, refinements, tag.tag).asInstanceOf[T]
 
   /**
    * Build a value of type `T` with compile-time checks: `T` must be produced, and every required input

@@ -359,18 +359,18 @@ class RuntimeRegistrySpec extends Specification:
       tweakHits === 2
     }
 
-    "specialization interaction — spec-influenced values are NOT cached, so unrelated paths see fresh values" >> {
+    "refinement interaction — refined values are NOT cached, so unrelated paths see fresh values" >> {
       // App contains Server and Worker; both consume Logger; Logger consumes String.
-      // specialize[Server, String] makes the Server-side String "server-"; the Worker side stays "default".
-      // If the resolver naively cached the Logger built under the Server (with the spec'd String),
-      // Worker would see Logger("server-") too. The propagated specInfluenced flag prevents that.
+      // refine[Server, String] makes the Server-side String "server-"; the Worker side stays "default".
+      // If the resolver naively cached the Logger built under the Server (with the refined String),
+      // Worker would see Logger("server-") too. The propagated `refined` flag prevents that.
       val r =
         (fun[ShareSpecApp] +:
           fun[ShareServer] +:
           fun[ShareWorker] +:
           fun[ShareLogger] +:
           value("default") +:
-          Registry.empty).specialize[ShareServer, String]("server-")
+          Registry.empty).refine[ShareServer, String]("server-")
 
       val app = r.make[ShareSpecApp]
       app.s.log === ShareLogger("server-")
@@ -378,7 +378,7 @@ class RuntimeRegistrySpec extends Specification:
       app.s.log !== app.w.log // distinct instances
     }
 
-    "without specialization — both Server and Worker share the same Logger" >> {
+    "without refinement — both Server and Worker share the same Logger" >> {
       val r =
         fun[ShareSpecApp] +:
           fun[ShareServer] +:
@@ -423,25 +423,25 @@ class RuntimeRegistrySpec extends Specification:
     }
   }; br
 
-  "specialize" should {
+  "refine method" should {
     "override a type's value only when building inside the given context" >> {
-      // Default Host is "default"; inside a DbConfig build, use "specialized".
+      // Default Host is "default"; inside a DbConfig build, use "refined".
       val r = (fun[DbConfig] +: value(Host("default")) +: value(5432) +: Registry.empty)
-        .specialize[DbConfig, Host](Host("specialized"))
+        .refine[DbConfig, Host](Host("refined"))
 
-      r.make[DbConfig] === DbConfig(Host("specialized"), 5432)
+      r.make[DbConfig] === DbConfig(Host("refined"), 5432)
       r.make[Host] === Host("default") // direct make, no DbConfig context → default
     }
 
     "not fire when the context type isn't in the resolution stack" >> {
       val r = (value(Host("h")) +: Registry.empty)
-        .specialize[DbConfig, Host](Host("X")) // context never entered
+        .refine[DbConfig, Host](Host("X")) // context never entered
 
       r.make[Host] === Host("h")
     }
 
-    "compose with later entries: inputs down the chain see the specialized value" >> {
-      // App -> Db -> DbConfig -> Host. Specialize Host in the App context.
+    "compose with later entries: inputs down the chain see the refined value" >> {
+      // App -> Db -> DbConfig -> Host. Refine Host in the App context.
       val r =
         (fun[Chain.App] +:
           fun[Chain.Db] +:
@@ -449,15 +449,15 @@ class RuntimeRegistrySpec extends Specification:
           value(Chain.Host("base")) +:
           value(5432) +:
           value(Chain.AppName("x")) +:
-          Registry.empty).specialize[Chain.App, Chain.Host](Chain.Host("in-app"))
+          Registry.empty).refine[Chain.App, Chain.Host](Chain.Host("in-app"))
 
       r.make[Chain.App].db.config.host === Chain.Host("in-app")
     }
   }; br
 
-  "specializePath" should {
+  "refinePath method" should {
     "apply only when every type in Path appears in order in the resolution stack" >> {
-      // Specialize Host along the [App, Db] path.
+      // Refine Host along the [App, Db] path.
       val r =
         (fun[Chain.App] +:
           fun[Chain.Db] +:
@@ -465,30 +465,30 @@ class RuntimeRegistrySpec extends Specification:
           value(Chain.Host("base")) +:
           value(5432) +:
           value(Chain.AppName("x")) +:
-          Registry.empty).specializePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
+          Registry.empty).refinePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
 
-      // Full path: App -> Db -> DbConfig -> Host. [App, Db] is a subsequence → use specialized.
+      // Full path: App -> Db -> DbConfig -> Host. [App, Db] is a subsequence → use refined.
       r.make[Chain.App].db.config.host === Chain.Host("via-db")
     }
 
     "does not fire if the path elements don't appear in order" >> {
       val r =
         (fun[Chain.DbConfig] +: value(Chain.Host("base")) +: value(5432))
-          .specializePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("never"))
+          .refinePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("never"))
       // We never build an App or Db, so [App, Db] is not a subsequence of the resolution stack.
       r.make[Chain.DbConfig].host === Chain.Host("base")
     }
 
-    "equivalence: specialize[Ctx, T](v) behaves identically to specializePath[Ctx *: EmptyTuple, T](v)" >> {
+    "equivalence: refine[Ctx, T](v) behaves identically to refinePath[Ctx *: EmptyTuple, T](v)" >> {
       val base = fun[DbConfig] +: value(Host("base")) +: value(5432)
-      val a = base.specialize[DbConfig, Host](Host("specialized"))
-      val b = base.specializePath[DbConfig *: EmptyTuple, Host](Host("specialized"))
+      val a = base.refine[DbConfig, Host](Host("refined"))
+      val b = base.refinePath[DbConfig *: EmptyTuple, Host](Host("refined"))
 
       a.make[DbConfig] === b.make[DbConfig]
     }
   }; br
 
-  "refine" should {
+  "refine factory" should {
     "compose with `+:` to add a single-context refinement to the registry" >> {
       val r = refine[Person, String]("eric") +: fun[Person] +: value("name")
       r.make[Person] === Person("eric")
@@ -505,8 +505,8 @@ class RuntimeRegistrySpec extends Specification:
       r.make[Person] === Person("eric")
     }
 
-    "support a tuple Path for multi-element specialization paths" >> {
-      // Specialize Host along the [App, Db] path, exactly like specializePath.
+    "support a tuple Path for multi-element refinement paths" >> {
+      // Refine Host along the [App, Db] path, exactly like refinePath.
       val r =
         refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db")) +:
           fun[Chain.App] +:
@@ -519,15 +519,15 @@ class RuntimeRegistrySpec extends Specification:
       r.make[Chain.App].db.config.host === Chain.Host("via-db")
     }
 
-    "behave identically to specialize for a single-type Path" >> {
+    "behave identically to the refine method for a single-type Path" >> {
       val base = fun[DbConfig] +: value(Host("base")) +: value(5432)
-      val a    = refine[DbConfig, Host](Host("specialized")) +: base
-      val b    = base.specialize[DbConfig, Host](Host("specialized"))
+      val a    = refine[DbConfig, Host](Host("refined")) +: base
+      val b    = base.refine[DbConfig, Host](Host("refined"))
 
       a.make[DbConfig] === b.make[DbConfig]
     }
 
-    "behave identically to specializePath for a tuple Path" >> {
+    "behave identically to the refinePath method for a tuple Path" >> {
       val base =
         fun[Chain.App] +:
           fun[Chain.Db] +:
@@ -536,7 +536,7 @@ class RuntimeRegistrySpec extends Specification:
           value(5432) +:
           value(Chain.AppName("x"))
       val a = refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db")) +: base
-      val b = base.specializePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
+      val b = base.refinePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
 
       a.make[Chain.App].db.config.host === b.make[Chain.App].db.config.host
     }

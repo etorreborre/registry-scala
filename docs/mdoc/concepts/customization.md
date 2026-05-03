@@ -1,7 +1,7 @@
 # Customization
 
 Three knobs change how a registry resolves: **tweaks** transform values
-post-resolution, **specializations** override what gets returned for a given
+post-resolution, **refinements** override what gets returned for a given
 type when the resolver is on a particular path through the graph, and
 **erase** drops type-level tracking entirely.
 
@@ -18,8 +18,7 @@ case class Greeting(text: String)
 
 val r =
   fun[Greeting] +:
-    value("hello") +:
-    Registry.empty
+  value("hello")
 ```
 
 ```scala mdoc
@@ -30,7 +29,7 @@ r.tweak[String](_.toUpperCase).make[Greeting]
 Tweaks are by-type (`Tag[A]`-keyed), so they fire wherever an `A` appears in
 the dependency graph. They don't move entries around — they wrap values.
 
-## `specialize[Ctx, T]` — context-scoped override
+## `refine[Ctx, T]` — context-scoped override
 
 When the resolver is currently building a value of type `Ctx`, return `v`
 for `T` instead of doing normal lookup.
@@ -55,11 +54,11 @@ app.make[Server].log.prefix
 app.make[Worker].log.prefix
 ```
 
-`specialize[Server, String]("server-")` overrides `String` only when the
+`refine[Server, String]("server-")` overrides `String` only when the
 resolution stack passes through `Server`:
 
 ```scala mdoc:silent
-val tagged = app.specialize[Server, String]("server-")
+val tagged = app.refine[Server, String]("server-")
 ```
 
 ```scala mdoc
@@ -67,7 +66,7 @@ tagged.make[Server].log.prefix
 tagged.make[Worker].log.prefix
 ```
 
-## `specializePath[(A, B, ...), T]` — multi-step paths
+## `refinePath[(A, B, ...), T]` — multi-step paths
 
 The resolution stack may contain `Server` for many reasons. To narrow
 further, give a path of types that must appear **in order** (not necessarily
@@ -81,7 +80,7 @@ val withOuter =
 ```
 
 ```scala mdoc:silent
-val pathed = withOuter.specializePath[(Outer, Server), String]("from-outer-")
+val pathed = withOuter.refinePath[(Outer, Server), String]("from-outer-")
 ```
 
 ```scala mdoc
@@ -92,8 +91,8 @@ pathed.make[Server].log.prefix     // not reached via Outer — default wins
 ## `refine` — refinements as standalone values
 
 `refine[Path, T](v)` produces a `Refinement` value that you can prepend
-with any of `+:`, `*:`, `-:`. It's the same machinery
-as `specialize` / `specializePath` but expressed as a value, which is
+with any of `+:`, `*:`, `-:`. It's the same machinery as the `refine` /
+`refinePath` methods on `Registry` but expressed as a value, which is
 sometimes cleaner when assembling registries from parts.
 
 ```scala mdoc:silent

@@ -14,7 +14,7 @@ import registry.{Entry, TypedEntry}
  *
  * `genTrait[T]` consumes a [[Chooser]] plus one `Gen[Sub_i]` for each variant and produces a `Gen[T]`.
  * The `Chooser` is a plain registry value — swap the registered `Chooser` to change the picking strategy
- * (uniform, weighted, deterministic), or use `specialize[Ctx, Chooser](...)` to scope a chooser to a
+ * (uniform, weighted, deterministic), or use `r.refine[Ctx, Chooser](...)` to scope a chooser to a
  * particular build context.
  *
  * Typical use: prepend `genTrait[T]` *above* the per-subtype `gen[Sub_i]` entries so that

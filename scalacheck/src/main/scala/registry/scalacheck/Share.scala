@@ -92,12 +92,12 @@ private def build[AllIns <: Tuple, AllOuts <: Tuple](
   pending match
     case Nil =>
       Resolve
-        .resolve(r.entries, r.tweaks, r.specializations, want)
+        .resolve(r.entries, r.tweaks, r.refinements, want)
         .asInstanceOf[Gen[Any]]
 
     case head :: rest =>
       val sharedGen = Resolve
-        .resolve(r.entries, r.tweaks, r.specializations, head)
+        .resolve(r.entries, r.tweaks, r.refinements, head)
         .asInstanceOf[Gen[Any]]
       sharedGen.flatMap { sample =>
         val pinToConst: Any => Any = (_: Any) => Gen.const(sample)

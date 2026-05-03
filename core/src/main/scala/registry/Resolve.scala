@@ -8,44 +8,44 @@ object Resolve:
   def resolve(
       entries: List[Entry],
       tweaks: List[(String, Any => Any)],
-      specializations: List[(List[LightTypeTag], LightTypeTag, Any)],
+      refinements: List[(List[LightTypeTag], LightTypeTag, Any)],
       want: LightTypeTag
   ): Any =
     val cache = scala.collection.mutable.Map.empty[String, Any]
-    go(entries, tweaks, specializations, want, List.empty, List.empty, cache)._1
+    go(entries, tweaks, refinements, want, List.empty, List.empty, cache)._1
 
   /** `inFlightEntries` tracks specific [[Entry]] instances already consumed in the current resolution
    * path — used to skip them when resolving inputs of the same type, which is what makes recursive
    * entries (an entry whose input and output types coincide) work.
    *
    * `inFlightTypes` tracks the requested types along the path — used for cycle error messages and
-   * specialization-path matching.
+   * refinement-path matching.
    *
    * `cache` holds the *pre-tweak* invoke result of every non-`fresh` entry whose resolution did not
-   * involve a specialization, keyed on the chosen entry's output `repr`. A cache hit returns the
-   * stored value (tweaks are then re-applied per consumer based on `want`). Entries marked `fresh
-   * = true` bypass the cache on both read and write.
+   * involve a refinement, keyed on the chosen entry's output `repr`. A cache hit returns the stored
+   * value (tweaks are then re-applied per consumer based on `want`). Entries marked `fresh = true`
+   * bypass the cache on both read and write.
    *
-   * The second component of the return tuple is `specialized`: `true` if a specialization fired
-   * during this resolution (directly or in any descendant). Specialized values are path-dependent
-   * — caching them under a global key would poison subsequent unrelated lookups — so we propagate
-   * the flag up and refuse to cache anywhere it's set.
+   * The second component of the return tuple is `refined`: `true` if a refinement fired during this
+   * resolution (directly or in any descendant). Refined values are path-dependent — caching them
+   * under a global key would poison subsequent unrelated lookups — so we propagate the flag up and
+   * refuse to cache anywhere it's set.
    */
   private def go(
       entries: List[Entry],
       tweaks: List[(String, Any => Any)],
-      specializations: List[(List[LightTypeTag], LightTypeTag, Any)],
+      refinements: List[(List[LightTypeTag], LightTypeTag, Any)],
       want: LightTypeTag,
       inFlightEntries: List[Entry],
       inFlightTypes: List[LightTypeTag],
       cache: scala.collection.mutable.Map[String, Any]
   ): (Any, Boolean) =
-    // Check specializations first: if any applies for this path + target, short-circuit.
-    val spec = specializations.find { case (path, target, _) =>
+    // Check refinements first: if any applies for this path + target, short-circuit.
+    val refinement = refinements.find { case (path, target, _) =>
       want.repr == target.repr && isSubsequence(path, inFlightTypes)
     }
 
-    spec match
+    refinement match
       case Some((_, _, v)) =>
         (applyTweaks(v, want, tweaks), true)
       case None            =>
@@ -70,12 +70,12 @@ object Resolve:
               val nextEntries = inFlightEntries :+ entry
               val nextTypes   = inFlightTypes :+ want
               val resolved =
-                entry.inputs.map(go(entries, tweaks, specializations, _, nextEntries, nextTypes, cache))
-              val args              = resolved.map(_._1)
-              val anyChildSpecialized = resolved.exists(_._2)
-              val invoked           = entry.invoke(args)
-              if !entry.fresh && !anyChildSpecialized then cache.update(key, invoked)
-              (applyTweaks(invoked, want, tweaks), anyChildSpecialized)
+                entry.inputs.map(go(entries, tweaks, refinements, _, nextEntries, nextTypes, cache))
+              val args            = resolved.map(_._1)
+              val anyChildRefined = resolved.exists(_._2)
+              val invoked         = entry.invoke(args)
+              if !entry.fresh && !anyChildRefined then cache.update(key, invoked)
+              (applyTweaks(invoked, want, tweaks), anyChildRefined)
 
   /** Apply every tweak whose key matches `want.repr`, in registration order. */
   private def applyTweaks(base: Any, want: LightTypeTag, tweaks: List[(String, Any => Any)]): Any =

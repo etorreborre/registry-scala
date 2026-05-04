@@ -1,0 +1,21 @@
+title: registry
+description: A small dependency-injection / wiring library for Scala 3.
+theme: jekyll-theme-cayman
+
+show_downloads: false
+
+# Render .md files only — leave the source markdown alone.
+markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: false
+
+# Suppress noisy auto-generated pages.
+exclude:
+  - README.md
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default

@@ -104,7 +104,7 @@ No fixes in this pass — fixes happen as separate follow-ups after triage.
 - `[done]` **`modules/scalacheck.md` written** — full surface tour with
   typechecked mdoc examples: `gen[T]` (class + sealed), `gen(value)`,
   `arb[T]`, `genTrait[T]` + `Chooser` (uniform / weighted / only),
-  container helpers, `genRecursive`, `share` / `const` / `memoize`
+  container helpers, `genRec`, `share` / `const` / `memoize`
   factories and the `.share` / `.const` extensions, `makeGen[T]`.
   Forward-link warnings from `concepts/resolution.md` and
   `concepts/memoization.md` now resolve.
@@ -120,6 +120,20 @@ No fixes in this pass — fixes happen as separate follow-ups after triage.
   `sample` helper imported from `registry.docs` covers the doc pages,
   but tests would also benefit from a tiny utility (`SampleHelpers` or
   similar) to keep the spec lines focused.
+
+- `[done]` **`Sized` extracted from `genRec`**. New
+  `scalacheck.Sized` case class with two knobs: `pickBase: Int =>
+  Gen[Boolean]` (decide between base and grow at the current size) and
+  `nextSize: Int => Gen[Int]` (compute the recursive call's size).
+  `genRec[T]` now returns a `Registry` that bundles
+  `value(Sized.default)` alongside the recursive entry, so existing call
+  sites need no changes. To use a different strategy, prepend
+  `value(mySized) +:` — LIFO wins over the bundled default. Three new
+  tests in `RecurseSpec` cover the bundled default, an "only base"
+  override, and an "always recurse until size 0" override (with a
+  `maxSize` outer cap). Doc page updated with a "Tuning the recursion"
+  subsection. Caveat: a `pickBase` that never returns `true` will
+  overflow the stack — documented in the scaladoc.
 
 ## cats
 

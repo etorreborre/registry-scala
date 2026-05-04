@@ -48,7 +48,7 @@ object Resolve:
         (v, true)
       case None =>
         // Subtype-aware entry lookup — skip entries already in flight so that a recursive entry
-        // (same input/output type) picks a *different* entry for its input, enabling `genRecursive`.
+        // (same input/output type) picks a *different* entry for its input, enabling `genRec`.
         val candidate = entries.find(e => (e.output <:< want) && !inFlightEntries.contains(e))
         candidate match
           case None =>

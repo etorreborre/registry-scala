@@ -106,8 +106,8 @@ val withBase =
 withBase.make[Int]   // resolves the recursive entry, then picks 0 for its input
 ```
 
-This is the mechanism behind ScalaCheck's `genRecursive` — see
-[modules/scalacheck.md](../modules/scalacheck.md). `genRecursive[T]`
+This is the mechanism behind ScalaCheck's `genRec` — see
+[modules/scalacheck.md](../modules/scalacheck.md). `genRec[T]`
 registers an entry of type `Gen[T] → Gen[T]`; you also register
 `gen(Leaf: Tree)` (or similar) as the base.
 

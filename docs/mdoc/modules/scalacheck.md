@@ -40,8 +40,9 @@ wraps the underlying ScalaCheck combinator.
 
 | Factory                                  | Use                                                  |
 | ---------------------------------------- | ---------------------------------------------------- |
-| `genRecursive[T](grow)`                  | size-bounded recursive `Gen[T]`; needs a base case   |
-| `genRecursive[T](maxSize)(grow)`         | same, capped at `maxSize`                            |
+| `genRec[T](grow)`                  | size-bounded recursive `Gen[T]`; needs a base case; bundles `Sized.default` |
+| `genRec[T](maxSize)(grow)`         | same, capped at `maxSize`                            |
+| `Sized(pickBase, nextSize)`              | per-step termination + size-shrink strategy; override by `value(mySized) +:` |
 
 ### Sharing and memoization
 
@@ -209,7 +210,7 @@ inputs for `eitherOf` / `pairOf` / `mapOf` etc.) and produces the container
 
 ## Recursive generators
 
-`genRecursive[T]` registers a `Gen[T] → Gen[T]` entry. Its recursive input
+`genRec[T]` registers a `Gen[T] → Gen[T]` entry. Its recursive input
 is satisfied by **another** `Gen[T]` producer below — typically a base
 case (see [Resolution](../concepts/resolution.md) for the
 "skip-in-flight-entries" mechanism).
@@ -220,7 +221,7 @@ case object Leaf                              extends Tree
 case class Node(left: Tree, right: Tree)      extends Tree
 
 val trees =
-  genRecursive[Tree](maxSize = 3) { self =>
+  genRec[Tree](maxSize = 3) { self =>
     Gen.zip(self, self).map((l, r) => Node(l, r): Tree)
   } +:
     gen(Leaf: Tree)
@@ -233,6 +234,52 @@ sample(trees.makeGen[Tree])
 Without the base entry the recursive lookup would cycle. With it, the
 resolver picks the base when the recursive entry is in flight, and
 ScalaCheck's `Gen.recursive` + `Gen.sized` does the depth control.
+
+### Tuning the recursion: `Sized`
+
+`genRec[T]` doesn't just register the recursive entry — it bundles
+a `value(Sized.default)` alongside it. `Sized` exposes two knobs:
+
+| Knob              | Type                | What it controls                                                |
+| ----------------- | ------------------- | --------------------------------------------------------------- |
+| `pickBase(size)`  | `Int => Gen[Boolean]` | At the current size, return `true` for "use base" or `false` for "recurse via grow". |
+| `nextSize(size)`  | `Int => Gen[Int]`   | Compute the size to pass to `Gen.resize` for the recursive call. |
+
+`Sized.default` matches the behavior of earlier versions: at `size <= 0`
+always pick the base (terminates), otherwise a 1:3 weighted choice in
+favor of recursion; size shrinks by 1 each step.
+
+Override by prepending your own `value(mySized)` — LIFO selection picks
+it over the default that `genRec` injects:
+
+```scala mdoc:silent
+val onlyBase = Sized(
+  pickBase = _ => Gen.const(true),
+  nextSize = size => Gen.const((size - 1).max(0))
+)
+
+val flatTrees =
+  value(onlyBase) +:
+    genRec[Tree] { self =>
+      Gen.zip(self, self).map((l, r) => Node(l, r): Tree)
+    } +:
+    gen(Leaf: Tree)
+```
+
+```scala mdoc
+sample(flatTrees.makeGen[Tree])
+```
+
+Common shapes:
+
+- `Sized.default` — 1:3 base/grow, size − 1.
+- "Always grow" — `pickBase = size => if size <= 0 then Gen.const(true) else Gen.const(false)` to always recurse until the size guard kicks in.
+- Wider distribution — `nextSize = size => Gen.choose(0, size - 1)` for varied recursive depths.
+- Halve-on-recurse — `nextSize = size => Gen.const(size / 2)`.
+
+A custom `Sized.pickBase` is responsible for terminating at low sizes; the
+recursion has no other depth guard. Always returning `false` from
+`pickBase` will overflow the stack.
 
 ## Sharing one sample across a tree
 
@@ -294,7 +341,7 @@ without sharing and the right thing on registries with it.
 - [Memoization](../concepts/memoization.md) — sharing across consumers,
   per-make resolver cache, the `shared` flag and the share build path.
 - [Resolution](../concepts/resolution.md) — the recursive-entry mechanism
-  that powers `genRecursive`.
+  that powers `genRec`.
 - [Customization](../concepts/customization.md) — `refine` for context-
   scoped overrides; useful for swapping in a different `Chooser` only
   when generating one specific type.

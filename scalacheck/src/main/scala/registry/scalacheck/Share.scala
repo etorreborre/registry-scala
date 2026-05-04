@@ -40,9 +40,12 @@ extension [AllIns <: Tuple, AllOuts <: Tuple](r: Registry[AllIns, AllOuts])
       build(r, ordered, tag.tag).asInstanceOf[Gen[T]]
 
 private def dedupe(tags: List[LightTypeTag]): List[LightTypeTag] =
-  tags.foldLeft(List.empty[LightTypeTag]) { (acc, t) =>
-    if acc.exists(_.repr == t.repr) then acc else acc :+ t
+  val seen = scala.collection.mutable.HashSet.empty[String]
+  val builder = List.newBuilder[LightTypeTag]
+  tags.foreach { t =>
+    if seen.add(t.repr) then builder += t
   }
+  builder.result()
 
 /**
  * Order shared types so that dependencies come first: if `A`'s resolution chain transitively

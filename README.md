@@ -56,8 +56,10 @@ is produced by something on the right.
 
 ## Documentation
 
-End-user docs live under [`docs/mdoc/`](docs/mdoc/) and are typechecked at
-build time via [mdoc](https://scalameta.org/mdoc/):
+The rendered site lives at <https://etorreborre.github.io/registry-scala/>.
+
+Sources are under [`docs/mdoc/`](docs/mdoc/) and are typechecked at build time
+via [mdoc](https://scalameta.org/mdoc/):
 
 - [Index](docs/mdoc/index.md) — what the library is.
 - [Getting started](docs/mdoc/getting-started.md) — install, first registry,
@@ -76,3 +78,18 @@ Output is written to `docs/target/mdoc/`.
 
 Standard sbt project, Scala 3.3.6, sbt 1.12.9. `sbt compile` from the root
 builds every module; `sbt test` runs all specs2 suites.
+
+## Releasing
+
+Push a tag of the form `REGISTRY-X.Y.Z` to `main`. The CI workflow will
+publish the four artifacts to Maven Central via the Sonatype Central Portal
+and deploy the rendered docs to the `gh-pages` branch.
+
+```
+git tag REGISTRY-1.0.0
+git push origin REGISTRY-1.0.0
+```
+
+Versions are computed from the tag by `sbt-dynver`. Required GitHub Actions
+secrets: `SONATYPE_USERNAME`, `SONATYPE_PASSWORD`, `PGP_KEY_ID`,
+`PGP_PASSPHRASE`, `PGP_SECRET` (base64-encoded).

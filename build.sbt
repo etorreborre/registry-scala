@@ -128,6 +128,10 @@ lazy val releaseSettings: Seq[Setting[_]] = Seq(
   ThisBuild / dynverTagPrefix := REGISTRY,
   ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("21")),
   ThisBuild / githubWorkflowArtifactUpload := false,
+  // gh-pages deploy needs write access for GITHUB_TOKEN.
+  ThisBuild / githubWorkflowPermissions := Some(
+    Permissions.Specify(Map(PermissionScope.Contents -> PermissionValue.Write))
+  ),
   ThisBuild / githubWorkflowBuildPreamble ++= List(
     WorkflowStep.Sbt(List("scalafmtCheckAll"), name = Some("Check formatting"))
   ),
@@ -186,10 +190,21 @@ gpg --list-secret-keys --keyid-format LONG
 gpg --batch --yes -u "$PGP_KEY_ID" --dry-run --pinentry-mode loopback --passphrase "$PGP_PASSPHRASE" --sign <<<"test"
 """
 
-val ciReleaseCommand = """sbt ci-release 2>&1 | tee /tmp/sonatype-output.txt
+val ciReleaseCommand =
+  """VERSION="${GITHUB_REF#refs/tags/REGISTRY-}"
+if [ -n "$VERSION" ] && [ "$VERSION" != "$GITHUB_REF" ]; then
+  POM_URL="https://repo1.maven.org/maven2/org/atnos/registry_3/${VERSION}/registry_3-${VERSION}.pom"
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$POM_URL")
+  if [ "$HTTP_CODE" = "200" ]; then
+    echo "org.atnos:registry_3:${VERSION} is already in Maven Central — skipping publish."
+    exit 0
+  fi
+fi
+
+sbt ci-release 2>&1 | tee /tmp/sonatype-output.txt
 EXIT_CODE=${PIPESTATUS[0]}
 if [ "$EXIT_CODE" -ne 0 ]; then
-  if grep -qiE "already (been )?published|already.*exists|409 Conflict|cannot redeploy|redeployment" /tmp/sonatype-output.txt; then
+  if grep -qiE "already (been )?(published|deployed|exists)|already.*exists|component.*already|version.*already|409 Conflict|cannot redeploy|redeployment" /tmp/sonatype-output.txt; then
     echo "Artifact already published to Sonatype, continuing..."
     exit 0
   else

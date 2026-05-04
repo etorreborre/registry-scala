@@ -9,9 +9,9 @@ import scala.compiletime.summonAll
  * in order) and the resolver is looking for `T`, the registry returns [[value]] instead of doing the
  * normal lookup.
  *
- * Equivalent to [[Registry.refine]] / [[Registry.refinePath]] but produced as a standalone value that
- * composes with entries via the `+:`, `*:`, and `-:` operators (all three behave identically — a
- * refinement adds nothing to the type-level `AllIns` / `AllOuts` accounting).
+ * Equivalent to [[Registry.refine]] but produced as a standalone value that composes with entries
+ * via the `+:`, `*:`, and `-:` operators (all three behave identically — a refinement adds nothing
+ * to the type-level `AllIns` / `AllOuts` accounting).
  */
 final case class Refinement[Path, T](
     pathTags: List[LightTypeTag],
@@ -33,9 +33,9 @@ type PathTags[P] <: Tuple = P match
 /**
  * Build a [[Refinement]] for the given `Path` and target type `T`.
  *
- * `Path` may be a single type (1-element path) or a tuple of types — `refine[Foo, String]("x")` is the
- * standalone equivalent of `r.refine[Foo, String]("x")`, and `refine[(A, B), String]("x")` is the
- * equivalent of `r.refinePath[(A, B), String]("x")`.
+ * `Path` may be a single type (1-element path) or a tuple of types — `refine[Foo, String]("x")`
+ * scopes the override to a `Foo`-context, and `refine[(A, B), String]("x")` scopes it to the
+ * `A → … → B` subsequence of the resolution stack. Mirrors `Registry.refine` exactly.
  */
 inline def refine[Path, T](v: T)(using tTag: Tag[T]): Refinement[Path, T] =
   val tags = summonAll[PathTags[Path]].toList.asInstanceOf[List[Tag[?]]]

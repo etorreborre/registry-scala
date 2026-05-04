@@ -42,10 +42,18 @@ Within a single `make` call the wrapper is invoked once and shared across
 all consumers (per-make cache; see [Memoization](memoization.md)). To opt
 out, mark the wrapping entry `.fresh`.
 
-## `refine[Ctx, T]` — context-scoped override
+## `refine[Path, T]` — path-scoped override
 
-When the resolver is currently building a value of type `Ctx`, return `v`
-for `T` instead of doing normal lookup.
+When the resolution stack contains the types of `Path` as a subsequence
+(in order, not necessarily contiguous) and the resolver is looking for
+`T`, return `v` instead of doing the normal lookup.
+
+`Path` may be a **single type** (the override fires whenever that type
+appears anywhere on the stack) or a **tuple** of types (the override fires
+only when all those types appear in order on the stack). One combinator,
+both shapes — selected by a `PathTags` match type.
+
+### Single-type Path
 
 ```scala mdoc:silent
 case class Logger(prefix: String)
@@ -79,11 +87,11 @@ tagged.make[Server].log.prefix
 tagged.make[Worker].log.prefix
 ```
 
-## `refinePath[(A, B, ...), T]` — multi-step paths
+### Tuple Path
 
 The resolution stack may contain `Server` for many reasons. To narrow
-further, give a path of types that must appear **in order** (not necessarily
-contiguous) in the stack.
+further, give a path of types that must all appear, **in order**, in the
+stack.
 
 ```scala mdoc:silent
 case class Outer(s: Server)
@@ -93,7 +101,7 @@ val withOuter =
 ```
 
 ```scala mdoc:silent
-val pathed = withOuter.refinePath[(Outer, Server), String]("from-outer-")
+val pathed = withOuter.refine[(Outer, Server), String]("from-outer-")
 ```
 
 ```scala mdoc
@@ -103,10 +111,10 @@ pathed.make[Server].log.prefix     // not reached via Outer — default wins
 
 ## `refine` — refinements as standalone values
 
-`refine[Path, T](v)` produces a `Refinement` value that you can prepend
-with any of `+:`, `*:`, `-:`. It's the same machinery as the `refine` /
-`refinePath` methods on `Registry` but expressed as a value, which is
-sometimes cleaner when assembling registries from parts.
+`refine[Path, T](v)` (top-level, not on a `Registry`) produces a
+`Refinement` value that you can prepend with any of `+:`, `*:`, `-:`. It's
+the same machinery as the `refine` method on `Registry` but expressed as
+a value, which is sometimes cleaner when assembling registries from parts.
 
 ```scala mdoc:silent
 val refined =

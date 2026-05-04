@@ -409,7 +409,7 @@ class RuntimeRegistrySpec extends Specification:
   }; br
 
   "refine method" should {
-    "override a type's value only when building inside the given context" >> {
+    "override a type's value only when building inside the given context (single type)" >> {
       // Default Host is "default"; inside a DbConfig build, use "refined".
       val r = (fun[DbConfig] +: value(Host("default")) +: value(5432) +: Registry.empty)
         .refine[DbConfig, Host](Host("refined"))
@@ -438,10 +438,8 @@ class RuntimeRegistrySpec extends Specification:
 
       r.make[Chain.App].db.config.host === Chain.Host("in-app")
     }
-  }; br
 
-  "refinePath method" should {
-    "apply only when every type in Path appears in order in the resolution stack" >> {
+    "accept a tuple Path: apply only when every element appears in order on the resolution stack" >> {
       // Refine Host along the [App, Db] path.
       val r =
         (fun[Chain.App] +:
@@ -450,24 +448,24 @@ class RuntimeRegistrySpec extends Specification:
           value(Chain.Host("base")) +:
           value(5432) +:
           value(Chain.AppName("x")) +:
-          Registry.empty).refinePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
+          Registry.empty).refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
 
       // Full path: App -> Db -> DbConfig -> Host. [App, Db] is a subsequence → use refined.
       r.make[Chain.App].db.config.host === Chain.Host("via-db")
     }
 
-    "does not fire if the path elements don't appear in order" >> {
+    "does not fire if the tuple-path elements don't appear in order" >> {
       val r =
         (fun[Chain.DbConfig] +: value(Chain.Host("base")) +: value(5432))
-          .refinePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("never"))
+          .refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("never"))
       // We never build an App or Db, so [App, Db] is not a subsequence of the resolution stack.
       r.make[Chain.DbConfig].host === Chain.Host("base")
     }
 
-    "equivalence: refine[Ctx, T](v) behaves identically to refinePath[Ctx *: EmptyTuple, T](v)" >> {
+    "single-type Path is equivalent to a 1-element tuple Path" >> {
       val base = fun[DbConfig] +: value(Host("base")) +: value(5432)
-      val a = base.refine[DbConfig, Host](Host("refined"))
-      val b = base.refinePath[DbConfig *: EmptyTuple, Host](Host("refined"))
+      val a    = base.refine[DbConfig, Host](Host("refined"))
+      val b    = base.refine[DbConfig *: EmptyTuple, Host](Host("refined"))
 
       a.make[DbConfig] === b.make[DbConfig]
     }
@@ -491,7 +489,7 @@ class RuntimeRegistrySpec extends Specification:
     }
 
     "support a tuple Path for multi-element refinement paths" >> {
-      // Refine Host along the [App, Db] path, exactly like refinePath.
+      // Refine Host along the [App, Db] path.
       val r =
         refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db")) +:
           fun[Chain.App] +:
@@ -512,7 +510,7 @@ class RuntimeRegistrySpec extends Specification:
       a.make[DbConfig] === b.make[DbConfig]
     }
 
-    "behave identically to the refinePath method for a tuple Path" >> {
+    "behave identically to the refine method for a tuple Path" >> {
       val base =
         fun[Chain.App] +:
           fun[Chain.Db] +:
@@ -521,7 +519,7 @@ class RuntimeRegistrySpec extends Specification:
           value(5432) +:
           value(Chain.AppName("x"))
       val a = refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db")) +: base
-      val b = base.refinePath[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
+      val b = base.refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
 
       a.make[Chain.App].db.config.host === b.make[Chain.App].db.config.host
     }

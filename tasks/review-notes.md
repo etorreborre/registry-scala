@@ -43,12 +43,11 @@ No fixes in this pass — fixes happen as separate follow-ups after triage.
 - `[done]` **Core tests for share-by-default added** — see the `[done]`
   entry above for the full list. Test-gap closed.
 
-- `[ergonomic]` **`refinePath[(X,), T]` rejects 1-tuples at the call
-  site**. Scala 3 type-level tuple syntax requires `*: EmptyTuple` or
-  `Tuple1[X]` for a 1-element tuple; `(X,)` is a parser error. The
-  single-element case is fully covered by `refine[Ctx, T]`, so this isn't
-  a bug — but a user trying `refinePath` uniformly will hit it. Worth a
-  doc note (and possibly a friendlier compile error).
+- `[done]` **`refine` and `refinePath` unified**. `refinePath` is gone;
+  `refine[Path, T]` (using the existing `PathTags` match type) accepts
+  either a single type or a tuple. `r.refine[Server, String]("…")` and
+  `r.refine[(Server, Db), String]("…")` both work. The `(X,)` 1-tuple
+  ergonomic snag is moot — single-element callers use the bare type.
 
 - `[ergonomic]` **`+:` on a lone entry needs `Registry.empty`**. A chain
   like `entry +: entry +: entry` resolves the rightmost as a `TypedEntry`,
@@ -74,10 +73,10 @@ No fixes in this pass — fixes happen as separate follow-ups after triage.
   `scalacheck/Gen.scala`, `scalacheck/Share.scala`, `scalacheck/ShareSpec.scala`.
 
 - `[done]` **`specialize` / `specializePath` renamed to `refine` /
-  `refinePath`**. The Registry methods, the `refinements` field, the
-  `refined` boolean in `Resolve.go`, comments, tests, and docs all use the
-  refinement vocabulary now — consistent with the existing `Refinement`
-  type and `refine[Path, T]` factory.
+  `refinePath`** (later unified — see entry above). The `refinements`
+  field, the `refined` boolean in `Resolve.go`, comments, tests, and docs
+  all use the refinement vocabulary now — consistent with the existing
+  `Refinement` type and `refine[Path, T]` factory.
 
 - `[done]` **`tweak` removed**. The combinator was redundant: prepending
   `fun((t: T) => f(t))` above an existing `T` producer achieves the same

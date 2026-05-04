@@ -140,26 +140,19 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     copy(entries = entries.map(e => if e.output <:< targetTag then e.withFresh() else e))
 
   /**
-   * Context-scoped refinement: when the resolver is currently *inside* a build of `Ctx` (i.e. `Ctx`
-   * appears anywhere in the resolution stack) and we're resolving `T`, return `v` instead of doing
-   * a normal lookup. Shorthand for [[refinePath]] with a single-element path.
-   */
-  def refine[Ctx, T](v: T)(using ctxTag: Tag[Ctx], tTag: Tag[T]): Registry[AllIns, AllOuts] =
-    copy(refinements = refinements :+ (List(ctxTag.tag), tTag.tag, v.asInstanceOf[Any]))
-
-  /**
    * Path-scoped refinement: when the resolution stack contains the types of `Path` as a subsequence
    * (in order, not necessarily contiguous) and we're resolving `T`, return `v` instead of doing a
    * normal lookup.
    *
-   * `refinePath[Ctx *: EmptyTuple, T]` is equivalent to `refine[Ctx, T]`. Multi-element paths let
-   * you scope overrides to specific routes through the dependency graph.
+   * `Path` may be a single type (1-element path) or a tuple of types — `refine[Foo, String]("x")`
+   * scopes the override to a `Foo`-context, and `refine[(A, B), String]("x")` scopes it to the
+   * `A → … → B` subsequence of the resolution stack. The [[PathTags]] match type unifies both
+   * shapes.
    */
-  transparent inline def refinePath[Path <: Tuple, T](v: T)(using
+  transparent inline def refine[Path, T](v: T)(using
       tTag: Tag[T]
   ): Registry[AllIns, AllOuts] =
-    val pathTags =
-      summonAll[Tuple.Map[Path, [s] =>> Tag[s]]].toList.asInstanceOf[List[Tag[?]]]
+    val pathTags = summonAll[PathTags[Path]].toList.asInstanceOf[List[Tag[?]]]
     copy(refinements = refinements :+ (pathTags.map(_.tag), tTag.tag, v.asInstanceOf[Any]))
 
   /** Build a value of type `T`. Runtime-only; throws if a dependency is missing. */

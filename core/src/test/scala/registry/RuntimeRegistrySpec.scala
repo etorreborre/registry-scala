@@ -42,8 +42,7 @@ class RuntimeRegistrySpec extends Specification:
       val sumSeq: Seq[Int] => Int = _.sum
       val r =
         fun(sumSeq) *:
-          value(List(1, 2, 3): List[Int]) *:
-          Registry.empty
+          value(List(1, 2, 3): List[Int])
       r.make[Int] === 6
     }
 
@@ -61,8 +60,8 @@ class RuntimeRegistrySpec extends Specification:
     }
 
     "match a registered class against a requested supertype/interface" >> {
-      val r = value(Subtype.Impl("hello"): Subtype.Impl) *: Registry.empty
-      r.make[Subtype.Iface].label === "hello"
+      val r = value(Subtype.Implementation("hello"): Subtype.Implementation) *: Registry.empty
+      r.make[Subtype.Interface].label === "hello"
     }
   }
 
@@ -161,7 +160,7 @@ class RuntimeRegistrySpec extends Specification:
       r.make[Int] === 43
     }
 
-    "compose multiple wrappers in chain order (innermost runs first)" >> {
+    "compose multiple wrappers in list order (innermost runs first)" >> {
       val r =
         fun((n: Int) => n * 2) +: // 43 -> 86
           fun((n: Int) => n + 1) +: //  42 -> 43
@@ -185,7 +184,7 @@ class RuntimeRegistrySpec extends Specification:
       var calls = 0
       val r = (fun { (_: Int) =>
         calls += 1; Wrap(calls)
-      } +: value(0) +: Registry.empty)
+      } +: value(0))
         .memoize[Wrap]
 
       val a = r.make[Wrap]
@@ -198,7 +197,7 @@ class RuntimeRegistrySpec extends Specification:
       var calls = 0
       val r = (fun { (_: Int) =>
         calls += 1; Wrap(calls)
-      } +: value(0) +: Registry.empty)
+      } +: value(0))
         .memoize[Int] // memoize Int (the leaf), not Wrap
 
       val a = r.make[Wrap]
@@ -215,8 +214,7 @@ class RuntimeRegistrySpec extends Specification:
           fun { (_: Int) =>
             calls += 1; Wrap(calls)
           } +:
-          value(0) +:
-          Registry.empty).memoize[Wrap]
+          value(0)).memoize[Wrap]
 
       val u1 = r.make[User]
       val u2 = r.make[User]
@@ -228,7 +226,7 @@ class RuntimeRegistrySpec extends Specification:
       var wrapCalls = 0
       val r = (fun { (_: Int) =>
         wrapCalls += 1; Wrap(wrapCalls)
-      } +: value(99) +: Registry.empty).memoizeAll
+      } +: value(99)).memoizeAll
 
       r.make[Wrap]
       r.make[Wrap]
@@ -241,7 +239,7 @@ class RuntimeRegistrySpec extends Specification:
       var calls = 0
       val base = fun { (_: Int) =>
         calls += 1; Wrap(calls)
-      } +: value(0) +: Registry.empty
+      } +: value(0)
       val mem1 = base.memoize[Wrap]
       val mem2 = base.memoize[Wrap]
       val fromM1a = mem1.make[Wrap]
@@ -259,9 +257,10 @@ class RuntimeRegistrySpec extends Specification:
       case class Pair(a: Wrap, b: Wrap)
       val r =
         fun[Pair] +:
-          fun((_: Int) => { calls += 1; Wrap(calls) }) +:
-          value(0) +:
-          Registry.empty
+          fun { (_: Int) =>
+            calls += 1; Wrap(calls)
+          } +:
+          value(0)
 
       val p = r.make[Pair]
       p.a must beTheSameAs(p.b)
@@ -271,9 +270,10 @@ class RuntimeRegistrySpec extends Specification:
     "the per-make cache is reset between make calls" >> {
       var calls = 0
       val r =
-        fun((_: Int) => { calls += 1; Wrap(calls) }) +:
-          value(0) +:
-          Registry.empty
+        fun { (_: Int) =>
+          calls += 1; Wrap(calls)
+        } +:
+          value(0)
 
       val a = r.make[Wrap]
       val b = r.make[Wrap]
@@ -281,28 +281,30 @@ class RuntimeRegistrySpec extends Specification:
       calls === 2
     }
 
-    "subtype lookup shares — asking for Iface and Impl in one make returns the same Impl instance" >> {
+    "subtype lookup shares — asking for Interface and Implementation in one make returns the same Implementation instance" >> {
       var calls = 0
-      case class Holder(via: Subtype.Iface, direct: Subtype.Impl)
+      case class Holder(via: Subtype.Interface, direct: Subtype.Implementation)
       val r =
         fun[Holder] +:
-          fun((s: String) => { calls += 1; Subtype.Impl(s) }) +:
-          value("x") +:
-          Registry.empty
+          fun { (s: String) =>
+            calls += 1; Subtype.Implementation(s)
+          } +:
+          value("x")
 
       val h = r.make[Holder]
       h.via must beTheSameAs(h.direct) // same Impl instance for both fields
       calls === 1
     }
 
-    "entry.fresh opt-out — each consumer triggers a fresh invoke" >> {
+    "entry.fresh opt-out — each call triggers a fresh invoke" >> {
       var calls = 0
       case class Pair(a: Wrap, b: Wrap)
       val r =
         fun[Pair] +:
-          fun((_: Int) => { calls += 1; Wrap(calls) }).fresh +:
-          value(0) +:
-          Registry.empty
+          fun { (_: Int) =>
+            calls += 1; Wrap(calls)
+          }.fresh +:
+          value(0)
 
       val p = r.make[Pair]
       p.a !== p.b
@@ -314,9 +316,10 @@ class RuntimeRegistrySpec extends Specification:
       case class Pair(a: Wrap, b: Wrap)
       val base =
         fun[Pair] +:
-          fun((_: Int) => { calls += 1; Wrap(calls) }) +:
-          value(0) +:
-          Registry.empty
+          fun { (_: Int) =>
+            calls += 1; Wrap(calls)
+          } +:
+          value(0)
 
       val r = base.fresh[Wrap]
       val p = r.make[Pair]
@@ -328,12 +331,16 @@ class RuntimeRegistrySpec extends Specification:
       // The wrapping `fun` entry produces Wrap; both Pair fields read the same wrapped value
       // from the per-make cache, so the wrapper invokes once.
       var underlying = 0
-      var wraps      = 0
+      var wraps = 0
       case class Pair(a: Wrap, b: Wrap)
       val r =
-        fun((w: Wrap) => { wraps += 1; Wrap(w.value + 100) }) +:
+        fun { (w: Wrap) =>
+          wraps += 1; Wrap(w.value + 100)
+        } +:
           fun[Pair] +:
-          fun((_: Int) => { underlying += 1; Wrap(underlying) }) +:
+          fun { (_: Int) =>
+            underlying += 1; Wrap(underlying)
+          } +:
           value(0)
 
       val p = r.make[Pair]
@@ -354,8 +361,7 @@ class RuntimeRegistrySpec extends Specification:
           fun[ShareServer] +:
           fun[ShareWorker] +:
           fun[ShareLogger] +:
-          value("default") +:
-          Registry.empty).refine[ShareServer, String]("server-")
+          value("default")).refine[ShareServer, String]("server-")
 
       val app = r.make[ShareSpecApp]
       app.s.log === ShareLogger("server-")
@@ -369,8 +375,7 @@ class RuntimeRegistrySpec extends Specification:
           fun[ShareServer] +:
           fun[ShareWorker] +:
           fun[ShareLogger] +:
-          value("default") +:
-          Registry.empty
+          value("default")
 
       val app = r.make[ShareSpecApp]
       app.s.log must beTheSameAs(app.w.log)
@@ -381,9 +386,10 @@ class RuntimeRegistrySpec extends Specification:
       case class Pair(a: Wrap, b: Wrap)
       val r =
         (fun[Pair] +:
-          fun((_: Int) => { invokes += 1; Wrap(invokes) }) +:
-          value(0) +:
-          Registry.empty).memoize[Wrap]
+          fun { (_: Int) =>
+            invokes += 1; Wrap(invokes)
+          } +:
+          value(0)).memoize[Wrap]
 
       val p1 = r.make[Pair]
       val p2 = r.make[Pair]
@@ -398,8 +404,12 @@ class RuntimeRegistrySpec extends Specification:
       var baseInvokes = 0
       var recInvokes = 0
       val r =
-        fun((n: Int) => { recInvokes += 1; n + 1 }) *:
-          fun((_: Unit) => { baseInvokes += 1; 0 }) +:
+        fun { (n: Int) =>
+          recInvokes += 1; n + 1
+        } *:
+          fun { (_: Unit) =>
+            baseInvokes += 1; 0
+          } +:
           value(())
 
       r.make[Int] === 1
@@ -433,8 +443,7 @@ class RuntimeRegistrySpec extends Specification:
           fun[Chain.DbConfig] +:
           value(Chain.Host("base")) +:
           value(5432) +:
-          value(Chain.AppName("x")) +:
-          Registry.empty).refine[Chain.App, Chain.Host](Chain.Host("in-app"))
+          value(Chain.AppName("x"))).refine[Chain.App, Chain.Host](Chain.Host("in-app"))
 
       r.make[Chain.App].db.config.host === Chain.Host("in-app")
     }
@@ -447,8 +456,7 @@ class RuntimeRegistrySpec extends Specification:
           fun[Chain.DbConfig] +:
           value(Chain.Host("base")) +:
           value(5432) +:
-          value(Chain.AppName("x")) +:
-          Registry.empty).refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
+          value(Chain.AppName("x"))).refine[(Chain.App, Chain.Db), Chain.Host](Chain.Host("via-db"))
 
       // Full path: App -> Db -> DbConfig -> Host. [App, Db] is a subsequence → use refined.
       r.make[Chain.App].db.config.host === Chain.Host("via-db")
@@ -464,8 +472,8 @@ class RuntimeRegistrySpec extends Specification:
 
     "single-type Path is equivalent to a 1-element tuple Path" >> {
       val base = fun[DbConfig] +: value(Host("base")) +: value(5432)
-      val a    = base.refine[DbConfig, Host](Host("refined"))
-      val b    = base.refine[DbConfig *: EmptyTuple, Host](Host("refined"))
+      val a = base.refine[DbConfig, Host](Host("refined"))
+      val b = base.refine[DbConfig *: EmptyTuple, Host](Host("refined"))
 
       a.make[DbConfig] === b.make[DbConfig]
     }
@@ -504,8 +512,8 @@ class RuntimeRegistrySpec extends Specification:
 
     "behave identically to the refine method for a single-type Path" >> {
       val base = fun[DbConfig] +: value(Host("base")) +: value(5432)
-      val a    = refine[DbConfig, Host](Host("refined")) +: base
-      val b    = base.refine[DbConfig, Host](Host("refined"))
+      val a = refine[DbConfig, Host](Host("refined")) +: base
+      val b = base.refine[DbConfig, Host](Host("refined"))
 
       a.make[DbConfig] === b.make[DbConfig]
     }

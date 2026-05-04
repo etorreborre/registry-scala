@@ -193,6 +193,7 @@ case class Wrapper(m: Opaques.Major)
 case class IndirectPair(left: Wrapper, right: Wrapper)
 
 case class InnerDep(n: Int)
+
 object InnerDep:
   val gen: Gen[InnerDep] = Gen.choose(1, 1_000_000).map(InnerDep(_))
 

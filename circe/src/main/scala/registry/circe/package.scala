@@ -16,11 +16,17 @@ package object circe:
     Decoder.jsonDecoder[A]
 
   /** Lift a circe `KeyEncoder[A]` into a registry-native `KeyEncoder[A]`. */
-  inline def bridgeKeyEncoder[A](using ce: io.circe.KeyEncoder[A], tag: Tag[KeyEncoder[A]]): TypedEntry[EmptyTuple, KeyEncoder[A]] =
+  inline def bridgeKeyEncoder[A](using
+      ce: io.circe.KeyEncoder[A],
+      tag: Tag[KeyEncoder[A]]
+  ): TypedEntry[EmptyTuple, KeyEncoder[A]] =
     KeyEncoder.bridgeKeyEncoder[A]
 
   /** Lift a circe `KeyDecoder[A]` into a registry-native `KeyDecoder[A]`. */
-  inline def bridgeKeyDecoder[A](using cd: io.circe.KeyDecoder[A], tag: Tag[KeyDecoder[A]]): TypedEntry[EmptyTuple, KeyDecoder[A]] =
+  inline def bridgeKeyDecoder[A](using
+      cd: io.circe.KeyDecoder[A],
+      tag: Tag[KeyDecoder[A]]
+  ): TypedEntry[EmptyTuple, KeyDecoder[A]] =
     KeyDecoder.bridgeKeyDecoder[A]
 
   /** Build a `KeyEncoder[A]` from a plain function. */
@@ -28,27 +34,50 @@ package object circe:
     KeyEncoder.encodeKey(f)
 
   /** Build a `KeyDecoder[A]` from a parsing function. */
-  inline def decodeKey[A](f: String => Either[String, A])(using tag: Tag[KeyDecoder[A]]): TypedEntry[EmptyTuple, KeyDecoder[A]] =
+  inline def decodeKey[A](f: String => Either[String, A])(using
+      tag: Tag[KeyDecoder[A]]
+  ): TypedEntry[EmptyTuple, KeyDecoder[A]] =
     KeyDecoder.decodeKey(f)
 
   // -- Combinator re-exports (Encoder side) --
 
-  inline def encodeOptionOf[A](using Tag[Encoder[A]], Tag[Encoder[Option[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Option[A]]] =
+  inline def encodeOptionOf[A](using
+      Tag[Encoder[A]],
+      Tag[Encoder[Option[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Option[A]]] =
     Encoder.encodeOptionOf[A]
-  inline def encodeListOf[A](using Tag[Encoder[A]], Tag[Encoder[List[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[List[A]]] =
+
+  inline def encodeListOf[A](using
+      Tag[Encoder[A]],
+      Tag[Encoder[List[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[List[A]]] =
     Encoder.encodeListOf[A]
-  inline def encodeSeqOf[A](using Tag[Encoder[A]], Tag[Encoder[Seq[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Seq[A]]] =
+
+  inline def encodeSeqOf[A](using
+      Tag[Encoder[A]],
+      Tag[Encoder[Seq[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Seq[A]]] =
     Encoder.encodeSeqOf[A]
-  inline def encodeVectorOf[A](using Tag[Encoder[A]], Tag[Encoder[Vector[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Vector[A]]] =
+
+  inline def encodeVectorOf[A](using
+      Tag[Encoder[A]],
+      Tag[Encoder[Vector[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Vector[A]]] =
     Encoder.encodeVectorOf[A]
-  inline def encodeSetOf[A](using Tag[Encoder[A]], Tag[Encoder[Set[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Set[A]]] =
+
+  inline def encodeSetOf[A](using
+      Tag[Encoder[A]],
+      Tag[Encoder[Set[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Set[A]]] =
     Encoder.encodeSetOf[A]
+
   inline def encodePairOf[A, B](using
       Tag[Encoder[A]],
       Tag[Encoder[B]],
       Tag[Encoder[(A, B)]]
   ): TypedEntry[Encoder[A] *: Encoder[B] *: EmptyTuple, Encoder[(A, B)]] =
     Encoder.encodePairOf[A, B]
+
   inline def encodeTripleOf[A, B, C](using
       Tag[Encoder[A]],
       Tag[Encoder[B]],
@@ -56,6 +85,7 @@ package object circe:
       Tag[Encoder[(A, B, C)]]
   ): TypedEntry[Encoder[A] *: Encoder[B] *: Encoder[C] *: EmptyTuple, Encoder[(A, B, C)]] =
     Encoder.encodeTripleOf[A, B, C]
+
   inline def encodeMapOf[K, V](using
       Tag[KeyEncoder[K]],
       Tag[Encoder[V]],
@@ -65,16 +95,40 @@ package object circe:
 
   // -- Combinator re-exports (Decoder side) --
 
-  inline def decodeOptionOf[A](using Tag[Decoder[A]], Tag[Decoder[Option[A]]]): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[Option[A]]] =
+  inline def decodeOptionOf[A](using
+      Tag[Decoder[A]],
+      Tag[Decoder[Option[A]]]
+  ): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[Option[A]]] =
     Decoder.decodeOptionOf[A]
-  inline def decodeListOf[A](using Tag[Decoder[A]], Tag[Decoder[List[A]]], Tag[A]): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[List[A]]] =
+
+  inline def decodeListOf[A](using
+      Tag[Decoder[A]],
+      Tag[Decoder[List[A]]],
+      Tag[A]
+  ): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[List[A]]] =
     Decoder.decodeListOf[A]
-  inline def decodeSeqOf[A](using Tag[Decoder[A]], Tag[Decoder[Seq[A]]], Tag[A]): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[Seq[A]]] =
+
+  inline def decodeSeqOf[A](using
+      Tag[Decoder[A]],
+      Tag[Decoder[Seq[A]]],
+      Tag[A]
+  ): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[Seq[A]]] =
     Decoder.decodeSeqOf[A]
-  inline def decodeVectorOf[A](using Tag[Decoder[A]], Tag[Decoder[Vector[A]]], Tag[A]): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[Vector[A]]] =
+
+  inline def decodeVectorOf[A](using
+      Tag[Decoder[A]],
+      Tag[Decoder[Vector[A]]],
+      Tag[A]
+  ): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[Vector[A]]] =
     Decoder.decodeVectorOf[A]
-  inline def decodeSetOf[A](using Tag[Decoder[A]], Tag[Decoder[Set[A]]], Tag[A]): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[Set[A]]] =
+
+  inline def decodeSetOf[A](using
+      Tag[Decoder[A]],
+      Tag[Decoder[Set[A]]],
+      Tag[A]
+  ): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[Set[A]]] =
     Decoder.decodeSetOf[A]
+
   inline def decodePairOf[A, B](using
       Tag[Decoder[A]],
       Tag[Decoder[B]],
@@ -83,6 +137,7 @@ package object circe:
       Tag[B]
   ): TypedEntry[Decoder[A] *: Decoder[B] *: EmptyTuple, Decoder[(A, B)]] =
     Decoder.decodePairOf[A, B]
+
   inline def decodeTripleOf[A, B, C](using
       Tag[Decoder[A]],
       Tag[Decoder[B]],
@@ -93,6 +148,7 @@ package object circe:
       Tag[C]
   ): TypedEntry[Decoder[A] *: Decoder[B] *: Decoder[C] *: EmptyTuple, Decoder[(A, B, C)]] =
     Decoder.decodeTripleOf[A, B, C]
+
   inline def decodeMapOf[K, V](using
       Tag[KeyDecoder[K]],
       Tag[Decoder[V]],

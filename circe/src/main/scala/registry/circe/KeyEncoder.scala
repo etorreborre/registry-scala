@@ -23,7 +23,10 @@ object KeyEncoder:
     TypedEntry(Entry(Nil, tag.tag, _ => KeyEncoder(f)))
 
   /** Lift a circe `KeyEncoder[A]` into a registry-native `KeyEncoder[A]`. */
-  def bridgeKeyEncoder[A](using ce: io.circe.KeyEncoder[A], tag: Tag[KeyEncoder[A]]): TypedEntry[EmptyTuple, KeyEncoder[A]] =
+  def bridgeKeyEncoder[A](using
+      ce: io.circe.KeyEncoder[A],
+      tag: Tag[KeyEncoder[A]]
+  ): TypedEntry[EmptyTuple, KeyEncoder[A]] =
     TypedEntry(Entry(Nil, tag.tag, _ => KeyEncoder[A](a => ce(a))))
 
   /** `KeyEncoder` for `String` (identity). */

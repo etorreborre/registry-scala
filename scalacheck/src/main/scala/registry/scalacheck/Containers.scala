@@ -8,7 +8,7 @@ import scala.reflect.ClassTag
 /**
  * Container combinators — each is a `TypedEntry` that takes one or more element-level `Gen[T]` inputs
  * and produces a `Gen[F[T]]` output. Drop them into a registry with `*:` / `+:` / `-:` alongside your
- * `value(Gen.xxx)` leaves.
+ * `gen(Gen[T])` leaves.
  *
  * Each helper exists as a single registered entry; ordinary registry resolution + subtype-aware lookup
  * wire the element generator in from elsewhere in the registry. Size-bounded variants take the bounds
@@ -60,8 +60,10 @@ def optionOf[T](using
 ): TypedEntry[Gen[T] *: EmptyTuple, Gen[Option[T]]] =
   mk1[T, Option[T]](Gen.option(_))
 
-/** Register `Gen[T] => Gen[IndexedSeq[T]]` — zero-or-more via `Gen.containerOf[Vector, T]`
- *  (an `IndexedSeq`). */
+/**
+ * Register `Gen[T] => Gen[IndexedSeq[T]]` — zero-or-more via `Gen.containerOf[Vector, T]`
+ *  (an `IndexedSeq`).
+ */
 def indexedSeqOf[T](using
     inTag: Tag[Gen[T]],
     outTag: Tag[Gen[IndexedSeq[T]]]
@@ -89,8 +91,10 @@ def indexedSeqOfMinMax[T](min: Int, max: Int)(using
 ): TypedEntry[Gen[T] *: EmptyTuple, Gen[IndexedSeq[T]]] =
   mk1[T, IndexedSeq[T]](g => Gen.chooseNum(min, max).flatMap(Gen.containerOfN[Vector, T](_, g)))
 
-/** Register `Gen[T] => Gen[IArray[T]]` — zero-or-more. Requires a `ClassTag[T]` because
- * `IArray.from` is element-type specialized. */
+/**
+ * Register `Gen[T] => Gen[IArray[T]]` — zero-or-more. Requires a `ClassTag[T]` because
+ * `IArray.from` is element-type specialized.
+ */
 def iArrayOf[T](using
     ct: ClassTag[T],
     inTag: Tag[Gen[T]],
@@ -131,8 +135,10 @@ def setOf[T](using
 ): TypedEntry[Gen[T] *: EmptyTuple, Gen[Set[T]]] =
   mk1[T, Set[T]](Gen.containerOf[Set, T](_))
 
-/** Register `Gen[T] => Gen[Set[T]]` — of exactly `n` distinct elements (ScalaCheck retries if
- * duplicates are generated). */
+/**
+ * Register `Gen[T] => Gen[Set[T]]` — of exactly `n` distinct elements (ScalaCheck retries if
+ * duplicates are generated).
+ */
 def setOfN[T](n: Int)(using
     inTag: Tag[Gen[T]],
     outTag: Tag[Gen[Set[T]]]

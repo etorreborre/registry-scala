@@ -229,6 +229,7 @@ case class Tagged(label: String, value: Int)
 case class Greeting(text: String)
 
 case class Outer(label: String, inner: Outer.Inner)
+
 object Outer:
   case class Inner(count: Int)
 

@@ -28,8 +28,11 @@ final case class GenEntry(
   def withShared(b: Boolean = true): GenEntry = copy(shared = b)
 
 object GenEntry:
-  /** Promote any [[Entry]] to a [[GenEntry]]. If the input is already a `GenEntry`, return it
-   * unchanged; otherwise wrap its data in a new `GenEntry` with `shared = false`. */
+
+  /**
+   * Promote any [[Entry]] to a [[GenEntry]]. If the input is already a `GenEntry`, return it
+   * unchanged; otherwise wrap its data in a new `GenEntry` with `shared = false`.
+   */
   def from(e: Entry): GenEntry = e match
     case g: GenEntry => g
     case _           => GenEntry(e.inputs, e.output, e.invoke, e.fresh, shared = false)

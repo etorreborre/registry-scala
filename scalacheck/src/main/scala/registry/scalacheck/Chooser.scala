@@ -3,8 +3,9 @@ package registry.scalacheck
 import org.scalacheck.Gen
 
 /**
- * Pick one of several `Gen[T]` values. Analog of the `Chooser` record in the Haskell `registry-hedgehog`
- * — pluggable so users can swap uniform random for weighted, deterministic cycling, or anything else
+ * Pick one of several `Gen[T]` values.
+ *
+ * It is pluggable so users can swap uniform random for weighted, deterministic cycling, or anything else
  * without touching the generators themselves.
  *
  * A `Chooser` is registered as an ordinary value in the registry (`value(Chooser.uniform)`) and consumed

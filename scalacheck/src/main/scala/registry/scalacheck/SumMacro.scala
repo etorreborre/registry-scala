@@ -6,16 +6,17 @@ import izumi.reflect.macrortti.LightTypeTag
 import org.scalacheck.Gen
 import registry.{Entry, Registry, TypeRendering}
 
-/** Builds a fully type-tracked `Registry` for a sealed `T`.
-  *
-  * Output side: every `Gen[V_i]` for each variant plus `Gen[T]` itself plus `Chooser` appears in
-  * the registry's `AllOuts`. Input side: every variant constructor's `Gen[FieldType]` appears in
-  * `AllIns`, deduplicated; the per-variant entries' "internal" needs (Chooser, Gen[V_i] consumed
-  * by the genTrait combinator) are filtered out so they don't show up as external requirements.
-  *
-  * Singletons (case objects, no-arg enum cases) are detected via `summon[ValueOf[V]]` and registered
-  * with no inputs.
-  */
+/**
+ * Builds a fully type-tracked `Registry` for a sealed `T`.
+ *
+ * Output side: every `Gen[V_i]` for each variant plus `Gen[T]` itself plus `Chooser` appears in
+ * the registry's `AllOuts`. Input side: every variant constructor's `Gen[FieldType]` appears in
+ * `AllIns`, deduplicated; the per-variant entries' "internal" needs (Chooser, Gen[V_i] consumed
+ * by the genTrait combinator) are filtered out so they don't show up as external requirements.
+ *
+ * Singletons (case objects, no-arg enum cases) are detected via `summon[ValueOf[V]]` and registered
+ * with no inputs.
+ */
 private[scalacheck] object SumMacro:
 
   def impl[T: Type](using Quotes): Expr[Registry[? <: Tuple, ? <: Tuple]] =
@@ -59,15 +60,15 @@ private[scalacheck] object SumMacro:
               VariantData(ct, genFieldTpes, Some(expr))
     }
 
-    val chooserTpe   = TypeRepr.of[Chooser]
+    val chooserTpe = TypeRepr.of[Chooser]
     val childGenTpes = childTpes.map(genOf)
-    val tGenTpe      = genOf(tTpe)
+    val tGenTpe = genOf(tTpe)
 
     // genTrait[T] consumes Chooser + Gen[V_i] for EVERY child (including sub-sum traits),
     // so they all end up in genTrait's input list.
     val genTraitInputs = chooserTpe :: childGenTpes
-    val genTraitEntry  = buildGenTraitEntry(tTpe, childTpes)
-    val chooserEntry   = buildChooserEntry()
+    val genTraitEntry = buildGenTraitEntry(tTpe, childTpes)
+    val chooserEntry = buildChooserEntry()
 
     // Outputs the registry actually produces internally:
     //   - Gen[T] (genTrait), Chooser, plus Gen[V_i] for variants we built an entry for.
@@ -79,11 +80,11 @@ private[scalacheck] object SumMacro:
     // Note: for sub-sum-trait children, Gen[V_i] is in `genTraitInputs` but NOT in `outsTpes`,
     // so the subtraction correctly leaves Gen[V_i] as an external requirement.
     val allInputTpes: List[TypeRepr] = genTraitInputs ::: variants.flatMap(_.inputTpes)
-    val internalReprs: Set[String]   = outsTpes.map(reprKey).toSet
+    val internalReprs: Set[String] = outsTpes.map(reprKey).toSet
     val externalIns: List[TypeRepr] =
       TypeRendering.dedupe(allInputTpes).filterNot(t => internalReprs.contains(reprKey(t)))
 
-    val insTuple  = buildTupleType(externalIns)
+    val insTuple = buildTupleType(externalIns)
     val outsTuple = buildTupleType(TypeRendering.dedupe(outsTpes))
 
     val allEntries: List[Expr[Entry]] =
@@ -96,14 +97,15 @@ private[scalacheck] object SumMacro:
 
   // ---- helpers -----------------------------------------------------------------------------------
 
-  /** Resolve the type to use for `childSym`:
-    *   - if the child is a term symbol (e.g. a Scala 3 enum no-arg case), the singleton type
-    *     `childSym.termRef` so `ValueOf[…]` auto-derives;
-    *   - if the child is a `case object` (class with `Module` flag), its companion module's
-    *     singleton type;
-    *   - otherwise the class's type, reapplying the parent type's args when arities match
-    *     (mirrors `MakeDecoderMacro`'s logic for Aux-style sealed hierarchies).
-    */
+  /**
+   * Resolve the type to use for `childSym`:
+   *   - if the child is a term symbol (e.g. a Scala 3 enum no-arg case), the singleton type
+   *     `childSym.termRef` so `ValueOf[…]` auto-derives;
+   *   - if the child is a `case object` (class with `Module` flag), its companion module's
+   *     singleton type;
+   *   - otherwise the class's type, reapplying the parent type's args when arities match
+   *     (mirrors `MakeDecoderMacro`'s logic for Aux-style sealed hierarchies).
+   */
   private def mkChildTpe(using q: Quotes)(
       parentTpe: q.reflect.TypeRepr,
       childSym: q.reflect.Symbol
@@ -174,14 +176,15 @@ private[scalacheck] object SumMacro:
             output = summon[Tag[Gen[t]]].tag,
             invoke = args =>
               val chooser = args.head.asInstanceOf[Chooser]
-              val gens    = args.tail.map(_.asInstanceOf[Gen[t]])
+              val gens = args.tail.map(_.asInstanceOf[Gen[t]])
               chooser.pickOne(gens)
           )
         }
 
-  /** Build a `Gen[V]` entry by inspecting V's primary constructor. Returns
-    * (input `Gen[FieldType]` reprs, the entry expression).
-    */
+  /**
+   * Build a `Gen[V]` entry by inspecting V's primary constructor. Returns
+   * (input `Gen[FieldType]` reprs, the entry expression).
+   */
   private def buildParametrizedEntry[V: Type](using q: Quotes)(
       childTpe: q.reflect.TypeRepr
   ): (List[q.reflect.TypeRepr], Expr[Entry]) =

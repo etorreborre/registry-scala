@@ -24,6 +24,7 @@ import registry.{Entry, Registry, Resolve, TypedEntry}
  */
 
 extension [AllIns <: Tuple, AllOuts <: Tuple](r: Registry[AllIns, AllOuts])
+
   /**
    * Build a `Gen[T]`. When any entry is a [[GenEntry]] with `shared = true` (set via the entry-
    * level `.share` / `.const` or via the standalone `share[T] +:` / `const[T] +:` factory), the

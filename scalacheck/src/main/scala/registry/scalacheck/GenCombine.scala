@@ -52,6 +52,6 @@ private[scalacheck] object GenCombine:
   /** Uniformly pick one of `gens` and delegate to it. Used by `sum` to combine per-case generators. */
   def pickOne[T](gens: Seq[Gen[T]]): Gen[T] =
     gens.length match
-      case 0 => sys.error("sum[T]: no subtype generators to pick from")
+      case 0 => sys.error("gen[SUM_TYPE]: no subtype generators to pick from")
       case 1 => gens.head
       case n => Gen.choose(0, n - 1).flatMap(gens(_))

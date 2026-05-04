@@ -44,7 +44,7 @@ class ContainersSpec extends Specification:
     "produce lists with size in [min, max]" >> {
       val r =
         listOfMinMax[Int](2, 5) +:
-          gen(Gen.choose(0, 100)) 
+          gen(Gen.choose(0, 100))
 
       val genList = r.makeGen[List[Int]]
       val samples = (0 until 30).map(i => genList.pureApply(Gen.Parameters.default, Seed(i.toLong)))
@@ -70,7 +70,7 @@ class ContainersSpec extends Specification:
     "produce Set[T] values — no duplicates" >> {
       val r =
         setOf[Int] +:
-          gen(Gen.choose(1, 5)) 
+          gen(Gen.choose(1, 5))
 
       val sample = r.makeGen[Set[Int]].pureApply(Gen.Parameters.default, Seed(4L))
       sample must contain(beBetween(1, 5)).foreach
@@ -82,7 +82,7 @@ class ContainersSpec extends Specification:
       val r =
         eitherOf[String, Int] +:
           gen("oops") +:
-          gen(42) 
+          gen(42)
 
       val genE = r.makeGen[Either[String, Int]]
       val samples = (0 until 30).map(i => genE.pureApply(Gen.Parameters.default, Seed(i.toLong)))
@@ -108,7 +108,7 @@ class ContainersSpec extends Specification:
     "produce a list of exactly n elements (n >= 1)" >> {
       val r =
         nonEmptyListOfN[Int](3) +:
-          gen(Gen.choose(0, 100)) 
+          gen(Gen.choose(0, 100))
 
       r.makeGen[List[Int]].pureApply(Gen.Parameters.default, Seed(1L)) must haveSize(3)
     }

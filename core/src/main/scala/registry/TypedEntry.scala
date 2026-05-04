@@ -68,8 +68,10 @@ final case class TypedEntry[Ins <: Tuple, Out](entry: Entry):
   def fresh: TypedEntry[Ins, Out] =
     TypedEntry(entry.withFresh())
 
-  /** `marker +: entry` — apply a [[Marker]] to this entry iff its output is a subtype of the
-   * marker's target. Same generic shape as the registry-level `+:` for markers. */
+  /**
+   * `marker +: entry` — apply a [[Marker]] to this entry iff its output is a subtype of the
+   * marker's target. Same generic shape as the registry-level `+:` for markers.
+   */
   def +:[T](m: Marker[T]): Registry[Ins, Out *: EmptyTuple] =
     val newEntry = if entry.output <:< m.targetTag then m.transform(entry) else entry
     Registry(newEntry :: Nil, Nil)

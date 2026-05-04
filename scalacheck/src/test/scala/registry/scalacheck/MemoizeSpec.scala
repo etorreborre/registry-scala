@@ -43,7 +43,7 @@ class MemoizeSpec extends Specification:
 
       s1 === 1
       s2 === 1
-      s3 === 1  // even with a different seed: Gen.const ignores the seed
+      s3 === 1 // even with a different seed: Gen.const ignores the seed
     }
 
     "without memoize: `invoke` re-runs and the captured value differs each time" >> {
@@ -82,7 +82,7 @@ class MemoizeSpec extends Specification:
 
     "standalone `memoize[T] +: registry`: only matching entries are memoized, others untouched" >> {
       val pinnedCounter = new AtomicInteger(0)
-      val freshCounter  = new AtomicInteger(0)
+      val freshCounter = new AtomicInteger(0)
 
       case class Pinned(n: Int)
       case class Fresh(n: Int)
@@ -94,11 +94,11 @@ class MemoizeSpec extends Specification:
 
       r.makeGen[Pinned]
       r.makeGen[Pinned]
-      pinnedCounter.get === 1   // matched and memoized
+      pinnedCounter.get === 1 // matched and memoized
 
       r.makeGen[Fresh]
       r.makeGen[Fresh]
-      freshCounter.get === 2    // not matched: re-runs each call
+      freshCounter.get === 2 // not matched: re-runs each call
     }
   }
 
@@ -120,9 +120,9 @@ class MemoizeSpec extends Specification:
     case class User(id: Int)
     case class Bundle(a: User, b: User)
 
-    val params  = Gen.Parameters.default
-    val seed    = Seed(42L)
-    val seed2   = Seed(43L)
+    val params = Gen.Parameters.default
+    val seed = Seed(42L)
+    val seed2 = Seed(43L)
     val widegen = Gen.choose(0, 1_000_000_000).map(User.apply)
 
     "baseline (neither): two positions sample independently within a Bundle" >> {
@@ -156,9 +156,9 @@ class MemoizeSpec extends Specification:
       val b1 = r.makeGen[Bundle].pureApply(params, seed)
       val b2 = r.makeGen[Bundle].pureApply(params, seed)
 
-      b1.a.id === b1.b.id   // pinned within b1
-      b2.a.id === b2.b.id   // pinned within b2
-      b1 === b2             // same seed + cached entry ⇒ identical Bundle
+      b1.a.id === b1.b.id // pinned within b1
+      b2.a.id === b2.b.id // pinned within b2
+      b1 === b2 // same seed + cached entry ⇒ identical Bundle
     }
 
     ".const on entry: behaves like .share.memoize" >> {

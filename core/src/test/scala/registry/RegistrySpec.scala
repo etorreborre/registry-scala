@@ -108,14 +108,10 @@ class RegistrySpec extends Specification:
       r.make[DbConfig] === DbConfig(Host("h"), 1)
     }
 
-    "accept a subtype output as covering a supertype input slot" >> {
-      // Regression: the strict prepend check used to require `=:=` (exact equality), so a
-      // `Sub`-producing entry wouldn't satisfy a `Super`-needing slot even though it does at
-      // runtime (Resolve.go uses `<:<`). With `<:<` parity, a function from Sub builds cleanly
-      // when only Super is required.
+    "accept a subtype output as covering a supertype input" >> {
       val r =
-        fun((s: Subtype.Iface) => s.label) +:  // input Iface, output String
-          value(Subtype.Impl("hi"))            // produces Impl which extends Iface
+        fun((s: Subtype.Interface) => s.label) +: // input Interface, output String
+          value(Subtype.Implementation("hi")) // produces Implementation which extends Interface
 
       r.make[String] === "hi"
     }
@@ -239,7 +235,7 @@ class RegistrySpec extends Specification:
       erased.make[DbConfig] === DbConfig(Host("h"), 1)
     }
 
-    "make makeSafe unable to prove anything after erasure" >> {
+    "render makeSafe unable to prove anything after erasure" >> {
       typeChecks("""
         import registry.*
         import Chain.*

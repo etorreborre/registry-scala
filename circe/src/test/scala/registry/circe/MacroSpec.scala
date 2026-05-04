@@ -47,7 +47,7 @@ class MacroSpec extends Specification:
     val encoded = e.encode(p)
     encoded === Json.obj(
       "identifier" -> Json.obj("value" -> Json.fromInt(1)),
-      "email"      -> Json.obj("email" -> Json.fromString("me@here.com"))
+      "email" -> Json.obj("email" -> Json.fromString("me@here.com"))
     )
 
     d.decode(encoded) === Right(p)
@@ -83,7 +83,7 @@ class MacroSpec extends Specification:
     // inlines it into the tagged object rather than wrapping in "contents".
     val byEmailEncoded = e.encode(Delivery.ByEmail(Email("x@y.z")))
     byEmailEncoded === Json.obj(
-      "tag"   -> Json.fromString("ByEmail"),
+      "tag" -> Json.fromString("ByEmail"),
       "email" -> Json.obj("email" -> Json.fromString("x@y.z"))
     )
     d.decode(byEmailEncoded) === Right(Delivery.ByEmail(Email("x@y.z")))

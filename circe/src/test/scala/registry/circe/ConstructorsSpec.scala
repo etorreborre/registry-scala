@@ -49,7 +49,8 @@ class ConstructorsSpec extends Specification:
   }
 
   "TaggedObject — sum with multi positional fields uses contents array" >> {
-    val fc = FromConstructor(List("A", "B"), List("Int", "String"), "B", Nil, List(Json.fromInt(42), Json.fromString("x")))
+    val fc =
+      FromConstructor(List("A", "B"), List("Int", "String"), "B", Nil, List(Json.fromInt(42), Json.fromString("x")))
     ce.encodeConstructor(JsonOptions.default, fc) ===
       Json.obj("tag" -> Json.fromString("B"), "contents" -> Json.arr(Json.fromInt(42), Json.fromString("x")))
   }
@@ -98,7 +99,8 @@ class ConstructorsSpec extends Specification:
   // ---- omitNothingFields ----
 
   "omitNothingFields drops null values" >> {
-    val fc = FromConstructor(List("A"), List("Option[Int]", "Int"), "A", List("opt", "x"), List(Json.Null, Json.fromInt(1)))
+    val fc =
+      FromConstructor(List("A"), List("Option[Int]", "Int"), "A", List("opt", "x"), List(Json.Null, Json.fromInt(1)))
     val opts = JsonOptions.default.copy(omitNothingFields = true)
     ce.encodeConstructor(opts, fc) === Json.obj("x" -> Json.fromInt(1))
   }

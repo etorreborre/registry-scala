@@ -13,7 +13,8 @@ object Resolve:
     val cache = scala.collection.mutable.Map.empty[String, Any]
     go(entries, refinements, want, List.empty, List.empty, cache)._1
 
-  /** `inFlightEntries` tracks specific [[Entry]] instances already consumed in the current resolution
+  /**
+   * `inFlightEntries` tracks specific [[Entry]] instances already consumed in the current resolution
    * path — used to skip them when resolving inputs of the same type, which is what makes recursive
    * entries (an entry whose input and output types coincide) work.
    *
@@ -45,7 +46,7 @@ object Resolve:
     refinement match
       case Some((_, _, v)) =>
         (v, true)
-      case None            =>
+      case None =>
         // Subtype-aware entry lookup — skip entries already in flight so that a recursive entry
         // (same input/output type) picks a *different* entry for its input, enabling `genRecursive`.
         val candidate = entries.find(e => (e.output <:< want) && !inFlightEntries.contains(e))
@@ -64,16 +65,17 @@ object Resolve:
               (cache(key), false)
             else
               val nextEntries = inFlightEntries :+ entry
-              val nextTypes   = inFlightTypes :+ want
+              val nextTypes = inFlightTypes :+ want
               val resolved =
                 entry.inputs.map(go(entries, refinements, _, nextEntries, nextTypes, cache))
-              val args            = resolved.map(_._1)
+              val args = resolved.map(_._1)
               val anyChildRefined = resolved.exists(_._2)
-              val invoked         = entry.invoke(args)
+              val invoked = entry.invoke(args)
               if !entry.fresh && !anyChildRefined then cache.update(key, invoked)
               (invoked, anyChildRefined)
 
-  /** True iff the elements of `needle` appear (in order, not necessarily contiguous) in `haystack`,
+  /**
+   * True iff the elements of `needle` appear (in order, not necessarily contiguous) in `haystack`,
    * compared by `LightTypeTag.repr`.
    */
   private def isSubsequence(needle: List[LightTypeTag], haystack: List[LightTypeTag]): Boolean =
@@ -93,8 +95,8 @@ object Resolve:
       else s"$head.\nAvailable outputs:\n${outputs.map(o => s"  $o").mkString("\n")}"
 
   private def formatCycle(want: LightTypeTag, path: List[LightTypeTag]): String =
-    val reprs  = path.map(_.repr)
-    val head   = s"Found a cycle while resolving ${want.repr}"
+    val reprs = path.map(_.repr)
+    val head = s"Found a cycle while resolving ${want.repr}"
     val inline = s"$head: ${reprs.mkString(" -> ")}"
     if inline.length <= OneLineLimit then inline
     else s"$head:\n${reprs.map(r => s"  $r").mkString("\n")}"

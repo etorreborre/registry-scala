@@ -145,7 +145,7 @@ class GenTraitSpec extends Specification:
       val genShape = r.makeGen[Shape]
       val samples = (0 until 60).map(i => genShape.pureApply(Gen.Parameters.default, Seed(i.toLong)))
       samples.exists(_.isInstanceOf[Shape.Circle]) must beTrue
-      samples.exists(_ == Shape.Square)            must beTrue
+      samples.exists(_ == Shape.Square) must beTrue
     }
 
     "work for a sealed trait whose variants are case objects" >> {
@@ -168,8 +168,9 @@ enum Shape:
   case Square
 
 sealed trait Status
+
 object Status:
-  case object Active   extends Status
+  case object Active extends Status
   case object Inactive extends Status
 
 sealed trait Single

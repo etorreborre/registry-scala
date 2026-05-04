@@ -8,7 +8,8 @@ import registry.{Entry, Registry, TypedEntry}
 
 private[scalacheck] object GenMacro:
 
-  /** Type-driven `gen[T]` dispatch.
+  /**
+   * Type-driven `gen[T]` dispatch.
    *
    *   - If `T` is a sealed trait / sealed abstract class / Scala 3 enum (has compile-time children),
    *     delegate to [[SumMacro.impl]] to produce a Registry bundling `genTrait[T]` + per-variant
@@ -134,7 +135,8 @@ private[scalacheck] object GenMacro:
       case '[ins] =>
         '{ TypedEntry[ins & Tuple, Gen[T]]($entryExpr) }
 
-  /** Newtype-shaped derivation: `T` is an opaque type alias or other non-class type. Looks for a
+  /**
+   * Newtype-shaped derivation: `T` is an opaque type alias or other non-class type. Looks for a
    * unique single-argument `apply` factory on a companion-like module and emits an entry whose
    * `Ins` is `(Gen[U]) *: EmptyTuple` (where `U` is that apply's parameter type) and whose `Out`
    * is `Gen[T]`. The runtime closure invokes `Companion.apply(u)` to wrap each generated `U`.
@@ -229,7 +231,8 @@ private[scalacheck] object GenMacro:
       case '[ins] =>
         '{ TypedEntry[ins & Tuple, Gen[T]]($entryExpr) }
 
-  /** Value-driven: `gen(x)`. Dispatches on the inferred type:
+  /**
+   * Value-driven: `gen(x)`. Dispatches on the inferred type:
    *
    *   - Function `(A, ...) => R`: builds an entry whose closure sequences the per-input `Gen`s and
    *     applies `f`. If `R = Gen[T]` for some `T`, the entry's output is `Gen[T]` — the closure uses
@@ -271,7 +274,8 @@ private[scalacheck] object GenMacro:
           )
         }
 
-  /** `gen(v: T)` for non-function, non-Gen `v` — wrap in `Gen.const`. The passed `tpe` may have been
+  /**
+   * `gen(v: T)` for non-function, non-Gen `v` — wrap in `Gen.const`. The passed `tpe` may have been
    * widened from the original argument type (e.g. literal `42` widened from `42` to `Int`); the
    * subtyping cast in `asExprOf` is safe because the widened type is always a supertype.
    */
@@ -288,7 +292,8 @@ private[scalacheck] object GenMacro:
           )
         }
 
-  /** `gen(f)` where `f: (A, B, ...) => R`. Extracts the function's parameter types + return type,
+  /**
+   * `gen(f)` where `f: (A, B, ...) => R`. Extracts the function's parameter types + return type,
    * wraps each in `Gen`, and emits an entry whose closure sequences the per-input `Gen`s.
    *
    * If `R = Gen[T]` for some `T`, the entry's output is `Gen[T]` (not `Gen[Gen[T]]`): the closure
@@ -401,7 +406,8 @@ private[scalacheck] object GenMacro:
       case AppliedType(tycon, List(_)) if tycon.typeSymbol == genSym => true
       case _                                                         => false
 
-  /** Substitute `tpe`'s type-arg list into `inType`. For `tpe = Box[Int]` and
+  /**
+   * Substitute `tpe`'s type-arg list into `inType`. For `tpe = Box[Int]` and
    * `inType = T` (a type-param ref of `Box`'s class), returns `Int`. No-op when `tpe` isn't an
    * applied type or when its head has no type parameters.
    */

@@ -3,7 +3,7 @@ package registry.circe
 import io.circe.Json
 import io.circe.parser as circeParser
 import org.specs2.mutable.Specification
-import registry.{Person => _, *}
+import registry.{Person as _, *}
 import registry.circe.DataTypes.*
 
 /**
@@ -66,7 +66,10 @@ class EncoderSpec extends Specification:
   "fieldLabelModifier rewrites field names" >> {
     val r = value(JsonOptions.default.copy(fieldLabelModifier = "__" + _)) -: encoders
     val e = r.make[Encoder[FieldLabelModifier]]
-    expectJsonEqual(Encoder.encodeString(e, FieldLabelModifier.FieldLabelModifier1(123)), """{"tag":"FieldLabelModifier1","__field1":123}""")
+    expectJsonEqual(
+      Encoder.encodeString(e, FieldLabelModifier.FieldLabelModifier1(123)),
+      """{"tag":"FieldLabelModifier1","__field1":123}"""
+    )
   }
 
   "constructorTagModifier rewrites the constructor tag" >> {

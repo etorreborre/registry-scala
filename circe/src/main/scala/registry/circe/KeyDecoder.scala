@@ -15,11 +15,16 @@ final case class KeyDecoder[A](decodeKeyAs: String => Either[String, A]):
 object KeyDecoder:
 
   /** Build a `KeyDecoder[A]` from a parsing function and return it as a `TypedEntry` ready to register. */
-  def decodeKey[A](f: String => Either[String, A])(using tag: Tag[KeyDecoder[A]]): TypedEntry[EmptyTuple, KeyDecoder[A]] =
+  def decodeKey[A](f: String => Either[String, A])(using
+      tag: Tag[KeyDecoder[A]]
+  ): TypedEntry[EmptyTuple, KeyDecoder[A]] =
     TypedEntry(Entry(Nil, tag.tag, _ => KeyDecoder(f)))
 
   /** Lift a circe `KeyDecoder[A]` into a registry-native `KeyDecoder[A]`. */
-  def bridgeKeyDecoder[A](using cd: io.circe.KeyDecoder[A], tag: Tag[KeyDecoder[A]]): TypedEntry[EmptyTuple, KeyDecoder[A]] =
+  def bridgeKeyDecoder[A](using
+      cd: io.circe.KeyDecoder[A],
+      tag: Tag[KeyDecoder[A]]
+  ): TypedEntry[EmptyTuple, KeyDecoder[A]] =
     TypedEntry(
       Entry(
         Nil,

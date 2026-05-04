@@ -22,8 +22,10 @@ def genRecursive[T](grow: Gen[T] => Gen[T])(using
 ): TypedEntry[Gen[T] *: EmptyTuple, Gen[T]] =
   mkRecursive[T](maxSize = None)(grow)
 
-/** Same as [[genRecursive]] but caps the starting size to `maxSize`, so termination is bounded
- * regardless of the outer ScalaCheck size parameter. */
+/**
+ * Same as [[genRecursive]] but caps the starting size to `maxSize`, so termination is bounded
+ * regardless of the outer ScalaCheck size parameter.
+ */
 def genRecursive[T](maxSize: Int)(grow: Gen[T] => Gen[T])(using
     tag: Tag[Gen[T]]
 ): TypedEntry[Gen[T] *: EmptyTuple, Gen[T]] =

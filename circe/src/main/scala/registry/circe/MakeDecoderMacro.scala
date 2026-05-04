@@ -44,7 +44,9 @@ private[circe] object MakeDecoderMacro:
 
     val constructors: List[Symbol] = discoverConstructors(sym)
     if constructors.isEmpty then
-      report.errorAndAbort(s"makeDecoder: ${tpe.show} has no constructors to decode (not a case class, sealed hierarchy, or enum)")
+      report.errorAndAbort(
+        s"makeDecoder: ${tpe.show} has no constructors to decode (not a case class, sealed hierarchy, or enum)"
+      )
 
     // ----- Per-constructor data (kept local: referencing q.reflect types) -----
 
@@ -188,7 +190,9 @@ private[circe] object MakeDecoderMacro:
           Wildcard(),
           None,
           '{
-            Left(s"cannot use this constructor to create an instance of type '${${ typeDisplayNameExpr }}': ${${ tcExpr }}"): Either[String, T]
+            Left(
+              s"cannot use this constructor to create an instance of type '${${ typeDisplayNameExpr }}': ${${ tcExpr }}"
+            ): Either[String, T]
           }.asTerm
         )
 

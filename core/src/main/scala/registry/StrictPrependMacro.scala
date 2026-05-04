@@ -90,16 +90,18 @@ private[registry] object StrictPrependMacro:
 
   // ---- shared helpers ----
 
-  /** Best-effort source-text snippet for the entry being prepended (left side of `+:`). Used by
-    * the error message to show users *which* entry is failing the check.
-    */
-  /** Best-effort source-text snippet for the entry being prepended (left side of `+:`). The Expr
-    * itself often has a zero-width / synthesized position because of `transparent inline`
-    * expansion; instead we slice the macro call site (`Position.ofMacroExpansion` — the entire
-    * `<left> +: <right>` expression) up to the first `+:` token, which is the textual left
-    * operand. Naive but works for the common case where the left operand doesn't itself contain
-    * a `+:` substring.
-    */
+  /**
+   * Best-effort source-text snippet for the entry being prepended (left side of `+:`). Used by
+   * the error message to show users *which* entry is failing the check.
+   */
+  /**
+   * Best-effort source-text snippet for the entry being prepended (left side of `+:`). The Expr
+   * itself often has a zero-width / synthesized position because of `transparent inline`
+   * expansion; instead we slice the macro call site (`Position.ofMacroExpansion` — the entire
+   * `<left> +: <right>` expression) up to the first `+:` token, which is the textual left
+   * operand. Naive but works for the common case where the left operand doesn't itself contain
+   * a `+:` substring.
+   */
   private def sourceOf(using q: Quotes)(e: Expr[Any]): Option[String] =
     import q.reflect.*
     val pos = Position.ofMacroExpansion
@@ -137,15 +139,16 @@ private[registry] object StrictPrependMacro:
         // Manually walk both halves so the chain isn't truncated.
         case AppliedType(tycon, List(a, b))
             if tycon.typeSymbol.fullName.endsWith("TypeChecks$.Concat") ||
-               tycon.typeSymbol.fullName.endsWith("TypeChecks.Concat") =>
+              tycon.typeSymbol.fullName.endsWith("TypeChecks.Concat") =>
           tupleElems(a) ++ tupleElems(b)
         case _ => Nil
 
-  /** Maximum line count for the compact "header-first" layout. Beyond this we switch to the
-    * long form (outputs first, then missing, then header) so the most actionable info — the
-    * missing inputs — is closer to the bottom and easier to spot when the produced-outputs list
-    * is huge.
-    */
+  /**
+   * Maximum line count for the compact "header-first" layout. Beyond this we switch to the
+   * long form (outputs first, then missing, then header) so the most actionable info — the
+   * missing inputs — is closer to the bottom and easier to spot when the produced-outputs list
+   * is huge.
+   */
   private inline val CompactLayoutMaxLines = 25
 
   private def formatError(using
@@ -169,7 +172,7 @@ private[registry] object StrictPrependMacro:
         "+: cannot prepend this entry because some inputs cannot be produced by the rest of the registry."
 
     val compact = s"$header\n\n$missingPart\n\n$outsPart"
-    val long    = s"$outsPart\n\n$missingPart\n\n$header\n\n"
+    val long = s"$outsPart\n\n$missingPart\n\n$header\n\n"
     val totalLines = compact.count(_ == '\n') + 1
 
     if totalLines <= CompactLayoutMaxLines then compact else long

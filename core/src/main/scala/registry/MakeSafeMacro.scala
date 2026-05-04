@@ -39,7 +39,7 @@ private[registry] object MakeSafeMacro:
         // Manually walk both halves so the chain isn't truncated.
         case AppliedType(tycon, List(a, b))
             if tycon.typeSymbol.fullName.endsWith("TypeChecks$.Concat") ||
-               tycon.typeSymbol.fullName.endsWith("TypeChecks.Concat") =>
+              tycon.typeSymbol.fullName.endsWith("TypeChecks.Concat") =>
           tupleElems(a) ++ tupleElems(b)
         case _ => Nil
 

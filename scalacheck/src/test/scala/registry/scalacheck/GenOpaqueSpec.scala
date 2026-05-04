@@ -50,8 +50,10 @@ object GenOpaqueSpec:
 
   object Wrap:
     opaque type Tag = String
+
     object Tag:
       def apply(s: String): Tag = s
+
     def unwrap(t: Tag): String = t
 
   object SignatureBox:

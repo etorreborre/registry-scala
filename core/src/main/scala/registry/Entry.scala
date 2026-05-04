@@ -21,16 +21,21 @@ trait Entry:
   def invoke: Seq[Any] => Any
   def fresh: Boolean
 
-  /** Return a copy of this entry with `invoke` replaced. Used by memoization and other invoke-
-   * wrapping combinators. The concrete subtype is preserved by the implementing case class. */
+  /**
+   * Return a copy of this entry with `invoke` replaced. Used by memoization and other invoke-
+   * wrapping combinators. The concrete subtype is preserved by the implementing case class.
+   */
   def withInvoke(f: Seq[Any] => Any): Entry
 
   /** Return a copy of this entry with `fresh` set to `b` (default `true`). */
   def withFresh(b: Boolean = true): Entry
 
 object Entry:
-  /** Default constructor — produces an [[Entry.Basic]]. Existing call sites
-   * (`Entry(inputs, output, invoke)`, `Entry(... , fresh = true)`) keep working unchanged. */
+
+  /**
+   * Default constructor — produces an [[Entry.Basic]]. Existing call sites
+   * (`Entry(inputs, output, invoke)`, `Entry(... , fresh = true)`) keep working unchanged.
+   */
   def apply(
       inputs: List[LightTypeTag],
       output: LightTypeTag,
@@ -38,8 +43,10 @@ object Entry:
       fresh: Boolean = false
   ): Entry = Basic(inputs, output, invoke, fresh)
 
-  /** The plain core entry. Modules that need extra fields (e.g. `GenEntry` in scalacheck)
-   * provide their own subtypes of [[Entry]]. */
+  /**
+   * The plain core entry. Modules that need extra fields (e.g. `GenEntry` in scalacheck)
+   * provide their own subtypes of [[Entry]].
+   */
   final case class Basic(
       inputs: List[LightTypeTag],
       output: LightTypeTag,

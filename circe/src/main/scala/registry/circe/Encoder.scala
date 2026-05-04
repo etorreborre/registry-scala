@@ -43,7 +43,10 @@ object Encoder:
   // ---- combinators ----
 
   /** `Encoder[Option[A]]` where `None` encodes as `Json.Null`. */
-  def encodeOptionOf[A](using tagIn: Tag[Encoder[A]], tagOut: Tag[Encoder[Option[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Option[A]]] =
+  def encodeOptionOf[A](using
+      tagIn: Tag[Encoder[A]],
+      tagOut: Tag[Encoder[Option[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Option[A]]] =
     TypedEntry(
       Entry(
         List(tagIn.tag),
@@ -60,7 +63,10 @@ object Encoder:
       case Some(a) => e.encode(a)
 
   /** `Encoder[List[A]]`. */
-  def encodeListOf[A](using tagIn: Tag[Encoder[A]], tagOut: Tag[Encoder[List[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[List[A]]] =
+  def encodeListOf[A](using
+      tagIn: Tag[Encoder[A]],
+      tagOut: Tag[Encoder[List[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[List[A]]] =
     TypedEntry(
       Entry(
         List(tagIn.tag),
@@ -73,7 +79,10 @@ object Encoder:
     Encoder(as => Json.arr(as.map(e.encode)*))
 
   /** `Encoder[Seq[A]]`. */
-  def encodeSeqOf[A](using tagIn: Tag[Encoder[A]], tagOut: Tag[Encoder[Seq[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Seq[A]]] =
+  def encodeSeqOf[A](using
+      tagIn: Tag[Encoder[A]],
+      tagOut: Tag[Encoder[Seq[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Seq[A]]] =
     TypedEntry(
       Entry(
         List(tagIn.tag),
@@ -86,7 +95,10 @@ object Encoder:
     Encoder(as => Json.arr(as.map(e.encode)*))
 
   /** `Encoder[Vector[A]]`. */
-  def encodeVectorOf[A](using tagIn: Tag[Encoder[A]], tagOut: Tag[Encoder[Vector[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Vector[A]]] =
+  def encodeVectorOf[A](using
+      tagIn: Tag[Encoder[A]],
+      tagOut: Tag[Encoder[Vector[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Vector[A]]] =
     TypedEntry(
       Entry(
         List(tagIn.tag),
@@ -99,7 +111,10 @@ object Encoder:
     Encoder(as => Json.arr(as.map(e.encode)*))
 
   /** `Encoder[Set[A]]`. */
-  def encodeSetOf[A](using tagIn: Tag[Encoder[A]], tagOut: Tag[Encoder[Set[A]]]): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Set[A]]] =
+  def encodeSetOf[A](using
+      tagIn: Tag[Encoder[A]],
+      tagOut: Tag[Encoder[Set[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[Set[A]]] =
     TypedEntry(
       Entry(
         List(tagIn.tag),
@@ -174,4 +189,6 @@ object Encoder:
     )
 
   def mapOfEncoder[K, V](ek: KeyEncoder[K], ev: Encoder[V]): Encoder[Map[K, V]] =
-    Encoder(m => Json.fromJsonObject(JsonObject.fromIterable(m.toList.map((k, v) => ek.encodeAsKey(k) -> ev.encode(v)))))
+    Encoder(m =>
+      Json.fromJsonObject(JsonObject.fromIterable(m.toList.map((k, v) => ek.encodeAsKey(k) -> ev.encode(v))))
+    )

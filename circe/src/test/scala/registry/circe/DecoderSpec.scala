@@ -3,7 +3,7 @@ package registry.circe
 import io.circe.Json
 import io.circe.parser as circeParser
 import org.specs2.mutable.Specification
-import registry.{Person => _, *}
+import registry.{Person as _, *}
 import registry.circe.DataTypes.*
 
 /**

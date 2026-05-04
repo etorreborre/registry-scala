@@ -29,22 +29,25 @@ object Cycle:
 
 object Subtype:
 
-  trait Iface:
+  trait Interface:
     def label: String
 
-  case class Impl(label: String) extends Iface
+  case class Implementation(label: String) extends Interface
 
 case class Wrap(value: Int)
 
 case class Person(name: String)
 
 object NameClash:
+
   // Two distinct types named `Coin` — same short name, different packages. Used to verify
   // the macro error formatter disambiguates colliding short names.
   object first:
     case class Coin(value: Long)
+
   object second:
     case class Coin(value: Long)
+
   case class NeedsFirst(coin: first.Coin)
 
 // Fixtures for the share-within-a-make tests. Top-level so `fun[T]` macros can reflect on them.

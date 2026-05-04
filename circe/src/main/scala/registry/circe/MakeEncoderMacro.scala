@@ -45,7 +45,9 @@ private[circe] object MakeEncoderMacro:
 
     val constructors: List[Symbol] = discoverConstructors(sym)
     if constructors.isEmpty then
-      report.errorAndAbort(s"makeEncoder: ${tpe.show} has no constructors to encode (not a case class, sealed hierarchy, or enum)")
+      report.errorAndAbort(
+        s"makeEncoder: ${tpe.show} has no constructors to encode (not a case class, sealed hierarchy, or enum)"
+      )
 
     // Extract per-constructor data as plain Scala values (no path-dependent types).
     case class CtorData(

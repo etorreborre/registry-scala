@@ -21,12 +21,12 @@ variants) and emits the entry that sequences inputs via `flatMap`/`map`.
 
 ### Sealed types
 
-| Factory                       | Use                                                              |
-| ----------------------------- | ---------------------------------------------------------------- |
-| `genTrait[T]`                 | combine per-variant `Gen[Sub]` values into a `Gen[T]`            |
-| `Chooser.uniform`             | uniform random pick (default)                                    |
-| `Chooser.weighted(ws*)`       | weighted pick by Mirror-element order                            |
-| `Chooser.only(i)`             | always pick the i-th variant (deterministic)                     |
+| Factory                      | Use                                                       |
+|------------------------------|-----------------------------------------------------------|
+| `gen[T]`                     | combine per-variant `Gen[Sub]` values into a `Gen[Trait]` |
+| `Chooser.uniform`            | uniform random pick (default)                             |
+| `Chooser.weighted(ws*)`      | weighted pick by Mirror-element order                     |
+| `Chooser.only(i)`            | always pick the i-th variant (deterministic)              |
 
 ### Containers
 
@@ -144,7 +144,7 @@ site — the typical pattern when leaves are already supplied by implicit
 
 ## Sealed traits, enums, sum types
 
-`gen[T]` on a sealed type expands into a registry bundling `genTrait[T]`,
+`gen[T]` on a sealed type expands into a registry bundling `genTrait`,
 one entry per variant, and a default `Chooser.uniform`.
 
 ```scala mdoc:silent

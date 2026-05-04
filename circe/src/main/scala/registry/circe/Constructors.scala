@@ -18,6 +18,7 @@ final case class ConstructorDef(
 )
 
 object ConstructorDef:
+
   /** Build a [[ConstructorDef]] with identity-modified names (they get rewritten later via `applyOptions`). */
   def apply(name: String, fields: List[String], types: List[String]): ConstructorDef =
     ConstructorDef(name, name, fields, fields, types)
@@ -68,7 +69,11 @@ final case class ConstructorEncoder(encodeConstructor: (JsonOptions, FromConstru
  * Extracts one or more [[ToConstructor]] candidates from a JSON value given the full list of
  * [[ConstructorDef]]s. Registered in a registry so users can override the default behavior contextually.
  */
-final case class ConstructorsDecoder(decodeConstructors: (JsonOptions, List[ConstructorDef], Json) => Either[String, List[ToConstructor]])
+final case class ConstructorsDecoder(decodeConstructors: (
+    JsonOptions,
+    List[ConstructorDef],
+    Json
+) => Either[String, List[ToConstructor]])
 
 object ConstructorEncoder:
   val default: ConstructorEncoder = ConstructorEncoder(makeEncoderFromConstructor)
@@ -89,7 +94,7 @@ object ConstructorEncoder:
         if options.tagSingleConstructors then
           (names, values) match
             case (_, v :: Nil) if options.sumEncoding == SumEncoding.UntaggedValue && options.unwrapUnaryRecords => v
-            case _                                                                                              => makeSumEncoding(options, adjusted)
+            case _ => makeSumEncoding(options, adjusted)
         else
           values match
             case (v :: Nil) =>
@@ -189,7 +194,11 @@ object ConstructorsDecoder:
    * Core decoding logic: identify which constructor the JSON represents and pull out the field values.
    * Mirrors Haskell's `makeToConstructors` branch-by-branch.
    */
-  def makeToConstructors(options: JsonOptions, cs: List[ConstructorDef], value: Json): Either[String, List[ToConstructor]] =
+  def makeToConstructors(
+      options: JsonOptions,
+      cs: List[ConstructorDef],
+      value: Json
+  ): Either[String, List[ToConstructor]] =
     val constructors = cs.map(c => ConstructorDef.applyOptions(options, c))
     val isEnumeration = constructors.forall(_.fieldTypes.isEmpty)
 
@@ -273,7 +282,11 @@ object ConstructorsDecoder:
         case None =>
           Left(s"failed to instantiate constructor: $c. Expected an Object")
 
-  private def makeUntaggedValue(options: JsonOptions, constructors: List[ConstructorDef], value: Json): Either[String, List[ToConstructor]] =
+  private def makeUntaggedValue(
+      options: JsonOptions,
+      constructors: List[ConstructorDef],
+      value: Json
+  ): Either[String, List[ToConstructor]] =
     val attempts = constructors.map(c => makeToConstructorFromValue(options, c, value))
     val (lefts, rights) = partitionEithers(attempts)
     (lefts, rights) match
@@ -282,7 +295,11 @@ object ConstructorsDecoder:
         else Left(errs.head)
       case (_, rs) => Right(rs)
 
-  private def makeObjectWithSingleField(options: JsonOptions, constructors: List[ConstructorDef], value: Json): Either[String, ToConstructor] =
+  private def makeObjectWithSingleField(
+      options: JsonOptions,
+      constructors: List[ConstructorDef],
+      value: Json
+  ): Either[String, ToConstructor] =
     tryConstructors(constructors): c =>
       value.asObject match
         case Some(obj) if obj.size == 1 =>
@@ -294,7 +311,11 @@ object ConstructorsDecoder:
             case Some(v) if v == c.modifiedConstructorName => makeToConstructorFromValue(options, c, value)
             case _                                         => Left(s"failed to instantiate constructor: $c")
 
-  private def makeTwoElemArray(options: JsonOptions, constructors: List[ConstructorDef], value: Json): Either[String, ToConstructor] =
+  private def makeTwoElemArray(
+      options: JsonOptions,
+      constructors: List[ConstructorDef],
+      value: Json
+  ): Either[String, ToConstructor] =
     tryConstructors(constructors): c =>
       value.asArray match
         case Some(arr) if arr.sizeIs == 2 =>
@@ -314,9 +335,9 @@ object ConstructorsDecoder:
         value.asObject match
           case Some(obj) =>
             obj(tagFieldName) match
-              case None                                             => Some(s"tag field '$tagFieldName' not found")
+              case None                                              => Some(s"tag field '$tagFieldName' not found")
               case Some(tagV) if tagV.asString.exists(tags.contains) => None
-              case Some(tagV)                                       => unexpectedConstructor(tags, tagV)
+              case Some(tagV)                                        => unexpectedConstructor(tags, tagV)
           case None => Some("expected an Object for a TaggedObject sum encoding")
       case SumEncoding.UntaggedValue => None
       case SumEncoding.ObjectWithSingleField =>
@@ -337,14 +358,18 @@ object ConstructorsDecoder:
           case _ =>
             value.asString match
               case Some(v) if tags.contains(v) => None
-              case _                           => Some("expected an Array with 2 elements for an TwoElemArray sum encoding")
+              case _ => Some("expected an Array with 2 elements for an TwoElemArray sum encoding")
 
   private def unexpectedConstructor(expected: List[String], found: Json): Option[String] =
     val foundText = found.asString.getOrElse(encodeAsText(found))
     Some(s"expected the tag field to be one of: ${expected.mkString(", ")}, found: $foundText")
 
   /** Extract field values for a specific constructor from a JSON value. */
-  private def makeToConstructorFromValue(options: JsonOptions, c: ConstructorDef, value: Json): Either[String, ToConstructor] =
+  private def makeToConstructorFromValue(
+      options: JsonOptions,
+      c: ConstructorDef,
+      value: Json
+  ): Either[String, ToConstructor] =
     (c.fieldNames, c.fieldTypes) match
       // no fields
       case (Nil, Nil) =>
@@ -448,7 +473,12 @@ object ConstructorsDecoder:
 private[circe] def encodeAsText(j: Json): String = j.noSpaces
 
 /** Decode a field with a given [[Decoder]], using the constructor + type metadata to prefix error messages. */
-def decodeFieldValue[A](d: Decoder[A], typeName: String, constructorName: String, field: (Option[FieldDef], Json)): Either[String, A] =
+def decodeFieldValue[A](
+    d: Decoder[A],
+    typeName: String,
+    constructorName: String,
+    field: (Option[FieldDef], Json)
+): Either[String, A] =
   val (fieldDef, v) = field
   d.decode(v) match
     case Right(a) => Right(a)
@@ -478,5 +508,5 @@ def decodeFromDefinitions[A](
         case Some(a) => Right(a)
         case None =>
           results match
-            case Nil     => Left("no results")
-            case lefts   => Left(lefts.collect { case Left(e) => e }.mkString(" ->> "))
+            case Nil   => Left("no results")
+            case lefts => Left(lefts.collect { case Left(e) => e }.mkString(" ->> "))

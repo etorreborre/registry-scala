@@ -77,7 +77,7 @@ class RecurseSpec extends Specification:
       )
 
       val r =
-        value(onlyBase) +:                  // overrides Sized.default via LIFO
+        value(onlyBase) +: // overrides Sized.default via LIFO
           genRec[Tree] { self =>
             Gen.zip(self, self).map((l, r) => Node(l, r): Tree)
           } +:

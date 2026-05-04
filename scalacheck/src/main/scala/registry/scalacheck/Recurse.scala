@@ -60,7 +60,7 @@ private def buildRecursiveEntry[T](
     inputs = List(tag.tag, sizedTag.tag),
     output = tag.tag,
     invoke = args =>
-      val base  = args(0).asInstanceOf[Gen[T]]
+      val base = args(0).asInstanceOf[Gen[T]]
       val sized = args(1).asInstanceOf[Sized]
       val rec = Gen.recursive[T] { self =>
         Gen.sized { size =>

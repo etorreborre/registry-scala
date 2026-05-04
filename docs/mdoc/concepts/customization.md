@@ -1,3 +1,9 @@
+---
+title: Customization
+parent: Concepts
+nav_order: 5
+---
+
 # Customization
 
 Two knobs change how a registry resolves: **refinements** override what

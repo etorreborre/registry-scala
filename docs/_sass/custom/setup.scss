@@ -1,0 +1,46 @@
+// Variable overrides applied AFTER just-the-docs's defaults (which use
+// `!default`). We do NOT use `!default` here — that would no-op against
+// the already-set theme defaults; direct assignment wins.
+
+// ── Typography ────────────────────────────────────────────────────────────
+$body-font-family:
+  -apple-system,
+  BlinkMacSystemFont,
+  "Inter",
+  "Segoe UI",
+  Roboto,
+  "Helvetica Neue",
+  Arial,
+  sans-serif;
+
+$mono-font-family:
+  ui-monospace,
+  "SF Mono",
+  "Menlo",
+  "Cascadia Mono",
+  "Roboto Mono",
+  Consolas,
+  monospace;
+
+// Hydejack-scale sizing.
+$root-font-size: 18px;
+$body-line-height: 1.5;
+$content-line-height: 1.75;
+$body-heading-line-height: 1.2;
+
+// ── Layout ────────────────────────────────────────────────────────────────
+// Use rem to match the theme's $nav-width (16.5rem) — mixing px and rem
+// breaks the layout math.
+$content-width: 56rem;
+
+// ── Color ─────────────────────────────────────────────────────────────────
+$body-text-color: #2b2b2b;
+$body-heading-color: #0e0e0e;
+$body-background-color: #ffffff;
+$sidebar-color: #fafaf8;
+
+$link-color: #1971c2;
+$btn-primary-color: #1971c2;
+
+// Code surfaces — soft, paper-tone backgrounds.
+$code-background-color: #f6f5f0;

@@ -33,3 +33,12 @@ metals.sbt
 
 # Claude Code
 .claude/
+
+# Jekyll / docs preview
+docs/Gemfile.lock
+docs/.bundle/
+docs/vendor/
+docs/_site/
+docs/.jekyll-cache/
+docs/.jekyll-metadata
+docs/target/.bundle-cache/

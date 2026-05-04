@@ -1,3 +1,9 @@
+---
+title: Safety
+parent: Concepts
+nav_order: 3
+---
+
 # Safety
 
 The library has two kinds of safety nets: a compile-time check at the prepend

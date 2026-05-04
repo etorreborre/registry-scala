@@ -1,3 +1,9 @@
+---
+title: Resolution
+parent: Concepts
+nav_order: 2
+---
+
 # Resolution
 
 `r.make[T]` is the runtime side of the registry. It walks the entries

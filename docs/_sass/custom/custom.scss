@@ -1,0 +1,288 @@
+// Rules applied AFTER the theme — Hydejack-style polish layered on top
+// of the just-the-docs structure.
+
+// ── Page title and headings ───────────────────────────────────────────────
+.main-content {
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: 0.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-top: 2.5rem;
+    margin-bottom: 0.85rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-top: 2rem;
+    margin-bottom: 0.65rem;
+  }
+
+  h4 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  // ── Prose breathing room ────────────────────────────────────────────────
+  p,
+  ul,
+  ol,
+  blockquote,
+  table {
+    margin-bottom: 1.25rem;
+  }
+
+  p {
+    line-height: 1.75;
+  }
+
+  // Remove just-the-docs's heavy underline-on-hover on inline links —
+  // Hydejack uses subtle color change.
+  a {
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  }
+
+  // ── Code surfaces ───────────────────────────────────────────────────────
+  code {
+    background-color: #f6f5f0;
+    padding: 0.1em 0.35em;
+    font-size: 0.92em;
+    border-radius: 3px;
+  }
+
+  // Style only the outermost code-block container; reset the inner ones
+  // so we don't get nested borders/backgrounds.
+  div.highlighter-rouge {
+    background-color: #f7f7f7;
+    border: 0;
+    border-radius: 0;
+    padding: 0.9rem 1.1rem;
+    margin: 0.75rem 0;
+  }
+
+  // Match the code-block surface for the in-page Table of Contents
+  // rendered by just-the-docs on pages with `has_children: true`, plus
+  // any Kramdown {:toc} list a page may insert. Scoped to .main-content
+  // so the sidebar's .nav-list is unaffected.
+  .nav-list,
+  ul#markdown-toc {
+    background-color: #f7f7f7;
+    padding: 0.9rem 1.25rem;
+    margin: 0.75rem 0;
+  }
+
+  // Inner wrappers: transparent, no border, no extra padding.
+  div.highlighter-rouge .highlight,
+  div.highlighter-rouge figure.highlight,
+  div.highlighter-rouge pre.highlight,
+  figure.highlight,
+  pre.highlight {
+    background-color: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  div.highlighter-rouge pre,
+  div.highlighter-rouge code,
+  figure.highlight pre,
+  figure.highlight code {
+    font-size: 0.92rem;
+    line-height: 1.55;
+    background-color: transparent;
+    padding: 0;
+  }
+
+  // ── Tables ──────────────────────────────────────────────────────────────
+  table {
+    border-collapse: collapse;
+    border: none;
+
+    th,
+    td {
+      padding: 0.55rem 0.85rem;
+      border-bottom: 1px solid #ece9df;
+      border-left: none;
+      border-right: none;
+    }
+
+    th {
+      background-color: transparent;
+      font-weight: 600;
+      border-bottom: 2px solid #d8d4c4;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+  }
+
+  // ── Blockquotes ─────────────────────────────────────────────────────────
+  blockquote {
+    border-left: 3px solid #d8d4c4;
+    color: #555;
+    padding-left: 1rem;
+    font-style: italic;
+    margin-left: 0;
+  }
+}
+
+// ── Sidebar ─────────────────────────────────────────────────────────────
+.side-bar {
+  background-color: #fafaf8;
+  border-right: 1px solid #ece9df;
+}
+
+// Subtler nav-link hover — pale cool blue that harmonises with $link-color.
+.nav-list .nav-list-item .nav-list-link {
+  &:hover,
+  &.active {
+    background-image: none;
+    background-color: #e3edf7;
+  }
+}
+
+// Search box: less heavy outline.
+.search-input-wrap {
+  border-bottom: 1px solid #ece9df;
+  box-shadow: none;
+}
+
+.search-input {
+  background-color: transparent;
+}
+
+// ── Page-bottom navigation buttons (next/previous) ──────────────────────
+// Soften the prominent buttons just-the-docs adds at the bottom.
+.btn,
+.btn-primary {
+  font-weight: 500;
+  box-shadow: none;
+}
+
+// ── "Coming soon" badge ────────────────────────────────────────────────
+.badge-soon {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: #f3eeff;
+  color: #7c3aa0;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+// ── Top header (above content) ────────────────────────────────────────
+// just-the-docs renders a search/aux-link bar at the top of the content.
+// Slim it down so the page title is the first heavy thing the eye lands on.
+.main-header {
+  border-bottom: 1px solid #f0ede2;
+  background-color: #ffffff;
+}
+
+// ── Rouge syntax highlighting (Hydejack-ish purple + amber) ─────────────
+// Token classes follow the Pygments / Rouge convention:
+// .k / .kd / .kn / .kr / .kc / .kp — Keyword and subtypes
+// .kt                              — Keyword.Type   (Int, String, …)
+// .nc                              — Name.Class     (case class Foo)
+// .no                              — Name.Constant
+// .nf / .nb / .py                  — Name.Function / .Builtin / .Property
+// .n  / .nv / .nx / .na            — Name (regular identifier)
+// .m* / .s*                        — Numbers / strings
+// .c*                              — Comments
+// .o  / .p                         — Operator / Punctuation
+.highlight {
+  // Body color in code: slightly darker than prose for contrast on cream.
+  color: #2b2b2b;
+
+  // Keywords + class names + types — purple.
+  .k,
+  .kd,
+  .kn,
+  .kr,
+  .kc,
+  .kp,
+  .kt,
+  .nc,
+  .no {
+    color: #7c3aa0;
+  }
+
+  // Object/module references, function names, attributes — amber.
+  .nf,
+  .nb,
+  .py,
+  .na {
+    color: #c47700;
+  }
+
+  // Literals (numbers and strings) — amber.
+  .m,
+  .mi,
+  .mf,
+  .mh,
+  .mo,
+  .mb,
+  .il,
+  .s,
+  .s1,
+  .s2,
+  .sb,
+  .sc,
+  .sd,
+  .se,
+  .sh,
+  .si,
+  .sx,
+  .sr,
+  .ss {
+    color: #c47700;
+  }
+
+  // Comments — soft grey, italic.
+  .c,
+  .c1,
+  .cm,
+  .cs,
+  .cp,
+  .cd {
+    color: #8e8985;
+    font-style: italic;
+  }
+
+  // Operators and punctuation — calmer than the body color.
+  .o,
+  .ow {
+    color: #5a5a5a;
+  }
+
+  .p {
+    color: #4a4a4a;
+  }
+
+  // Generic / built-in pseudo-tokens that mdoc occasionally emits.
+  .gh,
+  .gu {
+    color: #7c3aa0;
+    font-weight: 600;
+  }
+}

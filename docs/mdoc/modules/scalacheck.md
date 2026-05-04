@@ -1,3 +1,10 @@
+---
+title: ScalaCheck
+parent: Modules
+nav_order: 2
+has_children: true
+---
+
 # `registry-scalacheck`
 
 Derives [ScalaCheck](https://scalacheck.org/) `Gen[T]` instances from
@@ -6,58 +13,9 @@ every case class, register one `gen[T]` per type and ask the registry for
 `Gen[T]`. The macro inspects `T`'s primary constructor (or sealed-trait
 variants) and emits the entry that sequences inputs via `flatMap`/`map`.
 
-## Cheat sheet
-
-### Registration
-
-| Factory                       | Use                                                              |
-| ----------------------------- | ---------------------------------------------------------------- |
-| `gen[T]`                      | derive a `Gen[T]` from `T`'s primary constructor                 |
-| `gen[T]` (sealed)             | derive a `Gen[T]` for a sealed trait / abstract class / enum     |
-| `gen(g: Gen[T])`              | register an existing ScalaCheck `Gen[T]`                         |
-| `gen(f: (A, B, …) => T)`      | register a function lifted into `Gen` via `combineGens`          |
-| `gen(x: T)`                   | register a constant; resolves to `Gen.const(x)`                  |
-| `arb[T]`                      | register `Gen[T]` sourced from an in-scope `Arbitrary[T]`        |
-
-### Sealed types
-
-| Factory                      | Use                                                       |
-|------------------------------|-----------------------------------------------------------|
-| `gen[T]`                     | combine per-variant `Gen[Sub]` values into a `Gen[Trait]` |
-| `Chooser.uniform`            | uniform random pick (default)                             |
-| `Chooser.weighted(ws*)`      | weighted pick by Mirror-element order                     |
-| `Chooser.only(i)`            | always pick the i-th variant (deterministic)              |
-
-### Containers
-
-`listOf[T]`, `nonEmptyListOf[T]`, `listOfN[T](n)`, `listOfMinMax[T](min, max)`,
-`optionOf[T]`, `setOf[T]`, `setOfN[T](n)`, `eitherOf[L, R]`, `pairOf[A, B]`,
-`tripleOf[A, B, C]`, `mapOf[K, V]`, `mapOfN[K, V](n)`, plus
-`indexedSeqOf` / `iArrayOf` variants. Each registers a 1-input entry that
-wraps the underlying ScalaCheck combinator.
-
-### Recursion
-
-| Factory                                  | Use                                                  |
-| ---------------------------------------- | ---------------------------------------------------- |
-| `genRec[T](grow)`                  | size-bounded recursive `Gen[T]`; needs a base case; bundles `Sized.default` |
-| `genRec[T](maxSize)(grow)`         | same, capped at `maxSize`                            |
-| `Sized(pickBase, nextSize)`              | per-step termination + size-shrink strategy; override by `value(mySized) +:` |
-
-### Sharing and memoization
-
-| Factory                       | Effect                                                                 |
-| ----------------------------- | ---------------------------------------------------------------------- |
-| `memoize[T] +: r`             | cache the *Gen instance* across `makeGen` calls                        |
-| `share[T] +: r`               | pin one *sampled value* per `makeGen` build                            |
-| `const[T] +: r`               | pin one *sampled value* for the registry's lifetime                    |
-| `entry.share`, `entry.const`  | apply the same flags inline at registration                            |
-
-### Building
-
-| Method            | Use                                                  |
-| ----------------- | ---------------------------------------------------- |
-| `r.makeGen[T]`    | build a `Gen[T]` (share-aware; routes through plain `make` if no entry is shared) |
+The walkthrough below builds up a generator registry from the simplest case
+to recursive types and shared samples. For an at-a-glance API reference,
+see the [Cheat sheet](scalacheck-cheat-sheet.md).
 
 ## Setup
 
@@ -338,6 +296,8 @@ without sharing and the right thing on registries with it.
 
 ## Where to read next
 
+- [Cheat sheet](scalacheck-cheat-sheet.md) — every factory and combinator
+  in one place, for quick lookup once you know the shape.
 - [Memoization](../concepts/memoization.md) — sharing across consumers,
   per-make resolver cache, the `shared` flag and the share build path.
 - [Resolution](../concepts/resolution.md) — the recursive-entry mechanism

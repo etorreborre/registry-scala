@@ -1,0 +1,2 @@
+---
+BUNDLE_BUILD__EVENTMACHINE: "--with-openssl-dir=/Users/etorreborre/.local/state/flox/ruby/.flox/run/aarch64-darwin.ruby.dev"

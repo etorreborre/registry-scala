@@ -1,3 +1,9 @@
+---
+title: Memoization
+parent: Concepts
+nav_order: 4
+---
+
 # Sharing and memoization
 
 Two distinct concerns sit under this heading: **within a single `make`**

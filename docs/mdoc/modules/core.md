@@ -1,3 +1,9 @@
+---
+title: Core
+parent: Modules
+nav_order: 1
+---
+
 # `registry` — core
 
 The core module is enough on its own. Everything else (`registry-scalacheck`,

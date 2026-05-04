@@ -1,19 +1,38 @@
 title: registry
 description: A small dependency-injection / wiring library for Scala 3.
-theme: jekyll-theme-cayman
+url: https://etorreborre.github.io
+baseurl: /registry-scala
 
-show_downloads: false
+# just-the-docs is loaded via remote_theme on GitHub Pages and via the gem
+# locally (see docs/Gemfile).
+remote_theme: just-the-docs/just-the-docs
+plugins:
+  - jekyll-remote-theme
+
+color_scheme: light
+search_enabled: true
+heading_anchors: true
+
+aux_links:
+  "GitHub":
+    - "https://github.com/etorreborre/registry-scala"
 
 # Render .md files only — leave the source markdown alone.
 markdown: kramdown
 kramdown:
   input: GFM
   hard_wrap: false
+  syntax_highlighter: rouge
 
 # Suppress noisy auto-generated pages.
 exclude:
   - README.md
+  - Gemfile
+  - Gemfile.lock
+  - vendor
 
+# Apply the just-the-docs layout to every page so we don't have to repeat
+# `layout: default` in front matter.
 defaults:
   - scope:
       path: ""

@@ -6,6 +6,8 @@ import org.scalacheck.rng.Seed
 import registry.*
 import registry.scalacheck.*
 
+import scala.language.implicitConversions
+
 class RecurseSpec extends Specification:
 
   "genRec[T]" should {

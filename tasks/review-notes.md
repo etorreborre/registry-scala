@@ -101,7 +101,25 @@ No fixes in this pass — fixes happen as separate follow-ups after triage.
 
 ## scalacheck
 
-(pending)
+- `[done]` **`modules/scalacheck.md` written** — full surface tour with
+  typechecked mdoc examples: `gen[T]` (class + sealed), `gen(value)`,
+  `arb[T]`, `genTrait[T]` + `Chooser` (uniform / weighted / only),
+  container helpers, `genRecursive`, `share` / `const` / `memoize`
+  factories and the `.share` / `.const` extensions, `makeGen[T]`.
+  Forward-link warnings from `concepts/resolution.md` and
+  `concepts/memoization.md` now resolve.
+
+- `[doc]` **`gen` macro overload disambiguation worth a callout**.
+  `gen[T]` (no arg) means "derive from `T`'s primary constructor"; `gen(x)`
+  reads `x` and dispatches on whether it's a function, a `Gen[T]`, or a
+  plain value. Confused users mix these up. Already covered in the doc
+  page but a small "common mistake" box might help.
+
+- `[doc]` **`pureApply(...)` ergonomics in tests**. Every existing test
+  uses `gen.pureApply(Gen.Parameters.default, Seed(...))` to sample. A
+  `sample` helper imported from `registry.docs` covers the doc pages,
+  but tests would also benefit from a tiny utility (`SampleHelpers` or
+  similar) to keep the spec lines focused.
 
 ## cats
 

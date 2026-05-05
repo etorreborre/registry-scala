@@ -264,7 +264,7 @@ matching the behavior most DI users expect.</p>
 </code></pre></div></div>
 
 <div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">val</span> <span class="nv">p</span> <span class="k">=</span> <span class="nv">r</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// p: Pair = Pair(a = Counter#1860385697, b = Counter#1860385697)</span>
+<span class="c1">// p: Pair = Pair(a = Counter#684107983, b = Counter#684107983)</span>
 <span class="nv">p</span><span class="o">.</span><span class="py">a</span> <span class="n">eq</span> <span class="nv">p</span><span class="o">.</span><span class="py">b</span>   <span class="c1">// true — one Counter for both fields</span>
 <span class="c1">// res0: Boolean = true</span>
 </code></pre></div></div>
@@ -273,7 +273,7 @@ matching the behavior most DI users expect.</p>
 gets a fresh cache and a fresh <code class="language-plaintext highlighter-rouge">Counter</code>:</p>
 
 <div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">val</span> <span class="nv">p2</span> <span class="k">=</span> <span class="nv">r</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// p2: Pair = Pair(a = Counter#1922005392, b = Counter#1922005392)</span>
+<span class="c1">// p2: Pair = Pair(a = Counter#1680314564, b = Counter#1680314564)</span>
 <span class="nv">p2</span><span class="o">.</span><span class="py">a</span> <span class="n">eq</span> <span class="nv">p</span><span class="o">.</span><span class="py">a</span>   <span class="c1">// false — different make calls</span>
 <span class="c1">// res1: Boolean = false</span>
 </code></pre></div></div>
@@ -295,7 +295,7 @@ fresh request IDs), mark the entry <code class="language-plaintext highlighter-r
 </code></pre></div></div>
 
 <div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">val</span> <span class="nv">fp</span> <span class="k">=</span> <span class="nv">freshPerConsumer</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// fp: Pair = Pair(a = Counter#1743693352, b = Counter#1473068030)</span>
+<span class="c1">// fp: Pair = Pair(a = Counter#414828435, b = Counter#527918045)</span>
 <span class="nv">fp</span><span class="o">.</span><span class="py">a</span> <span class="n">eq</span> <span class="nv">fp</span><span class="o">.</span><span class="py">b</span>   <span class="c1">// false — each consumer triggers a fresh invoke</span>
 <span class="c1">// res2: Boolean = false</span>
 </code></pre></div></div>
@@ -320,9 +320,9 @@ combinator.</p>
 </code></pre></div></div>
 
 <div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">val</span> <span class="nv">q1</span> <span class="k">=</span> <span class="nv">pooled</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// q1: Pair = Pair(a = Counter#1341996659, b = Counter#1341996659)</span>
+<span class="c1">// q1: Pair = Pair(a = Counter#512920367, b = Counter#512920367)</span>
 <span class="k">val</span> <span class="nv">q2</span> <span class="k">=</span> <span class="nv">pooled</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// q2: Pair = Pair(a = Counter#1341996659, b = Counter#1341996659)</span>
+<span class="c1">// q2: Pair = Pair(a = Counter#512920367, b = Counter#512920367)</span>
 <span class="nv">q1</span><span class="o">.</span><span class="py">a</span> <span class="n">eq</span> <span class="nv">q2</span><span class="o">.</span><span class="py">a</span>   <span class="c1">// true — Counter pinned across make calls</span>
 <span class="c1">// res3: Boolean = true</span>
 </code></pre></div></div>

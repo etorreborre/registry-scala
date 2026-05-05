@@ -27,9 +27,12 @@ sbt docs/mdoc
 cp "$docs_src/_config.yml"  "$docs_out/_config.yml"
 cp "$docs_src/Gemfile"      "$docs_out/Gemfile"
 cp "$docs_src/favicon.svg"  "$docs_out/favicon.svg"
-rm -rf "$docs_out/_sass" "$docs_out/_includes"
+rm -rf "$docs_out/_sass" "$docs_out/_includes" "$docs_out/assets"
 cp -R "$docs_src/_sass"     "$docs_out/_sass"
 cp -R "$docs_src/_includes" "$docs_out/_includes"
+if [[ -d "$docs_src/assets" ]]; then
+  cp -R "$docs_src/assets" "$docs_out/assets"
+fi
 
 # 3. Clone gh-pages into a throwaway dir, sync the rendered site into it,
 #    commit, push.

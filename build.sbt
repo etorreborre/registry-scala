@@ -172,9 +172,10 @@ lazy val releaseSettings: Seq[Setting[_]] = Seq(
         "cp docs/_config.yml  docs/target/mdoc/_config.yml",
         "cp docs/Gemfile      docs/target/mdoc/Gemfile",
         "cp docs/favicon.svg  docs/target/mdoc/favicon.svg",
-        "rm -rf docs/target/mdoc/_sass docs/target/mdoc/_includes",
+        "rm -rf docs/target/mdoc/_sass docs/target/mdoc/_includes docs/target/mdoc/assets",
         "cp -R docs/_sass     docs/target/mdoc/_sass",
-        "cp -R docs/_includes docs/target/mdoc/_includes"
+        "cp -R docs/_includes docs/target/mdoc/_includes",
+        "if [ -d docs/assets ]; then cp -R docs/assets docs/target/mdoc/assets; fi"
       )
     ),
     WorkflowStep.Use(

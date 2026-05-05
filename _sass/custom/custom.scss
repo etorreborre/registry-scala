@@ -157,7 +157,11 @@
       rgba(0, 0, 0, 0.25) 50%,
       rgba(0, 0, 0, 0.45) 100%
     ),
-    url("/assets/sidebar-bg.jpg");
+    // Relative to the compiled CSS path (/assets/css/X.css), so the
+    // browser resolves `..` against the same `baseurl` Jekyll already
+    // applied to the stylesheet — works locally (--baseurl '') and on
+    // gh-pages (baseurl: /registry-scala) without configuration.
+    url("../sidebar-bg.jpg");
   background-size: cover;
   // Anchor the bottom of the image to the bottom of the sidebar so the
   // bubble band stays visible regardless of viewport height. Cropping

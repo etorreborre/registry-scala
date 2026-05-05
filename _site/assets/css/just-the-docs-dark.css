@@ -7704,7 +7704,7 @@ div.opaque {
 
 .side-bar {
   background-color: #2c3e50;
-  background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%), url("/assets/sidebar-bg.jpg");
+  background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.25) 50%, rgba(0, 0, 0, 0.45) 100%), url("../sidebar-bg.jpg");
   background-size: cover;
   background-position: center bottom;
   background-repeat: no-repeat;

@@ -32,7 +32,7 @@ val r =
 
 ```scala
 val p = r.make[Pair]
-// p: Pair = Pair(a = Counter#1877857474, b = Counter#1877857474)
+// p: Pair = Pair(a = Counter#354762395, b = Counter#354762395)
 p.a eq p.b   // true — one Counter for both fields
 // res0: Boolean = true
 ```
@@ -42,7 +42,7 @@ gets a fresh cache and a fresh `Counter`:
 
 ```scala
 val p2 = r.make[Pair]
-// p2: Pair = Pair(a = Counter#775038023, b = Counter#775038023)
+// p2: Pair = Pair(a = Counter#775006959, b = Counter#775006959)
 p2.a eq p.a   // false — different make calls
 // res1: Boolean = false
 ```
@@ -60,7 +60,7 @@ val freshPerConsumer =
 
 ```scala
 val fp = freshPerConsumer.make[Pair]
-// fp: Pair = Pair(a = Counter#1481024091, b = Counter#335588600)
+// fp: Pair = Pair(a = Counter#457992182, b = Counter#1419678967)
 fp.a eq fp.b   // false — each consumer triggers a fresh invoke
 // res2: Boolean = false
 ```
@@ -81,9 +81,9 @@ val pooled = r.memoize[Counter]
 
 ```scala
 val q1 = pooled.make[Pair]
-// q1: Pair = Pair(a = Counter#1093121361, b = Counter#1093121361)
+// q1: Pair = Pair(a = Counter#812412028, b = Counter#812412028)
 val q2 = pooled.make[Pair]
-// q2: Pair = Pair(a = Counter#1093121361, b = Counter#1093121361)
+// q2: Pair = Pair(a = Counter#812412028, b = Counter#812412028)
 q1.a eq q2.a   // true — Counter pinned across make calls
 // res3: Boolean = true
 ```

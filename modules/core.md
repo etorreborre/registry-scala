@@ -105,37 +105,37 @@ val pooled = app.memoize[Db]
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::Db, String),
 //       output = MdocSession::MdocApp::App,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a8026e87f8@1545f56d,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00000070026f87f8@7cd67f7f,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::DbConfig),
 //       output = MdocSession::MdocApp::Db,
-//       invoke = registry.Registry$$$Lambda/0x000000a802696e80@515f2e5a,
+//       invoke = registry.Registry$$$Lambda/0x00000070026a7890@103695fd,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::Host, MdocSession::MdocApp::Port),
 //       output = MdocSession::MdocApp::DbConfig,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a8026e9848@453d70f0,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00000070026f9848@3e73472b,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = MdocSession::MdocApp::Host,
-//       invoke = registry.Fun$package$$$Lambda/0x000000a802640c10@465ee238,
+//       invoke = registry.Fun$package$$$Lambda/0x00000070026515b0@c428213,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = MdocSession::MdocApp::Port,
-//       invoke = registry.Fun$package$$$Lambda/0x000000a802640c10@7c0a8903,
+//       invoke = registry.Fun$package$$$Lambda/0x00000070026515b0@43a03963,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = String,
-//       invoke = registry.Fun$package$$$Lambda/0x000000a802640c10@615fcde2,
+//       invoke = registry.Fun$package$$$Lambda/0x00000070026515b0@7fe8ac57,
 //       fresh = false
 //     )
 //   ),

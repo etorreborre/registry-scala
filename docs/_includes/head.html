@@ -1,0 +1,51 @@
+{%- comment -%}
+  Local override of just-the-docs's _includes/head.html.
+  Identical to upstream except every internal asset URL gets a `?v=…`
+  query string keyed off the Jekyll build timestamp, so browsers always
+  re-fetch CSS / JS after a republish (instead of holding onto stale
+  versions for 24 h via the gh-pages cache).
+{%- endcomment -%}
+
+{%- assign cache_bust = site.time | date: '%s' -%}
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+
+  <link rel="stylesheet" href="{{ '/assets/css/just-the-docs-default.css' | relative_url }}?v={{ cache_bust }}">
+
+  <link rel="stylesheet" href="{{ '/assets/css/just-the-docs-head-nav.css' | relative_url }}?v={{ cache_bust }}" id="jtd-head-nav-stylesheet">
+
+  <style id="jtd-nav-activation">
+  {% include css/activation.scss.liquid %}
+  </style>
+
+  {% if site.ga_tracking != nil %}
+    {% assign ga_tracking_ids = site.ga_tracking | split: "," %}
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_tracking_ids.first }}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      {% for ga_property in ga_tracking_ids %}
+        gtag('config', '{{ ga_property }}'{% unless site.ga_tracking_anonymize_ip == nil %}, { 'anonymize_ip': true }{% endunless %});
+      {% endfor %}
+    </script>
+  {% endif %}
+
+  {% if site.search_enabled != false %}
+    <script src="{{ '/assets/js/vendor/lunr.min.js' | relative_url }}?v={{ cache_bust }}"></script>
+  {% endif %}
+
+  <script src="{{ '/assets/js/just-the-docs.js' | relative_url }}?v={{ cache_bust }}"></script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  {% include_cached favicon.html %}
+
+  {% seo %}
+
+  {% include head_custom.html %}
+
+</head>

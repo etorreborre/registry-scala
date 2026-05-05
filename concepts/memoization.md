@@ -1,3 +1,9 @@
+---
+title: Memoization
+parent: Concepts
+nav_order: 4
+---
+
 # Sharing and memoization
 
 Two distinct concerns sit under this heading: **within a single `make`**
@@ -26,7 +32,7 @@ val r =
 
 ```scala
 val p = r.make[Pair]
-// p: Pair = Pair(a = Counter#1389646034, b = Counter#1389646034)
+// p: Pair = Pair(a = Counter#412538944, b = Counter#412538944)
 p.a eq p.b   // true — one Counter for both fields
 // res0: Boolean = true
 ```
@@ -36,7 +42,7 @@ gets a fresh cache and a fresh `Counter`:
 
 ```scala
 val p2 = r.make[Pair]
-// p2: Pair = Pair(a = Counter#235320524, b = Counter#235320524)
+// p2: Pair = Pair(a = Counter#2124707481, b = Counter#2124707481)
 p2.a eq p.a   // false — different make calls
 // res1: Boolean = false
 ```
@@ -54,7 +60,7 @@ val freshPerConsumer =
 
 ```scala
 val fp = freshPerConsumer.make[Pair]
-// fp: Pair = Pair(a = Counter#825989937, b = Counter#543798397)
+// fp: Pair = Pair(a = Counter#273109138, b = Counter#1151893739)
 fp.a eq fp.b   // false — each consumer triggers a fresh invoke
 // res2: Boolean = false
 ```
@@ -75,9 +81,9 @@ val pooled = r.memoize[Counter]
 
 ```scala
 val q1 = pooled.make[Pair]
-// q1: Pair = Pair(a = Counter#739470090, b = Counter#739470090)
+// q1: Pair = Pair(a = Counter#938498326, b = Counter#938498326)
 val q2 = pooled.make[Pair]
-// q2: Pair = Pair(a = Counter#739470090, b = Counter#739470090)
+// q2: Pair = Pair(a = Counter#938498326, b = Counter#938498326)
 q1.a eq q2.a   // true — Counter pinned across make calls
 // res3: Boolean = true
 ```

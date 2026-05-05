@@ -1,3 +1,9 @@
+---
+title: Customization
+parent: Concepts
+nav_order: 5
+---
+
 # Customization
 
 Two knobs change how a registry resolves: **refinements** override what
@@ -41,19 +47,19 @@ val n =
 //     Basic(
 //       inputs = List(Int),
 //       output = Int,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007fd1c5d48220@43fc942b,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x0000007002644600@68a0933f,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(Int),
 //       output = Int,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007fd1c5d485f0@25696de9,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00000070026449d8@60eb1fcd,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = Int,
-//       invoke = registry.Fun$package$$$Lambda/0x00007fd1c5d3cea8@703f4072,
+//       invoke = registry.Fun$package$$$Lambda/0x00000070026413a8@6819ee0f,
 //       fresh = false
 //     )
 //   ),

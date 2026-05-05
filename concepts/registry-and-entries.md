@@ -1,3 +1,9 @@
+---
+title: Registry and entries
+parent: Concepts
+nav_order: 1
+---
+
 # Registry and entries
 
 A **`Registry`** is a list of **entries**. An entry knows what types it

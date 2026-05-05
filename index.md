@@ -1,3 +1,8 @@
+---
+title: Home
+nav_order: 1
+---
+
 # registry
 
 A small dependency-injection / wiring library for Scala 3, ported from the
@@ -31,4 +36,16 @@ Read on:
 
 - [Getting started](getting-started.md) — install, first registry, `make` vs
   `makeSafe`.
-- _More to come: concepts, per-module guides, recipes._
+- [Concepts](concepts.md) — how a `Registry` actually works:
+  - [Registry and entries](concepts/registry-and-entries.md) — the four
+    prepend operators and LIFO precedence.
+  - [Resolution](concepts/resolution.md) — how `make[T]` walks the graph.
+  - [Safety](concepts/safety.md) — what `+:` and `makeSafe[T]` check.
+  - [Memoization](concepts/memoization.md) — `share` vs `const`, per-call
+    vs per-registry caching.
+  - [Customization](concepts/customization.md) — refinements, `erase`, and
+    wrapping `fun`s.
+- [Modules](modules.md) — per-artifact guides:
+  - [`registry`](modules/core.md) — the dependency-injection core.
+  - [`registry-scalacheck`](modules/scalacheck.md) — derive `Gen[T]`
+    instances from a registry.

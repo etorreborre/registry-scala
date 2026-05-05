@@ -1,3 +1,9 @@
+---
+title: Core
+parent: Modules
+nav_order: 1
+---
+
 # `registry` — core
 
 The core module is enough on its own. Everything else (`registry-scalacheck`,
@@ -99,37 +105,37 @@ val pooled = app.memoize[Db]
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::Db, String),
 //       output = MdocSession::MdocApp::App,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007fd1c5dde5b8@2a2a7758,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00000070026e67f8@4b1ddee7,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::DbConfig),
 //       output = MdocSession::MdocApp::Db,
-//       invoke = registry.Registry$$$Lambda/0x00007fd1c5d91340@21da6125,
+//       invoke = registry.Registry$$$Lambda/0x0000007002697890@5974b65d,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::Host, MdocSession::MdocApp::Port),
 //       output = MdocSession::MdocApp::DbConfig,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007fd1c5ddf5e0@6df7e49a,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00000070026e7848@63f9f9e2,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = MdocSession::MdocApp::Host,
-//       invoke = registry.Fun$package$$$Lambda/0x00007fd1c5d3cea8@3c5f8544,
+//       invoke = registry.Fun$package$$$Lambda/0x00000070026413a8@c393e28,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = MdocSession::MdocApp::Port,
-//       invoke = registry.Fun$package$$$Lambda/0x00007fd1c5d3cea8@4536a520,
+//       invoke = registry.Fun$package$$$Lambda/0x00000070026413a8@29f623ae,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = String,
-//       invoke = registry.Fun$package$$$Lambda/0x00007fd1c5d3cea8@7a7d8b5e,
+//       invoke = registry.Fun$package$$$Lambda/0x00000070026413a8@e120869,
 //       fresh = false
 //     )
 //   ),

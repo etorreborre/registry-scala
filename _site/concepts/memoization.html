@@ -7,9 +7,9 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=Edge">
 
-  <link rel="stylesheet" href="/assets/css/just-the-docs-default.css">
+  <link rel="stylesheet" href="/assets/css/just-the-docs-default.css?v=1777971846">
 
-  <link rel="stylesheet" href="/assets/css/just-the-docs-head-nav.css" id="jtd-head-nav-stylesheet">
+  <link rel="stylesheet" href="/assets/css/just-the-docs-head-nav.css?v=1777971846" id="jtd-head-nav-stylesheet">
 
   <style id="jtd-nav-activation">
   
@@ -41,10 +41,10 @@
   
 
   
-    <script src="/assets/js/vendor/lunr.min.js"></script>
+    <script src="/assets/js/vendor/lunr.min.js?v=1777971846"></script>
   
 
-  <script src="/assets/js/just-the-docs.js"></script>
+  <script src="/assets/js/just-the-docs.js?v=1777971846"></script>
 
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -70,7 +70,7 @@
 <!-- End Jekyll SEO tag -->
 
 
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1777971165">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1777971846">
 <meta name="theme-color" content="#4a6a80">
 
 
@@ -264,7 +264,7 @@ matching the behavior most DI users expect.</p>
 </code></pre></div></div>
 
 <div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">val</span> <span class="nv">p</span> <span class="k">=</span> <span class="nv">r</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// p: Pair = Pair(a = Counter#354762395, b = Counter#354762395)</span>
+<span class="c1">// p: Pair = Pair(a = Counter#1495040988, b = Counter#1495040988)</span>
 <span class="nv">p</span><span class="o">.</span><span class="py">a</span> <span class="n">eq</span> <span class="nv">p</span><span class="o">.</span><span class="py">b</span>   <span class="c1">// true — one Counter for both fields</span>
 <span class="c1">// res0: Boolean = true</span>
 </code></pre></div></div>
@@ -273,7 +273,7 @@ matching the behavior most DI users expect.</p>
 gets a fresh cache and a fresh <code class="language-plaintext highlighter-rouge">Counter</code>:</p>
 
 <div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">val</span> <span class="nv">p2</span> <span class="k">=</span> <span class="nv">r</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// p2: Pair = Pair(a = Counter#775006959, b = Counter#775006959)</span>
+<span class="c1">// p2: Pair = Pair(a = Counter#722999627, b = Counter#722999627)</span>
 <span class="nv">p2</span><span class="o">.</span><span class="py">a</span> <span class="n">eq</span> <span class="nv">p</span><span class="o">.</span><span class="py">a</span>   <span class="c1">// false — different make calls</span>
 <span class="c1">// res1: Boolean = false</span>
 </code></pre></div></div>
@@ -295,7 +295,7 @@ fresh request IDs), mark the entry <code class="language-plaintext highlighter-r
 </code></pre></div></div>
 
 <div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">val</span> <span class="nv">fp</span> <span class="k">=</span> <span class="nv">freshPerConsumer</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// fp: Pair = Pair(a = Counter#457992182, b = Counter#1419678967)</span>
+<span class="c1">// fp: Pair = Pair(a = Counter#47297298, b = Counter#729088161)</span>
 <span class="nv">fp</span><span class="o">.</span><span class="py">a</span> <span class="n">eq</span> <span class="nv">fp</span><span class="o">.</span><span class="py">b</span>   <span class="c1">// false — each consumer triggers a fresh invoke</span>
 <span class="c1">// res2: Boolean = false</span>
 </code></pre></div></div>
@@ -320,9 +320,9 @@ combinator.</p>
 </code></pre></div></div>
 
 <div class="language-scala highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">val</span> <span class="nv">q1</span> <span class="k">=</span> <span class="nv">pooled</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// q1: Pair = Pair(a = Counter#812412028, b = Counter#812412028)</span>
+<span class="c1">// q1: Pair = Pair(a = Counter#198904085, b = Counter#198904085)</span>
 <span class="k">val</span> <span class="nv">q2</span> <span class="k">=</span> <span class="nv">pooled</span><span class="o">.</span><span class="py">make</span><span class="o">[</span><span class="kt">Pair</span><span class="o">]</span>
-<span class="c1">// q2: Pair = Pair(a = Counter#812412028, b = Counter#812412028)</span>
+<span class="c1">// q2: Pair = Pair(a = Counter#198904085, b = Counter#198904085)</span>
 <span class="nv">q1</span><span class="o">.</span><span class="py">a</span> <span class="n">eq</span> <span class="nv">q2</span><span class="o">.</span><span class="py">a</span>   <span class="c1">// true — Counter pinned across make calls</span>
 <span class="c1">// res3: Boolean = true</span>
 </code></pre></div></div>

@@ -47,19 +47,19 @@ val n =
 //     Basic(
 //       inputs = List(Int),
 //       output = Int,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x0000007002654600@297e3aa4,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a002659568@4e3a6d0c,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(Int),
 //       output = Int,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00000070026549d8@95450cf,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a002659940@2b52162f,
 //       fresh = false
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = Int,
-//       invoke = registry.Fun$package$$$Lambda/0x00000070026515b0@129f7a5d,
+//       invoke = registry.Fun$package$$$Lambda/0x000000a00265e2a8@65b91b,
 //       fresh = false
 //     )
 //   ),

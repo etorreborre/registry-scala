@@ -16,7 +16,7 @@ class RefineGenSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(0, 120))
 
-      val r = base.refineGen[Person, String]("eric")
+      val r = base.refineGen[Person]("eric")
 
       val sample = r.makeGen[Person].pureApply(Gen.Parameters.default, Seed(42L))
       sample.name === "eric"
@@ -28,7 +28,7 @@ class RefineGenSpec extends Specification:
       // the refinement is inert.
       val r =
         (gen(Gen.alphaStr) +: Registry.empty)
-          .refineGen[Person, String]("eric")
+          .refineGen[Person]("eric")
 
       // Sample a few seeds; with an unrefined Gen.alphaStr none should be exactly "eric".
       val seeds = List(1L, 2L, 3L, 4L, 5L).map(Seed(_))
@@ -45,7 +45,7 @@ class RefineGenSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(0, 120))
 
-      val r = base.refineGen[Person, Int](Gen.const(99))
+      val r = base.refineGen[Person](Gen.const(99))
 
       // Many seeds: under Person, age must be 99 every time.
       val seeds = List(1L, 7L, 23L, 100L).map(Seed(_))
@@ -64,7 +64,7 @@ class RefineGenSpec extends Specification:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(10000, 99999))
 
-      val r = base.refineGen[(WithAddress, Address), Int](42)
+      val r = base.refineGen[(WithAddress, Address)](42)
 
       val sample = r.makeGen[WithAddress].pureApply(Gen.Parameters.default, Seed(7L))
       sample.address.zip === 42
@@ -74,12 +74,35 @@ class RefineGenSpec extends Specification:
   "refineGen (standalone factory)" should {
     "compose with +: as a Refinement value" >> {
       val r =
-        refineGen[Person, String]("standalone") +:
+        refineGen[Person]("standalone") +:
           gen[Person] +:
           gen(Gen.alphaStr) +:
           gen(Gen.choose(0, 120))
 
       val sample = r.makeGen[Person].pureApply(Gen.Parameters.default, Seed(99L))
       sample.name === "standalone"
+    }
+
+    "infer the payload type for a supplied Gen" >> {
+      val r =
+        refineGen[Person](Gen.const("standalone")) +:
+          gen[Person] +:
+          gen(Gen.alphaStr) +:
+          gen(Gen.choose(0, 120))
+
+      val sample = r.makeGen[Person].pureApply(Gen.Parameters.default, Seed(99L))
+      sample.name === "standalone"
+    }
+
+    "support the explicit standalone form when the payload type is ascribed" >> {
+      val users =
+        gen[Person] +:
+          gen(Gen.alphaStr) +:
+          gen(Gen.choose(0, 120))
+
+      val r = refineGen[Person, String]("explicit") +: users
+
+      val sample = r.makeGen[Person].pureApply(Gen.Parameters.default, Seed(99L))
+      sample.name === "explicit"
     }
   }

@@ -477,6 +477,13 @@ class RuntimeRegistrySpec extends Specification:
 
       a.make[DbConfig] === b.make[DbConfig]
     }
+
+    "infer the refined target type when only Path is specified" >> {
+      val r = (fun[DbConfig] +: value(Host("default")) +: value(5432))
+        .refine[DbConfig](Host("refined"))
+
+      r.make[DbConfig] === DbConfig(Host("refined"), 5432)
+    }
   }; br
 
   "refine factory" should {
@@ -561,6 +568,11 @@ class RuntimeRegistrySpec extends Specification:
     "not fire when the path doesn't appear in the resolution stack" >> {
       val r = refine[Chain.DbConfig, Host](Host("never")) +: value(Host("h"))
       r.make[Host] === Host("h")
+    }
+
+    "infer the refined target type when only Path is specified" >> {
+      val r = refine[Person]("eric") +: fun[Person] +: value("name")
+      r.make[Person] === Person("eric")
     }
   }; br
 

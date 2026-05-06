@@ -5,6 +5,13 @@ import izumi.reflect.macrortti.LightTypeTag
 import scala.compiletime.summonAll
 import registry.TypeChecks.*
 
+final class RegistryRefinePartiallyApplied[Path, AllIns <: Tuple, AllOuts <: Tuple](
+    private val registry: Registry[AllIns, AllOuts]
+) extends AnyVal:
+
+  inline def apply[T](v: T)(using tTag: Tag[T]): Registry[AllIns, AllOuts] =
+    registry.refine[Path, T](v)
+
 /**
  * A registry of type-erased functions that tracks, at the type level, the union of all inputs required by
  * registered entries (`AllIns`) and the union of all outputs they produce (`AllOuts`).
@@ -154,6 +161,14 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
   ): Registry[AllIns, AllOuts] =
     val pathTags = summonAll[PathTags[Path]].toList.asInstanceOf[List[Tag[?]]]
     copy(refinements = refinements :+ (pathTags.map(_.tag), tTag.tag, v.asInstanceOf[Any]))
+
+  /**
+   * Path-scoped refinement while letting the target type `T` be inferred from the value.
+   *
+   * Equivalent to `refine[Path, T](v)`, but written as `refine[Path](v)`.
+   */
+  transparent inline def refine[Path]: RegistryRefinePartiallyApplied[Path, AllIns, AllOuts] =
+    new RegistryRefinePartiallyApplied[Path, AllIns, AllOuts](this)
 
   /** Build a value of type `T`. Runtime-only; throws if a dependency is missing. */
   def make[T](using tag: Tag[T]): T =

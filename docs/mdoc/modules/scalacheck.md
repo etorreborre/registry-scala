@@ -82,6 +82,36 @@ The macro inspects the value passed to `gen(...)`:
 
 You can also pass an eta-expanded constructor reference: `gen(Person.apply)`.
 
+## `refineGen[Path](v)` — path-scoped generator overrides
+
+`refineGen` is the ScalaCheck-flavored version of core `refine`: each
+element of `Path` is interpreted as a generated type, and the refined
+payload type is inferred from the value you pass.
+
+```scala mdoc:silent
+case class User(name: String, age: Int)
+
+val users =
+  gen[User] +:
+    gen(Gen.alphaStr) +:
+    gen(Gen.choose(0, 120))
+```
+
+```scala mdoc
+sample(users.refineGen[User]("eric").makeGen[User])
+sample(users.refineGen[User](Gen.choose(18, 99)).makeGen[User])
+```
+
+Plain values are lifted with `Gen.const`; existing `Gen[T]` values are
+used as-is. The standalone form composes like any other refinement:
+
+```scala mdoc
+sample((refineGen[User]("standalone") +: users).makeGen[User])
+```
+
+For multi-step scopes, use a tuple path just like core `refine`:
+`r.refineGen[(Outer, User)]("nested")`.
+
 ## `arb[T]` — from an in-scope `Arbitrary`
 
 ```scala mdoc:silent
@@ -302,6 +332,5 @@ without sharing and the right thing on registries with it.
   per-make resolver cache, the `shared` flag and the share build path.
 - [Resolution](../concepts/resolution.md) — the recursive-entry mechanism
   that powers `genRec`.
-- [Customization](../concepts/customization.md) — `refine` for context-
-  scoped overrides; useful for swapping in a different `Chooser` only
-  when generating one specific type.
+- [Customization](../concepts/customization.md) — core `refine` for
+  context-scoped overrides; use `refineGen` for generated payloads.

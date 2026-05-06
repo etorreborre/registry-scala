@@ -82,9 +82,34 @@ Built-in Choosers:
 | `Chooser.only(i: Int)`       | Always pick the i-th variant. Useful for deterministic tests.                                                    |
 | custom                       | Implement `trait Chooser { def pickOne[T](gens: Seq[Gen[T]]): Gen[T] }` and register it with `value(myChooser)`. |
 
-Because the `Chooser` is a plain registry value, you can also `r.refine[Ctx, Chooser](...)` to
+Because the `Chooser` is a plain registry value, you can also `r.refine[Ctx](...)` to
 scope a chooser to a particular build context — e.g., uniform everywhere, but weighted inside
 `make[Gen[SpecialModel]]`.
+
+### Path-scoped generator refinements
+
+Use `refineGen[Path](v)` to override a generated payload only while
+generating a given path. The payload type is inferred from `v`; plain
+values are lifted with `Gen.const`, and existing `Gen[T]` values are used
+as-is.
+
+```scala
+case class User(name: String, age: Int)
+
+val users =
+  gen[User] +:
+  gen(Gen.alphaStr) +:
+  gen(Gen.choose(0, 120))
+
+val fixedName = users.refineGen[User]("eric")
+val adults    = users.refineGen[User](Gen.choose(18, 99))
+
+val standalone =
+  refineGen[User]("standalone") +:
+  users
+```
+
+Tuple paths work too: `r.refineGen[(Outer, User)]("nested")`.
 
 ## Implemented
 
@@ -95,12 +120,13 @@ scope a chooser to a particular build context — e.g., uniform everywhere, but 
 | `genTrait[T]`                      | Combine per-subtype `Gen[Sub_i]` entries into a `Gen[T]` for a sealed trait / abstract class / enum. Consumes a `Chooser`.                                                                                                                      |
 | `genSum[T]`                        | Bundle: `genTrait[T]` + per-variant entry (`genFun[V_i]` for case classes, `value(Gen.const(V_i))` for case objects / no-arg enum cases) + default `Chooser.uniform`.                                                                           |
 | `Chooser`                          | Pluggable pick strategy for `genTrait`. Built-ins: `uniform`, `weighted(ws*)`, `only(i)`; users can implement the trait directly.                                                                                                               |
+| `refineGen[Path](v)`               | Path-scoped generated-payload override. Infers payload type from `v`; plain values become `Gen.const(v)`, existing `Gen[T]` values pass through.                                                                                                |
 | Container helpers                  | `listOf[T]`, `nonEmptyListOf[T]`, `listOfN[T](n)`, `optionOf[T]`, `setOf[T]`, etc. Each registered entry wraps a ScalaCheck combinator and resolves element generators from the rest of the registry. See `Containers.scala` for the full list. |
 | `genRec[T](grow)`            | Size-bounded recursive `Gen[T]`. `grow` receives the self-reference; the base case is resolved *from the registry* (e.g. a `value(Gen.const(Leaf))` entry). Overload `genRec[T](maxSize)(grow)` caps depth regardless of ambient ScalaCheck size. |
 | `value(gen: Gen[T])`               | Register a leaf generator (uses core `value` directly — no new machinery).                                                                                                                                                                      |
 
 All the core registry operators work unchanged — `+:` (strict), `*:` (tracked), `-:`
-(untyped), `<+>` (merge), `make`, `makeSafe`, `erase`, `refine`, `memoize`.
+(untyped), `<+>` (merge), `make`, `makeSafe`, `erase`, `refine`, `refineGen`, `memoize`.
 Subtype-aware resolution is inherited from core: `Gen[List[Int]]` satisfies a request for
 `Gen[Seq[Int]]` because `Gen[+T]` is covariant.
 

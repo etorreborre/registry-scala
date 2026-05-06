@@ -48,11 +48,16 @@ Within a single `make` call the wrapper is invoked once and shared across
 all consumers (per-make cache; see [Memoization](memoization.md)). To opt
 out, mark the wrapping entry `.fresh`.
 
-## `refine[Path, T]` — path-scoped override
+## `refine[Path](v)` — path-scoped override
 
 When the resolution stack contains the types of `Path` as a subsequence
 (in order, not necessarily contiguous) and the resolver is looking for
 `T`, return `v` instead of doing the normal lookup.
+
+The target type `T` is inferred from `v`, so you normally only specify the
+path: `refine[Server]("server-")`. The explicit form
+`refine[Server, String]("server-")` is still available when you want to
+ascribe `T`.
 
 `Path` may be a **single type** (the override fires whenever that type
 appears anywhere on the stack) or a **tuple** of types (the override fires
@@ -81,11 +86,11 @@ app.make[Server].log.prefix
 app.make[Worker].log.prefix
 ```
 
-`refine[Server, String]("server-")` overrides `String` only when the
+`refine[Server]("server-")` overrides `String` only when the
 resolution stack passes through `Server`:
 
 ```scala mdoc:silent
-val tagged = app.refine[Server, String]("server-")
+val tagged = app.refine[Server]("server-")
 ```
 
 ```scala mdoc
@@ -107,7 +112,7 @@ val withOuter =
 ```
 
 ```scala mdoc:silent
-val pathed = withOuter.refine[(Outer, Server), String]("from-outer-")
+val pathed = withOuter.refine[(Outer, Server)]("from-outer-")
 ```
 
 ```scala mdoc
@@ -117,14 +122,14 @@ pathed.make[Server].log.prefix     // not reached via Outer — default wins
 
 ## `refine` — refinements as standalone values
 
-`refine[Path, T](v)` (top-level, not on a `Registry`) produces a
+`refine[Path](v)` (top-level, not on a `Registry`) produces a
 `Refinement` value that you can prepend with any of `+:`, `*:`, `-:`. It's
 the same machinery as the `refine` method on `Registry` but expressed as
 a value, which is sometimes cleaner when assembling registries from parts.
 
 ```scala mdoc:silent
 val refined =
-  refine[Server, String]("from-refinement-") +: app
+  refine[Server]("from-refinement-") +: app
 ```
 
 ```scala mdoc

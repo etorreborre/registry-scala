@@ -70,6 +70,15 @@ ScalaCheck combinator.
 | `const[T] +: r`               | pin one *sampled value* for the registry's lifetime                    |
 | `entry.share`, `entry.const`  | apply the same flags inline at registration                            |
 
+## Refinements
+
+| Factory / method              | Effect                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `r.refineGen[Path](v)`        | override the generated payload type inferred from `v` under `Path`     |
+| `refineGen[Path](v) +: r`     | standalone refinement added to `r`; plain `v` becomes `Gen.const(v)`   |
+| `refineGen[Path](gen) +: r`   | standalone refinement added to `r` using the supplied `Gen[T]` as-is   |
+| `refineGen[Path, T](v) +: r`  | explicit standalone form added to `r` when `T` needs ascription        |
+
 ## Building
 
 | Method            | Use                                                  |

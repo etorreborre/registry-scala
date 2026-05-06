@@ -19,6 +19,11 @@ final case class Refinement[Path, T](
     value: Any
 )
 
+final class RefinePartiallyApplied[Path](private val dummy: Boolean = true) extends AnyVal:
+
+  inline def apply[T](v: T)(using tTag: Tag[T]): Refinement[Path, T] =
+    refine[Path, T](v)
+
 /**
  * Tuple of `Tag` instances corresponding to the elements of `P`.
  *  - if `P` is `EmptyTuple`, the result is `EmptyTuple`;
@@ -40,3 +45,11 @@ type PathTags[P] <: Tuple = P match
 inline def refine[Path, T](v: T)(using tTag: Tag[T]): Refinement[Path, T] =
   val tags = summonAll[PathTags[Path]].toList.asInstanceOf[List[Tag[?]]]
   Refinement(tags.map(_.tag), tTag.tag, v)
+
+/**
+ * Build a [[Refinement]] while letting the target type `T` be inferred from the value.
+ *
+ * Equivalent to `refine[Path, T](v)`, but written as `refine[Path](v)`.
+ */
+inline def refine[Path]: RefinePartiallyApplied[Path] =
+  new RefinePartiallyApplied[Path]

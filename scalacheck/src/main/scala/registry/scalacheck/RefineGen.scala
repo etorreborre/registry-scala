@@ -4,6 +4,24 @@ import izumi.reflect.Tag
 import org.scalacheck.Gen
 import registry.{Refinement, Registry}
 
+final class RefineGenPartiallyApplied[Path](private val dummy: Boolean = true) extends AnyVal:
+
+  transparent inline def apply[T](inline v: Gen[T]): Refinement[Path, Gen[T]] =
+    refineGen[Path, T](v)
+
+  transparent inline def apply[T](inline v: T): Refinement[Path, Gen[T]] =
+    refineGen[Path, T](v)
+
+final class RegistryRefineGenPartiallyApplied[Path, AllIns <: Tuple, AllOuts <: Tuple](
+    private val registry: Registry[AllIns, AllOuts]
+) extends AnyVal:
+
+  transparent inline def apply[T](inline v: Gen[T]): Registry[AllIns, AllOuts] =
+    refineGen[Path, T](v) +: registry
+
+  transparent inline def apply[T](inline v: T): Registry[AllIns, AllOuts] =
+    refineGen[Path, T](v) +: registry
+
 /**
  * Path tags for [[refineGen]]. Each element of the user-supplied `Path` is wrapped in `Gen[_]`
  * before being summoned, because the resolution stack in `makeGen[T]` contains
@@ -25,26 +43,35 @@ type GenPathTags[P] <: Tuple = P match
  * Two pieces of auto-lifting on top of core [[registry.refine]]:
  *
  *  1. Each element of `Path` is wrapped in `Gen[_]` before lookup, so
- *     `refineGen[Person, Int](42)` reads naturally as "when generating a `Person`, …" — under the
+ *     `refineGen[Person](42)` reads naturally as "when generating a `Person`, …" — under the
  *     hood the path is `[Tag[Gen[Person]]]`, matching what ends up on the resolver's stack during
  *     `makeGen[Person]`.
  *
  *  2. The value is auto-lifted to `Gen[T]` if it isn't already one (mirroring [[gen]] on a value
  *     argument):
- *      - `refineGen[Person, Int](42)`              ⇒ `Gen.const(42)`
- *      - `refineGen[Person, Int](Gen.choose(1,9))` ⇒ the supplied `Gen` as-is
+ *      - `refineGen[Person](42)`              ⇒ `Gen.const(42)`
+ *      - `refineGen[Person](Gen.choose(1,9))` ⇒ the supplied `Gen` as-is
  *
- * The type parameter `T` is always the *payload* (e.g. `Int`), not `Gen[Int]`. `Path` may be a
- * single type or a tuple of types — same convention as core [[registry.Registry.refine]]. The
+ * The inferred type parameter `T` is always the *payload* (e.g. `Int`), not `Gen[Int]`. `Path` may
+ * be a single type or a tuple of types — same convention as core [[registry.Registry.refine]]. The
  * result composes via `+:` / `*:` / `-:` like any other `Refinement`.
  */
 transparent inline def refineGen[Path, T](inline v: T | Gen[T]): Refinement[Path, Gen[T]] =
   ${ RefineGenMacro.refinementExpr[Path, T]('v) }
 
+/**
+ * Build a ScalaCheck [[Refinement]] while letting the payload type `T` be inferred from the value.
+ *
+ * Equivalent to `refineGen[Path, T](v)`, but written as `refineGen[Path](v)`.
+ */
+transparent inline def refineGen[Path]: RefineGenPartiallyApplied[Path] =
+  new RefineGenPartiallyApplied[Path]
+
 extension [AllIns <: Tuple, AllOuts <: Tuple](r: Registry[AllIns, AllOuts])
+
   /**
-   * `r.refineGen[Path, T](v)` — apply a [[refineGen]] refinement to this registry. Equivalent to
-   * `refineGen[Path, T](v) +: r`.
+   * `r.refineGen[Path](v)` — apply a [[refineGen]] refinement while letting the payload type `T` be
+   * inferred from `v`.
    */
-  transparent inline def refineGen[Path, T](inline v: T | Gen[T]): Registry[AllIns, AllOuts] =
-    ${ RefineGenMacro.registryExpr[AllIns, AllOuts, Path, T]('r, 'v) }
+  transparent inline def refineGen[Path]: RegistryRefineGenPartiallyApplied[Path, AllIns, AllOuts] =
+    new RegistryRefineGenPartiallyApplied[Path, AllIns, AllOuts](r)

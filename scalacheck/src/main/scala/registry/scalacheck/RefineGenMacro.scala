@@ -4,7 +4,7 @@ import scala.compiletime.summonAll
 import scala.quoted.*
 import izumi.reflect.Tag
 import org.scalacheck.Gen
-import registry.{Refinement as RegRefinement, Registry}
+import registry.Refinement as RegRefinement
 
 private[scalacheck] object RefineGenMacro:
 
@@ -52,14 +52,3 @@ private[scalacheck] object RefineGenMacro:
       report.errorAndAbort(
         s"refineGen[Path, ${tTpe.show}](v): expected v to have type ${tTpe.show} or Gen[${tTpe.show}], got ${vTpe.show}"
       )
-
-  /**
-   * `r.refineGen[Path, T](v)` macro: emit `refineGen[Path, T](v) +: r`. Reuses [[refinementExpr]]
-   * so the value-vs-Gen dispatch is identical to the standalone factory.
-   */
-  def registryExpr[Ins <: Tuple: Type, Outs <: Tuple: Type, Path: Type, T: Type](
-      r: Expr[Registry[Ins, Outs]],
-      v: Expr[T | Gen[T]]
-  )(using Quotes): Expr[Registry[Ins, Outs]] =
-    val refExpr = refinementExpr[Path, T](v)
-    '{ $refExpr +: $r }

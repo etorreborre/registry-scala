@@ -42,6 +42,7 @@ codecs.
 | Method                              | Effect                                                |
 |-------------------------------------|-------------------------------------------------------|
 | `refine[Path, T](v)`                | path-scoped override; `Path` is a single type or tuple |
+| `refine[Path](v)`                   | same override, with `T` inferred from `v`              |
 | `refine[Path, T](v)` (factory)      | refinement as a value; composes with `+:`/`*:`/`-:`    |
 | `memoize[A]`                        | cache every entry whose output is `A` (subtype-aware) |
 | `memoizeAll`                        | cache every entry                                     |
@@ -75,13 +76,13 @@ app.makeSafe[App]
 Override the host without rewriting the registry:
 
 ```scala mdoc
-app.refine[Db, Host](Host("override")).make[App]
+app.refine[Db](Host("override")).make[App]
 ```
 
 Override the host only when reached via `App` → `Db`:
 
 ```scala mdoc
-app.refine[(App, Db), Host](Host("via-app-db")).make[App]
+app.refine[(App, Db)](Host("via-app-db")).make[App]
 ```
 
 Memoize `Db` so two consumers share one connection (mock here):

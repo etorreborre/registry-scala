@@ -167,16 +167,8 @@ lazy val releaseSettings: Seq[Setting[_]] = Seq(
       commands = List("docs/mdoc")
     ),
     WorkflowStep.Run(
-      name = Some("Copy Jekyll config"),
-      commands = List(
-        "cp docs/_config.yml  docs/target/mdoc/_config.yml",
-        "cp docs/Gemfile      docs/target/mdoc/Gemfile",
-        "cp docs/favicon.svg  docs/target/mdoc/favicon.svg",
-        "rm -rf docs/target/mdoc/_sass docs/target/mdoc/_includes docs/target/mdoc/assets",
-        "cp -R docs/_sass     docs/target/mdoc/_sass",
-        "cp -R docs/_includes docs/target/mdoc/_includes",
-        "if [ -d docs/assets ]; then cp -R docs/assets docs/target/mdoc/assets; fi"
-      )
+      name = Some("Stage documentation site"),
+      commands = stageDocumentationSiteCommands
     ),
     WorkflowStep.Use(
       name = Some("Deploy docs to gh-pages"),
@@ -188,6 +180,16 @@ lazy val releaseSettings: Seq[Setting[_]] = Seq(
       )
     )
   )
+)
+
+val stageDocumentationSiteCommands = List(
+  "cp docs/_config.yml  docs/target/mdoc/_config.yml",
+  "cp docs/Gemfile      docs/target/mdoc/Gemfile",
+  "cp docs/favicon.svg  docs/target/mdoc/favicon.svg",
+  "rm -rf docs/target/mdoc/_sass docs/target/mdoc/_includes docs/target/mdoc/assets",
+  "cp -R docs/_sass     docs/target/mdoc/_sass",
+  "cp -R docs/_includes docs/target/mdoc/_includes",
+  "if [ -d docs/assets ]; then cp -R docs/assets docs/target/mdoc/assets; fi"
 )
 
 val importGpgCommand = """echo "$PGP_SECRET" | base64 --decode | gpg --batch --yes --import

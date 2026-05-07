@@ -68,6 +68,16 @@ class ContainersSpec extends Specification:
     }
   }
 
+  "someOf[T]" should {
+    "register a Gen[Option[T]] that always yields Some" >> {
+      val r = someOf[Int] +: arb[Int]
+      val samples = (0 until 20).map(i =>
+        r.makeGen[Option[Int]].pureApply(Gen.Parameters.default, Seed(i.toLong))
+      )
+      samples must contain(beSome).foreach
+    }
+  }
+
   "noneOf[T]" should {
     "register a Gen[Option[T]] that always yields None" >> {
       val r = noneOf[Int] +: Registry.empty

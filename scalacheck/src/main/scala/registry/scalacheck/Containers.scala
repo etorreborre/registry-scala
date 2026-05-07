@@ -65,9 +65,7 @@ def optionOf[T](using
  * pinned to absent without registering a `Gen[T]` for the inner type — typically when the inner
  * generator is heavy (e.g. recursive sum types) and the test never needs the populated case.
  *
- * Composes the same as any other entry: `noneOf[ScriptRef] +: registry`. Combine with refinements
- * if you want this only on a specific resolution path:
- * `refineGen[ParentType](Option.empty[ScriptRef]) +: registry`.
+ * Composes the same as any other entry: `noneOf[ScriptRef] +: registry`.
  */
 def noneOf[T](using
     outTag: Tag[Gen[Option[T]]]
@@ -79,6 +77,19 @@ def noneOf[T](using
       invoke = _ => Gen.const(Option.empty[T])
     )
   )
+
+/**
+ * Register a zero-input `Gen[Option[T]]` that always yields `Some`. Useful for fields you want
+ * pinned to absent without registering a `Gen[T]` for the inner type — typically when the inner
+ * generator is heavy (e.g. recursive sum types) and the test never needs the populated case.
+ *
+ * Composes the same as any other entry: `someOf[ScriptRef] +: registry`.
+ */
+def someOf[T](using
+    inTag: Tag[Gen[T]],
+    outTag: Tag[Gen[Option[T]]]
+): TypedEntry[Gen[T] *: EmptyTuple, Gen[Option[T]]] =
+  mk1[T, Option[T]](_.map(Some.apply))
 
 /**
  * Register `Gen[T] => Gen[IndexedSeq[T]]` — zero-or-more via `Gen.containerOf[Vector, T]`

@@ -48,8 +48,8 @@ def arb[T](using arbT: Arbitrary[T], tag: Tag[Gen[T]]): TypedEntry[EmptyTuple, G
   TypedEntry(Entry(Nil, tag.tag, _ => arbT.arbitrary))
 
 /**
- * Marker factories scoped to `Gen[T]`. Each builds a [[registry.Memoize]] / [[registry.Share]] /
- * [[registry.Const]] keyed on `Gen[T]` (rather than `T`), so prepending via `+:` retroactively
+ * Marker factories scoped to `Gen[T]`. Each builds a [[registry.Memoize]] / [[Share]] /
+ * [[Const]] keyed on `Gen[T]` (rather than `T`), so prepending via `+:` retroactively
  * marks the matching Gen entry without touching its registration site.
  *
  * Three increasingly-strong pinnings:

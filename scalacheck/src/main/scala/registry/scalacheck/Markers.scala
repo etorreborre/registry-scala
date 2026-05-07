@@ -4,9 +4,9 @@ import izumi.reflect.macrortti.LightTypeTag
 import registry.{Entry, Marker, Registry}
 
 /**
- * Sampling-time markers consumed by [[Share.makeGen]]. Each carries the [[LightTypeTag]] of the
- * target Gen output type; downstream factories build them keyed on `Gen[T]` (rather than `T`) so
- * `share[T] +: r` retroactively pins the sample of `Gen[T]`.
+ * Sampling-time markers consumed by `Registry.makeGen` (the extension defined in `Share.scala`).
+ * Each carries the `LightTypeTag` of the target Gen output type; downstream factories build them
+ * keyed on `Gen[T]` (rather than `T`) so `share[T] +: r` retroactively pins the sample of `Gen[T]`.
  *
  *   - [[Share]] flips the `shared` flag on every matching entry in a registry, promoting it to a
  *     [[GenEntry]] if needed. The flag is read by `makeGen` to install a per-build "sample once

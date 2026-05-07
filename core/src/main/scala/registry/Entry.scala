@@ -4,7 +4,7 @@ import izumi.reflect.macrortti.LightTypeTag
 
 /**
  * An entry in the registry — a manually-typed function value with input/output types captured as
- * [[LightTypeTag]]s and an `invoke` closure that takes resolved arguments and produces a value of
+ * `LightTypeTag`s and an `invoke` closure that takes resolved arguments and produces a value of
  * the output type.
  *
  * `fresh = true` opts out of the resolver's per-`make` value cache: every appearance of the

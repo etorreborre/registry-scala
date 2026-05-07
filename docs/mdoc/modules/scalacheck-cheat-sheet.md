@@ -36,22 +36,24 @@ register first, how each piece composes, recursion, sharing — see
 Each factory below registers a 1-input entry that wraps the corresponding
 ScalaCheck combinator.
 
-| Factory                          | Produces                                              |
-| -------------------------------- | ----------------------------------------------------- |
-| `listOf[T]`                      | `Gen[List[T]]` of arbitrary length                    |
-| `nonEmptyListOf[T]`              | `Gen[List[T]]`, never empty                           |
-| `listOfN[T](n)`                  | `Gen[List[T]]` of exactly `n` elements                |
-| `listOfMinMax[T](min, max)`      | `Gen[List[T]]` with size in `[min, max]`              |
-| `optionOf[T]`                    | `Gen[Option[T]]`                                      |
-| `setOf[T]`                       | `Gen[Set[T]]` of arbitrary size                       |
-| `setOfN[T](n)`                   | `Gen[Set[T]]` of exactly `n` elements                 |
-| `eitherOf[L, R]`                 | `Gen[Either[L, R]]`                                   |
-| `pairOf[A, B]`                   | `Gen[(A, B)]`                                         |
-| `tripleOf[A, B, C]`              | `Gen[(A, B, C)]`                                      |
-| `mapOf[K, V]`                    | `Gen[Map[K, V]]` of arbitrary size                    |
-| `mapOfN[K, V](n)`                | `Gen[Map[K, V]]` with exactly `n` entries             |
+| Factory                          | Produces                                                  |
+|----------------------------------|-----------------------------------------------------------|
+| `listOf[T]`                      | `Gen[List[T]]` of arbitrary length                        |
+| `nonEmptyListOf[T]`              | `Gen[List[T]]`, never empty                               |
+| `listOfN[T](n)`                  | `Gen[List[T]]` of exactly `n` elements                    |
+| `listOfMinMax[T](min, max)`      | `Gen[List[T]]` with size in `[min, max]`                  |
+| `optionOf[T]`                    | `Gen[Option[T]]`                                          |
+| `someOf[T]`                      | `Gen[Option[T]]` generating always `Some`                 |
+| `noneOf[T]`                      | `Gen[Option[T]]` generating always `None`                 |
+| `setOf[T]`                       | `Gen[Set[T]]` of arbitrary size                           |
+| `setOfN[T](n)`                   | `Gen[Set[T]]` of exactly `n` elements                     |
+| `eitherOf[L, R]`                 | `Gen[Either[L, R]]`                                       |
+| `pairOf[A, B]`                   | `Gen[(A, B)]`                                             |
+| `tripleOf[A, B, C]`              | `Gen[(A, B, C)]`                                          |
+| `mapOf[K, V]`                    | `Gen[Map[K, V]]` of arbitrary size                        |
+| `mapOfN[K, V](n)`                | `Gen[Map[K, V]]` with exactly `n` entries                 |
 | `indexedSeqOf[T]` (and variants) | `Gen[IndexedSeq[T]]` — same shape as the `listOf*` family |
-| `iArrayOf[T]` (and variants)     | `Gen[IArray[T]]` — same shape as the `listOf*` family |
+| `iArrayOf[T]` (and variants)     | `Gen[IArray[T]]` — same shape as the `listOf*` family     |
 
 ## Recursion
 

@@ -4,7 +4,7 @@ import izumi.reflect.macrortti.LightTypeTag
 
 /**
  * A marker prepended via `+:` to retroactively transform every entry whose output is a subtype
- * of the carried target type. Each concrete marker carries the [[LightTypeTag]] for the target
+ * of the carried target type. Each concrete marker carries the `LightTypeTag` for the target
  * and supplies a `transform: Entry => Entry` step.
  *
  * `Marker` is non-sealed so downstream modules (e.g. `registry-scalacheck`'s `Share[T]` and

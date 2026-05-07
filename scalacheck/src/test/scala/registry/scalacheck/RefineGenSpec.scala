@@ -135,4 +135,19 @@ class RefineGenSpec extends Specification:
       val sample = r.makeGen[Output].pureApply(Gen.Parameters.default, Seed(2L))
       sample.coin.value === 11L
     }
+
+    "terminate when the refinement function takes its own target type as an input" >> {
+      // The refinement targets Gen[CoinW] under path Gen[Output] and consumes a CoinW itself —
+      // doubling the underlying value. Without the in-flight refinement guard the resolver would
+      // re-fire this same refinement on its own input, looping forever.
+      def doubleCoin(c: CoinW): CoinW = CoinW(c.value * 2)
+      val r =
+        refineGen[Output](doubleCoin) +:
+          gen[Output] +:
+          gen[CoinW] +:
+          gen(Gen.const(7L))
+
+      val sample = r.makeGen[Output].pureApply(Gen.Parameters.default, Seed(1L))
+      sample.coin.value === 14L
+    }
   }

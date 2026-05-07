@@ -11,12 +11,18 @@ object Resolve:
       want: LightTypeTag
   ): Any =
     val cache = scala.collection.mutable.Map.empty[String, Any]
-    go(entries, refinements, want, List.empty, List.empty, cache)._1
+    go(entries, refinements, want, List.empty, List.empty, List.empty, cache)._1
 
   /**
    * `inFlightEntries` tracks specific [[Entry]] instances already consumed in the current resolution
    * path — used to skip them when resolving inputs of the same type, which is what makes recursive
    * entries (an entry whose input and output types coincide) work.
+   *
+   * `inFlightRefinements` plays the same role for [[Refinement]] instances: a function-style
+   * refinement whose `inputs` includes its own target type would otherwise re-fire on its own
+   * input and loop forever (the path scope is still active during input resolution). Skipping the
+   * already-firing refinement lets the input fall through to a different refinement or to the
+   * underlying entry list — the same mechanism that makes recursive entries terminate.
    *
    * `inFlightTypes` tracks the requested types along the path — used for cycle error messages and
    * refinement-path matching.
@@ -35,15 +41,20 @@ object Resolve:
       refinements: List[Refinement[?, ?]],
       want: LightTypeTag,
       inFlightEntries: List[Entry],
+      inFlightRefinements: List[Refinement[?, ?]],
       inFlightTypes: List[LightTypeTag],
       cache: scala.collection.mutable.Map[String, Any]
   ): (Any, Boolean) =
     // Check refinements first: if any applies for this path + target, short-circuit. The target
     // match uses `<:<` (subtype-aware) — same as the entry lookup below — so a refinement
     // targeting `Gen[Resolved]` can satisfy a `Gen[Datum]` request via Gen's covariance, mirroring
-    // how an Entry producing `Gen[Resolved]` would be picked up.
+    // how an Entry producing `Gen[Resolved]` would be picked up. A refinement already in flight is
+    // skipped so its own inputs can resolve through a different refinement or through the entry
+    // list, preventing infinite recursion when a function-style refinement's inputs include its
+    // own target type.
     val refinement = refinements.find { r =>
-      (r.targetTag <:< want) && isSubsequence(r.pathTags, inFlightTypes)
+      (r.targetTag <:< want) && isSubsequence(r.pathTags, inFlightTypes) &&
+      !inFlightRefinements.contains(r)
     }
 
     refinement match
@@ -53,8 +64,9 @@ object Resolve:
         // inputs and `invoke` ignores its argument. Either way, propagate `refined = true` so the
         // caller refuses to cache the resulting value (refinement results are path-dependent).
         val nextTypes = inFlightTypes :+ want
+        val nextRefinements = inFlightRefinements :+ r
         val resolved =
-          r.inputs.map(in => go(entries, refinements, in, inFlightEntries, nextTypes, cache))
+          r.inputs.map(in => go(entries, refinements, in, inFlightEntries, nextRefinements, nextTypes, cache))
         val args = resolved.map(_._1)
         (r.invoke(args), true)
       case None =>
@@ -78,7 +90,7 @@ object Resolve:
               val nextEntries = inFlightEntries :+ entry
               val nextTypes = inFlightTypes :+ want
               val resolved =
-                entry.inputs.map(go(entries, refinements, _, nextEntries, nextTypes, cache))
+                entry.inputs.map(go(entries, refinements, _, nextEntries, inFlightRefinements, nextTypes, cache))
               val args = resolved.map(_._1)
               val anyChildRefined = resolved.exists(_._2)
               val invoked = entry.invoke(args)

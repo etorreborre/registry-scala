@@ -68,6 +68,37 @@ class ContainersSpec extends Specification:
     }
   }
 
+  "noneOf[T]" should {
+    "register a Gen[Option[T]] that always yields None" >> {
+      val r = noneOf[Int] +: Registry.empty
+      val samples = (0 until 20).map(i =>
+        r.makeGen[Option[Int]].pureApply(Gen.Parameters.default, Seed(i.toLong))
+      )
+      samples must contain(beNone).foreach
+    }
+
+    "shadow optionOf[T] when prepended (LIFO)" >> {
+      // noneOf is more specific than optionOf — prepending it makes Gen[Option[Int]] resolve to it.
+      val r =
+        noneOf[Int] +:
+          optionOf[Int] +:
+          gen(7)
+
+      val samples = (0 until 20).map(i =>
+        r.makeGen[Option[Int]].pureApply(Gen.Parameters.default, Seed(i.toLong))
+      )
+      samples must contain(beNone).foreach
+    }
+
+    "do NOT require a Gen[T] for the inner type — useful when T is heavy/recursive" >> {
+      // The whole point: avoid pulling Gen[T] (e.g. a recursive sum type) into the resolution
+      // chain just to satisfy the outer Option.
+      val r = noneOf[Int] +: Registry.empty
+      val sample = r.makeGen[Option[Int]].pureApply(Gen.Parameters.default, Seed(0L))
+      sample must beNone
+    }
+  }
+
   "setOf[T]" should {
     "produce Set[T] values — no duplicates" >> {
       val r =

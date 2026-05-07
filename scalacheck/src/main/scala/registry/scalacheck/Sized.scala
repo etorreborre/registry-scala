@@ -25,10 +25,22 @@ final case class Sized(
 
 object Sized:
 
-  /** Default behavior: 1:3 base/grow weighting (terminates at `size <= 0`), `size - 1` shrink. */
+  /**
+   * Default behavior: 1:3 base/grow weighting (terminates at `size <= 0`), and `size / 2` shrink
+   * per recursion level.
+   *
+   * Halving (vs. decrementing) is the safer floor for `grow` functions that fan out — e.g.
+   * `Gen.listOf(self)` produces lists scaled by the ambient size, so a sub-linear depth shrink
+   * lets total node count grow roughly factorially in the initial size and OOM the heap. With
+   * `size / 2` total node count is bounded geometrically (`O(size^log size)`) and recursion is
+   * capped at `log2(initialSize)` levels regardless of how the user wrote `grow`.
+   *
+   * Calls that need a slower shrink (e.g. linear chains, not trees) can still register their own
+   * `value(Sized(...))` with `nextSize = size => Gen.const(size - 1)` to override this.
+   */
   val default: Sized = Sized(
     pickBase = size =>
       if size <= 0 then Gen.const(true)
       else Gen.frequency(1 -> true, 3 -> false),
-    nextSize = size => Gen.const((size - 1).max(0))
+    nextSize = size => Gen.const(size / 2)
   )

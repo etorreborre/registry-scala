@@ -81,12 +81,12 @@ final case class TypedEntry[Ins <: Tuple, Out](entry: Entry):
    * `+:`, `*:`, `-:` all behave identically for refinements.
    */
   def +:[Path, T](r: Refinement[Path, T]): Registry[Ins, Out *: EmptyTuple] =
-    Registry(entry :: Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
+    Registry(entry :: Nil, r :: Nil)
 
   /** See [[+:]] for [[Refinement]] — `*:` is identical for refinements. */
   def *:[Path, T](r: Refinement[Path, T]): Registry[Ins, Out *: EmptyTuple] =
-    Registry(entry :: Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
+    Registry(entry :: Nil, r :: Nil)
 
   /** See [[+:]] for [[Refinement]] — `-:` is identical for refinements. */
   def -:[Path, T](r: Refinement[Path, T]): Registry[Ins, Out *: EmptyTuple] =
-    Registry(entry :: Nil, (r.pathTags, r.targetTag, r.value) :: Nil)
+    Registry(entry :: Nil, r :: Nil)

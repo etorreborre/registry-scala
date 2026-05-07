@@ -26,7 +26,7 @@ final class RegistryRefinePartiallyApplied[Path, AllIns <: Tuple, AllOuts <: Tup
  */
 final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     entries: List[Entry],
-    refinements: List[(List[LightTypeTag], LightTypeTag, Any)] = Nil
+    refinements: List[Refinement[?, ?]] = Nil
 ):
 
   /**
@@ -87,15 +87,15 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
    * the type-level `AllIns` / `AllOuts` accounting.
    */
   def +:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
-    copy(refinements = refinements :+ (r.pathTags, r.targetTag, r.value))
+    copy(refinements = refinements :+ r)
 
   /** See [[+:]] for [[Refinement]] — `*:` is identical for refinements. */
   def *:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
-    copy(refinements = refinements :+ (r.pathTags, r.targetTag, r.value))
+    copy(refinements = refinements :+ r)
 
   /** See [[+:]] for [[Refinement]] — `-:` is identical for refinements. */
   def -:[Path, T](r: Refinement[Path, T]): Registry[AllIns, AllOuts] =
-    copy(refinements = refinements :+ (r.pathTags, r.targetTag, r.value))
+    copy(refinements = refinements :+ r)
 
   /**
    * `marker +: registry` — apply a [[Marker]] to every entry whose output is a subtype of the
@@ -160,7 +160,7 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
       tTag: Tag[T]
   ): Registry[AllIns, AllOuts] =
     val pathTags = summonAll[PathTags[Path]].toList.asInstanceOf[List[Tag[?]]]
-    copy(refinements = refinements :+ (pathTags.map(_.tag), tTag.tag, v.asInstanceOf[Any]))
+    copy(refinements = refinements :+ valueRefinement[Path, T](pathTags.map(_.tag), tTag.tag, v))
 
   /**
    * Path-scoped refinement while letting the target type `T` be inferred from the value.

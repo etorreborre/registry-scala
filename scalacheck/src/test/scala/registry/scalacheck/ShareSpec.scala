@@ -133,6 +133,41 @@ class ShareSpec extends Specification:
     }
   }
 
+  "share[T] reachability filter" should {
+    "not sample a shared T's generator when T is not reachable from the requested type" >> {
+      // Regression: previously `share[T] +: r` always pulled `Gen[T]` into the resolution graph,
+      // even when the caller's `T` didn't transitively need it. That meant a `share[X]` over a
+      // dangerous-to-sample `X` (e.g. recursive auto-derivation that OOMs) would blow up unrelated
+      // makeGen calls. The fix only pins shared types reachable from the requested type.
+      var sampled = false
+      val explosiveGen: Gen[Int] = Gen.parameterized { _ =>
+        sampled = true
+        Gen.const(42)
+      }
+
+      val r =
+        share[Int] +:
+          gen(explosiveGen) +:
+          gen(Gen.const("hello"))
+
+      // Requesting a String shouldn't sample Gen[Int] at all.
+      val s = r.makeGen[String].pureApply(Gen.Parameters.default, Seed(1L))
+      s === "hello"
+      sampled must beFalse
+    }
+
+    "still pin shared types when they ARE reachable from the requested type" >> {
+      val r =
+        share[Int] +:
+          gen(Bundle.apply) +:
+          gen(Gen.choose(1, 1_000_000))
+
+      val sample = r.makeGen[Bundle].pureApply(Gen.Parameters.default, Seed(1L))
+      sample.a === sample.b
+      sample.b === sample.c
+    }
+  }
+
   "const — pinning across separate makeGen calls" should {
     "make every makeGen[T] return the same sampled value of the const type" >> {
       // share[T] pins within ONE makeGen tree; const[T] should pin across ALL makeGen calls on

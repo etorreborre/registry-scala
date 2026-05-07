@@ -6,21 +6,22 @@ import registry.{Refinement, Registry}
 
 final class RefineGenPartiallyApplied[Path](private val dummy: Boolean = true) extends AnyVal:
 
-  transparent inline def apply[T](inline v: Gen[T]): Refinement[Path, Gen[T]] =
-    refineGen[Path, T](v)
-
-  transparent inline def apply[T](inline v: T): Refinement[Path, Gen[T]] =
-    refineGen[Path, T](v)
+  /**
+   * Smart dispatch on the inferred type of `v` — supports plain values, `Gen[T]`, and functions
+   * `(A, ...) => T` / `(A, ...) => Gen[T]`. The function form's parameters are resolved from the
+   * surrounding registry (path-scoped) and the function is applied lazily inside the resulting
+   * `Gen[T]`.
+   */
+  transparent inline def apply[V](inline v: V): Any =
+    ${ RefineGenMacro.partialAppliedExpr[Path, V]('v) }
 
 final class RegistryRefineGenPartiallyApplied[Path, AllIns <: Tuple, AllOuts <: Tuple](
     private val registry: Registry[AllIns, AllOuts]
 ) extends AnyVal:
 
-  transparent inline def apply[T](inline v: Gen[T]): Registry[AllIns, AllOuts] =
-    refineGen[Path, T](v) +: registry
-
-  transparent inline def apply[T](inline v: T): Registry[AllIns, AllOuts] =
-    refineGen[Path, T](v) +: registry
+  /** See [[RefineGenPartiallyApplied.apply]]. */
+  transparent inline def apply[V](inline v: V): Registry[AllIns, AllOuts] =
+    ${ RefineGenMacro.registryAppliedExpr[AllIns, AllOuts, Path, V]('registry, 'v) }
 
 /**
  * Path tags for [[refineGen]]. Each element of the user-supplied `Path` is wrapped in `Gen[_]`

@@ -106,3 +106,33 @@ class RefineGenSpec extends Specification:
       sample.name === "explicit"
     }
   }
+
+  "refineGen (function value)" should {
+    "accept a function whose parameters are resolved from the surrounding registry" >> {
+      // f: CoinW => Output. The refinement should pull a CoinW from the registry and apply f.
+      // The pinned `gen(Gen.const(7L))` makes the registry deliver CoinW(7) deterministically.
+      def f(c: CoinW): Output = Output(c)
+      val base =
+        gen[Output] +:        // auto-derived — will be shadowed by the refinement
+          gen[CoinW] +:
+          gen(Gen.const(7L))
+
+      val r = refineGen[Output](f) +: base
+
+      val sample = r.makeGen[Output].pureApply(Gen.Parameters.default, Seed(1L))
+      sample.coin.value === 7L
+    }
+
+    "accept a function returning Gen[T] without double-wrapping into Gen[Gen[T]]" >> {
+      def f(c: CoinW): Gen[Output] = Gen.const(Output(c))
+      val base =
+        gen[Output] +:
+          gen[CoinW] +:
+          gen(Gen.const(11L))
+
+      val r = refineGen[Output](f) +: base
+
+      val sample = r.makeGen[Output].pureApply(Gen.Parameters.default, Seed(2L))
+      sample.coin.value === 11L
+    }
+  }

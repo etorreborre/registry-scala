@@ -238,3 +238,5 @@ case class Inner2[T](value: T)
 case class Outer2[T](inner: Inner2[T])
 
 case class HasGen(label: String, gen: Gen[Int])
+case class CoinW(value: Long)
+case class Output(coin: CoinW)

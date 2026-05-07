@@ -36,8 +36,42 @@ extension [AllIns <: Tuple, AllOuts <: Tuple](r: Registry[AllIns, AllOuts])
     val entryShared = r.entries.collect { case g: GenEntry if g.shared => g.output }
     if entryShared.isEmpty then r.make[Gen[T]]
     else
-      val ordered = topoSortShared(dedupe(entryShared), r.entries)
-      build(r, ordered, tag.tag).asInstanceOf[Gen[T]]
+      // Only pin shared types that are actually reachable from the requested `Gen[T]` resolution
+      // tree. Without this filter, `share[X] +: r` forces `Gen[X]` to be constructed for every
+      // `makeGen` call — even ones whose `T` doesn't transitively depend on `X` — which can drag
+      // in heavy or recursive auto-derived chains the caller never asked for.
+      val reachable = reachableTypes(tag.tag, r.entries, r.refinements)
+      val relevantShared = entryShared.filter(s => reachable.contains(s.repr))
+      if relevantShared.isEmpty then r.make[Gen[T]]
+      else
+        val ordered = topoSortShared(dedupe(relevantShared), r.entries)
+        build(r, ordered, tag.tag).asInstanceOf[Gen[T]]
+
+/**
+ * Compute the set of type-tag reprs reachable from `start` by walking entry inputs and refinement
+ * inputs whose output / target is a supertype of an already-visited type. Conservative
+ * over-approximation — when several entries produce subtypes of a wanted type, all of their inputs
+ * are followed (not just the first one the resolver would pick), so a type marked shared is
+ * considered "reachable" if *any* entry that could produce its consumer would need it.
+ */
+private def reachableTypes(
+    start: LightTypeTag,
+    entries: List[Entry],
+    refinements: List[registry.Refinement[?, ?]]
+): Set[String] =
+  val seen = scala.collection.mutable.HashSet.empty[String]
+  val queue = scala.collection.mutable.Queue.empty[LightTypeTag]
+  queue.enqueue(start)
+  while queue.nonEmpty do
+    val t = queue.dequeue()
+    if seen.add(t.repr) then
+      entries.foreach { e =>
+        if e.output <:< t then e.inputs.foreach(queue.enqueue)
+      }
+      refinements.foreach { r =>
+        if r.targetTag <:< t then r.inputs.foreach(queue.enqueue)
+      }
+  seen.toSet
 
 private def dedupe(tags: List[LightTypeTag]): List[LightTypeTag] =
   val seen = scala.collection.mutable.HashSet.empty[String]

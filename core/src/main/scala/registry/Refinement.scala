@@ -6,8 +6,13 @@ import scala.compiletime.summonAll
 
 /**
  * A path-scoped refinement. When the resolution stack contains the types of `Path` (as a subsequence,
- * in order) and the resolver is looking for `T`, the registry returns [[value]] instead of doing the
- * normal lookup.
+ * in order) and the resolver is looking for `T`, the registry calls [[invoke]] (after resolving
+ * each entry of [[inputs]] from the surrounding registry) instead of doing the normal lookup.
+ *
+ * For value/Gen-style refinements `inputs` is empty and `invoke` ignores its argument; for
+ * function-style refinements (e.g. `refineGen[Path](f: A => T)`), `inputs` lists the function's
+ * parameter types — each looked up in the registry like a regular [[Entry]] input would be —
+ * and `invoke` applies the function (or Gen.combine equivalent) to those resolved arguments.
  *
  * Equivalent to [[Registry.refine]] but produced as a standalone value that composes with entries
  * via the `+:`, `*:`, and `-:` operators (all three behave identically — a refinement adds nothing
@@ -16,13 +21,22 @@ import scala.compiletime.summonAll
 final case class Refinement[Path, T](
     pathTags: List[LightTypeTag],
     targetTag: LightTypeTag,
-    value: Any
+    inputs: List[LightTypeTag],
+    invoke: Seq[Any] => Any
 )
 
 final class RefinePartiallyApplied[Path](private val dummy: Boolean = true) extends AnyVal:
 
   inline def apply[T](v: T)(using tTag: Tag[T]): Refinement[Path, T] =
     refine[Path, T](v)
+
+/** Build a value-style [[Refinement]] — empty inputs, the static value is returned as-is. */
+private[registry] def valueRefinement[Path, T](
+    pathTags: List[LightTypeTag],
+    targetTag: LightTypeTag,
+    v: T
+): Refinement[Path, T] =
+  Refinement(pathTags, targetTag, Nil, _ => v.asInstanceOf[Any])
 
 /**
  * Tuple of `Tag` instances corresponding to the elements of `P`.
@@ -44,7 +58,7 @@ type PathTags[P] <: Tuple = P match
  */
 inline def refine[Path, T](v: T)(using tTag: Tag[T]): Refinement[Path, T] =
   val tags = summonAll[PathTags[Path]].toList.asInstanceOf[List[Tag[?]]]
-  Refinement(tags.map(_.tag), tTag.tag, v)
+  valueRefinement(tags.map(_.tag), tTag.tag, v)
 
 /**
  * Build a [[Refinement]] while letting the target type `T` be inferred from the value.

@@ -7,7 +7,7 @@ object Resolve:
 
   def resolve(
       entries: List[Entry],
-      refinements: List[(List[LightTypeTag], LightTypeTag, Any)],
+      refinements: List[Refinement[?, ?]],
       want: LightTypeTag
   ): Any =
     val cache = scala.collection.mutable.Map.empty[String, Any]
@@ -32,20 +32,31 @@ object Resolve:
    */
   private def go(
       entries: List[Entry],
-      refinements: List[(List[LightTypeTag], LightTypeTag, Any)],
+      refinements: List[Refinement[?, ?]],
       want: LightTypeTag,
       inFlightEntries: List[Entry],
       inFlightTypes: List[LightTypeTag],
       cache: scala.collection.mutable.Map[String, Any]
   ): (Any, Boolean) =
-    // Check refinements first: if any applies for this path + target, short-circuit.
-    val refinement = refinements.find { case (path, target, _) =>
-      want.repr == target.repr && isSubsequence(path, inFlightTypes)
+    // Check refinements first: if any applies for this path + target, short-circuit. The target
+    // match uses `<:<` (subtype-aware) — same as the entry lookup below — so a refinement
+    // targeting `Gen[Resolved]` can satisfy a `Gen[Datum]` request via Gen's covariance, mirroring
+    // how an Entry producing `Gen[Resolved]` would be picked up.
+    val refinement = refinements.find { r =>
+      (r.targetTag <:< want) && isSubsequence(r.pathTags, inFlightTypes)
     }
 
     refinement match
-      case Some((_, _, v)) =>
-        (v, true)
+      case Some(r) =>
+        // Function-style refinements declare `inputs` to be resolved from the surrounding registry,
+        // mirroring how an `Entry` resolves its inputs. Value/Gen-style refinements have empty
+        // inputs and `invoke` ignores its argument. Either way, propagate `refined = true` so the
+        // caller refuses to cache the resulting value (refinement results are path-dependent).
+        val nextTypes = inFlightTypes :+ want
+        val resolved =
+          r.inputs.map(in => go(entries, refinements, in, inFlightEntries, nextTypes, cache))
+        val args = resolved.map(_._1)
+        (r.invoke(args), true)
       case None =>
         // Subtype-aware entry lookup — skip entries already in flight so that a recursive entry
         // (same input/output type) picks a *different* entry for its input, enabling `genRec`.

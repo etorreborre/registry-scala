@@ -2,7 +2,7 @@ package registry.scalacheck
 
 import izumi.reflect.Tag
 import org.scalacheck.{Arbitrary, Gen}
-import registry.{Entry, TypedEntry}
+import registry.{Entry, Registry, TypedEntry}
 
 /**
  * Register a type as a ScalaCheck generator. The macro inspects `T` and dispatches:
@@ -91,3 +91,23 @@ extension [Ins <: Tuple, T](e: TypedEntry[Ins, Gen[T]])
    */
   def const: TypedEntry[Ins, Gen[T]] =
     TypedEntry(withConstSampling(GenEntry.from(e.entry).withShared(true)))
+
+extension [AllIns <: Tuple, AllOuts <: Tuple](r: Registry[AllIns, AllOuts])
+
+  /**
+   * `r.share[T]` — equivalent to `share[T] +: r`. Mark every entry whose output is a subtype of
+   * `Gen[T]` as shared. Useful when the registry is built first (e.g. as a `def`) and `share`
+   * is applied per call site, letting different consumers of the same registry pick which types
+   * to pin.
+   */
+  def share[T](using tag: Tag[Gen[T]]): Registry[AllIns, AllOuts] =
+    Share[T](tag.tag) +: r
+
+  /**
+   * `r.const[T]` — equivalent to `const[T] +: r`. Like [[share]] but additionally pins the
+   * sampled value across separate `makeGen` calls on this registry instance. Useful for
+   * applying registry-wide fixtures at the call site rather than at the registry's
+   * construction site.
+   */
+  def const[T](using tag: Tag[Gen[T]]): Registry[AllIns, AllOuts] =
+    Const[T](tag.tag, withConstSampling) +: r

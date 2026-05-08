@@ -70,7 +70,10 @@ ScalaCheck combinator.
 | `memoize[T] +: r`             | cache the *Gen instance* across `makeGen` calls                        |
 | `share[T] +: r`               | pin one *sampled value* per `makeGen` build                            |
 | `const[T] +: r`               | pin one *sampled value* for the registry's lifetime                    |
+| `r.share[T]`                  | call-site form — equivalent to `share[T] +: r`                         |
+| `r.const[T]`                  | call-site form — equivalent to `const[T] +: r`                         |
 | `entry.share`, `entry.const`  | apply the same flags inline at registration                            |
+| `r.reset()`                   | clear all `memoize` / `const` mutable state in place                   |
 
 ## Refinements
 

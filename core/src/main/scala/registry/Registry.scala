@@ -175,6 +175,19 @@ final case class Registry[AllIns <: Tuple, AllOuts <: Tuple](
     Resolve.resolve(entries, refinements, tag.tag).asInstanceOf[T]
 
   /**
+   * Clear all mutable per-registry state (memoized values, sample-pinned `const[T]` references,
+   * etc.) by running every entry's `resetFn`. Useful between independent test runs that share a
+   * registry instance: each run gets fresh memoized / pinned values without rebuilding the
+   * registry.
+   *
+   * Mutates in place — the closures backing these entries hold the state, and the same registry
+   * value is returned for chaining. Entries with the default no-op `resetFn` are unaffected.
+   */
+  def reset(): Registry[AllIns, AllOuts] =
+    entries.foreach(_.resetFn())
+    this
+
+  /**
    * Build a value of type `T` with compile-time checks: `T` must be produced, and every required input
    * of every registered entry must be covered by an output. On failure, the compile error lists the
    * unresolved types one per line.
@@ -186,12 +199,15 @@ object Registry:
   val empty: Registry[EmptyTuple, EmptyTuple] = Registry(Nil, Nil)
 
   /**
-   * Wrap an entry's `invoke` closure with a cache. First call computes and stores the result; subsequent
-   * calls return the cached value regardless of `args`. Thread-safe via `AtomicReference`.
+   * Wrap an entry's `invoke` closure with a cache. First call computes and stores the result;
+   * subsequent calls return the cached value regardless of `args`. Thread-safe via
+   * `AtomicReference`. The returned entry preserves its concrete subtype (`Basic`, `GenEntry`,
+   * etc.) and registers a reset thunk on top of any existing one so [[Registry.reset]] clears the
+   * cache.
    */
   private[registry] def withMemoization(entry: Entry): Entry =
     val ref = new java.util.concurrent.atomic.AtomicReference[Option[Any]](None)
-    entry.withInvoke(args =>
+    val memoized = entry.withInvoke(args =>
       ref.get() match
         case Some(cached) => cached
         case None =>
@@ -199,3 +215,4 @@ object Registry:
           ref.compareAndSet(None, Some(result))
           ref.get().get // either the value we just set, or another concurrent writer's — both are valid
     )
+    memoized.withResetFn(() => ref.set(None))

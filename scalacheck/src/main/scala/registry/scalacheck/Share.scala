@@ -166,7 +166,12 @@ private[scalacheck] def withConstSampling(entry: Entry): Entry =
       sample.compareAndSet(None, Some(fresh))
       Gen.const(sample.get.get)
     }
-  Registry.withMemoization(entry.withInvoke(pinningInvoke))
+  // `withMemoization` adds a reset thunk for the invoke-cache. Layer another via `withResetFn`
+  // so `Registry.reset` also clears the sample pin — otherwise a reset would leave the
+  // previously-pinned value in `sample` and the next `make` call would observe it again.
+  Registry
+    .withMemoization(entry.withInvoke(pinningInvoke))
+    .withResetFn(() => sample.set(None))
 
 // Entry-level `.share` and `.const` extensions live in `Gen.scala` so they're co-located with
 // the `share[T]` / `const[T]` factories.

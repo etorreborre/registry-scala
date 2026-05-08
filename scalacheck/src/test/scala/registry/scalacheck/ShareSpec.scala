@@ -195,6 +195,72 @@ class ShareSpec extends Specification:
     }
   }
 
+  "registry.share[T] / registry.const[T] (call-site extension)" should {
+    "r.share[T] is equivalent to share[T] +: r" >> {
+      val r =
+        gen(Bundle.apply) +:
+          gen(Gen.choose(1, 1_000_000))
+
+      val withExt = r.share[Int]
+      val withFactory = share[Int] +: r
+      val s1 = withExt.makeGen[Bundle].pureApply(Gen.Parameters.default, Seed(1L))
+      val s2 = withFactory.makeGen[Bundle].pureApply(Gen.Parameters.default, Seed(1L))
+      s1 === s2
+      s1.a === s1.b // sharing applied
+    }
+
+    "r.const[T] is equivalent to const[T] +: r" >> {
+      val r =
+        gen(Bundle.apply) +:
+          gen(Gen.choose(1, 1_000_000))
+
+      val withExt = r.const[Int]
+      val a = withExt.makeGen[Int].pureApply(Gen.Parameters.default, Seed(99L))
+      val b = withExt.makeGen[Int].pureApply(Gen.Parameters.default, Seed(7L))
+      a === b // const pins across makeGen calls
+    }
+  }
+
+  "registry.reset()" should {
+    "clear const-pinned values so the next makeGen samples fresh" >> {
+      val r =
+        const[Int] +:
+          gen(Bundle.apply) +:
+          gen(Gen.choose(1, 1_000_000))
+
+      val before = r.makeGen[Int].pureApply(Gen.Parameters.default, Seed(1L))
+      r.reset()
+      val after = r.makeGen[Int].pureApply(Gen.Parameters.default, Seed(2L))
+      // Without reset, const would return `before` again. After reset, the second sample is fresh
+      // (overwhelmingly likely to differ in a 1..1_000_000 range).
+      before !== after
+    }
+
+    "leave non-resettable entries untouched" >> {
+      val r =
+        gen(Bundle.apply) +:
+          gen(Gen.choose(1, 1_000_000))
+
+      // Should not throw and should not change behavior — no const / no memoize entries to reset.
+      r.reset()
+      val s = r.makeGen[Bundle].pureApply(Gen.Parameters.default, Seed(1L))
+      s.a !== s.b // baseline (no sharing) still holds
+    }
+
+    "memoize[T] entries are also reset (cache cleared)" >> {
+      val r =
+        memoize[Int] +:
+          gen(Gen.choose(1, 100))
+
+      val gen1 = r.make[Gen[Int]]
+      val gen2 = r.make[Gen[Int]]
+      (gen1 eq gen2) must beTrue // memoize: same Gen instance returned across make calls
+      r.reset()
+      val gen3 = r.make[Gen[Int]]
+      (gen1 eq gen3) must beFalse // after reset, freshly resolved
+    }
+  }
+
   "share — dependent types must agree" should {
     "share both an aggregate type AND one of its inputs and have the aggregate use the pinned input" >> {
       // Reproducer for the actual hydrozoa bug. We have:

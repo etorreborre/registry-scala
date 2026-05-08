@@ -87,6 +87,27 @@ For effectful types (`F[A]`), `memoize` caches the **effect value**, not
 the result of running it. Whether re-running yields the same `A` is `F`'s
 concern (use `IO.memoize` inside the entry to share the result).
 
+### Clearing memoized state with `reset()`
+
+The cache backing `memoize[A]` lives in the entry's closure — `r.memoize[A]`
+returns a registry whose entries hold the cache, and that cache survives
+the registry value as long as the registry is reachable. If the registry
+is shared across independent test runs (e.g. a `lazy val` used by every
+property in a file), every run after the first observes the first run's
+cached value.
+
+`r.reset()` mutates each entry in place, clearing every memoize / const
+cache without rebuilding the registry. The registry value is returned
+unchanged so it can chain. Call it at the start of each test that should
+get fresh memoized values:
+
+```scala mdoc:silent
+val cleared = pooled.reset()
+```
+
+Entries with no mutable state (the default plain entries) are unaffected —
+`reset()` is a no-op on them.
+
 ## How the two interact
 
 | You want                                       | Use                                |
@@ -95,6 +116,7 @@ concern (use `IO.memoize` inside the entry to share the result).
 | Fresh value per consumer in a `make`           | `entry.fresh` or `r.fresh[A]`      |
 | Same value across all `make` calls             | `r.memoize[A]` or `entry.memoize`  |
 | Fresh per consumer AND per `make`              | `entry.fresh` (no cross-make cache stays) |
+| Clear cached / pinned state between test runs  | `r.reset()`                        |
 
 ## The `shared` flag (scalacheck)
 

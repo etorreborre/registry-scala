@@ -22,6 +22,18 @@ trait Entry:
   def fresh: Boolean
 
   /**
+   * Optional thunk that clears any mutable per-registry state attached to this entry —
+   * `AtomicReference` caches from `memoize` / `const` / `share`-pinning, primarily.
+   * `Registry.reset` walks entries and runs every entry's `resetFn`. Default no-op.
+   *
+   * Combinators that introduce state (`Registry.withMemoization`, scalacheck's
+   * `withConstSampling`) build a fresh thunk that *additionally* runs the previous one, so layers
+   * of state compose: a `share.memoize` entry's `resetFn` clears both the memoization cache and
+   * the sample-pin in one call.
+   */
+  def resetFn: () => Unit = () => ()
+
+  /**
    * Return a copy of this entry with `invoke` replaced. Used by memoization and other invoke-
    * wrapping combinators. The concrete subtype is preserved by the implementing case class.
    */
@@ -29,6 +41,13 @@ trait Entry:
 
   /** Return a copy of this entry with `fresh` set to `b` (default `true`). */
   def withFresh(b: Boolean = true): Entry
+
+  /**
+   * Return a copy of this entry whose `resetFn` runs the supplied callback ON TOP of the current
+   * `resetFn`. Composing reset thunks lets multiple state-introducing wrappers all be cleared by
+   * a single `Registry.reset` call.
+   */
+  def withResetFn(f: () => Unit): Entry
 
 object Entry:
 
@@ -51,7 +70,11 @@ object Entry:
       inputs: List[LightTypeTag],
       output: LightTypeTag,
       invoke: Seq[Any] => Any,
-      fresh: Boolean = false
+      fresh: Boolean = false,
+      override val resetFn: () => Unit = () => ()
   ) extends Entry:
     def withInvoke(f: Seq[Any] => Any): Entry = copy(invoke = f)
     def withFresh(b: Boolean = true): Entry = copy(fresh = b)
+    def withResetFn(f: () => Unit): Entry =
+      val prev = resetFn
+      copy(resetFn = () => { prev(); f() })

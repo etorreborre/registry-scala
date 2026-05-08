@@ -21,18 +21,24 @@ final case class GenEntry(
     output: LightTypeTag,
     invoke: Seq[Any] => Any,
     fresh: Boolean = false,
-    shared: Boolean = false
+    shared: Boolean = false,
+    override val resetFn: () => Unit = () => ()
 ) extends Entry:
   def withInvoke(f: Seq[Any] => Any): Entry = copy(invoke = f)
   def withFresh(b: Boolean = true): Entry = copy(fresh = b)
   def withShared(b: Boolean = true): GenEntry = copy(shared = b)
+  def withResetFn(f: () => Unit): Entry =
+    val prev = resetFn
+    copy(resetFn = () => { prev(); f() })
 
 object GenEntry:
 
   /**
    * Promote any [[Entry]] to a [[GenEntry]]. If the input is already a `GenEntry`, return it
-   * unchanged; otherwise wrap its data in a new `GenEntry` with `shared = false`.
+   * unchanged; otherwise wrap its data in a new `GenEntry` with `shared = false`. The carried
+   * `resetFn` is preserved either way so subsequent `Registry.reset` calls still clear cached
+   * state established before promotion.
    */
   def from(e: Entry): GenEntry = e match
     case g: GenEntry => g
-    case _           => GenEntry(e.inputs, e.output, e.invoke, e.fresh, shared = false)
+    case _           => GenEntry(e.inputs, e.output, e.invoke, e.fresh, shared = false, e.resetFn)

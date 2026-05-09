@@ -3,7 +3,7 @@ package registry.circe
 import io.circe.Json
 import izumi.reflect.Tag
 import izumi.reflect.macrortti.LightTypeTag
-import registry.{Entry, TypedEntry}
+import registry.{Entry, Registry, TypedEntry}
 import scala.quoted.*
 
 /**
@@ -14,17 +14,27 @@ import scala.quoted.*
  *   field types across all constructors of `T`. At runtime, the entry's closure builds a list of
  *   [[ConstructorDef]]s, calls [[decodeFromDefinitions]] to pick the right constructor and decode each
  *   field, and applies the constructor to the decoded values.
+ *
+ *   Self-recursion is detected automatically (see [[makeEncoder]] for the same scheme).
  */
-transparent inline def makeDecoder[T]: TypedEntry[? <: Tuple, Decoder[T]] =
+transparent inline def makeDecoder[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
   ${ MakeDecoderMacro.implDropQualifier[T] }
 
 /** Same as [[makeDecoder]] but keep the fully-qualified type name in `fieldTypes`. */
-transparent inline def makeDecoderQualified[T]: TypedEntry[? <: Tuple, Decoder[T]] =
+transparent inline def makeDecoderQualified[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
   ${ MakeDecoderMacro.implFullQualified[T] }
 
 /** Same as [[makeDecoder]] but keep only the last package segment in the type name. */
-transparent inline def makeDecoderQualifiedLast[T]: TypedEntry[? <: Tuple, Decoder[T]] =
+transparent inline def makeDecoderQualifiedLast[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
   ${ MakeDecoderMacro.implLastQualifier[T] }
+
+/**
+ * Value-driven variant: `makeDecoder(x)` for a single-argument function `f: T => S`. Registers
+ * `Decoder[S]` derived from `Decoder[T]` via `f` (map). Equivalent to `map(f)`, exposed under
+ * the `makeDecoder` name for chain ergonomics. Only single-arg functions are accepted.
+ */
+transparent inline def makeDecoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple] =
+  ${ MakeDecoderMacro.valueImpl[X]('x) }
 
 private[circe] object MakeDecoderMacro:
 
@@ -32,11 +42,42 @@ private[circe] object MakeDecoderMacro:
   private inline val FullQualified = "full"
   private inline val LastQualifier = "last"
 
-  def implDropQualifier[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Decoder[T]]] = impl[T](DropQualifier)
-  def implFullQualified[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Decoder[T]]] = impl[T](FullQualified)
-  def implLastQualifier[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Decoder[T]]] = impl[T](LastQualifier)
+  def implDropQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] = impl[T](DropQualifier)
+  def implFullQualified[T: Type](using Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] = impl[T](FullQualified)
+  def implLastQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] = impl[T](LastQualifier)
 
-  def impl[T: Type](mode: String)(using q: Quotes): Expr[TypedEntry[? <: Tuple, Decoder[T]]] =
+  /** Dispatch a value-based `makeDecoder(x)`. Single-arg functions only — everything else errors. */
+  def valueImpl[X: Type](x: Expr[X])(using q: Quotes): Expr[Registry[? <: Tuple, ? <: Tuple]] =
+    import q.reflect.*
+    val xTpe = TypeRepr.of[X].dealias
+
+    def isFunctionTycon(tycon: TypeRepr): Boolean =
+      val name = tycon.typeSymbol.fullName
+      name.startsWith("scala.Function") || name.startsWith("scala.ContextFunction")
+
+    xTpe match
+      case AppliedType(tycon, tTpe :: sTpe :: Nil) if isFunctionTycon(tycon) =>
+        ((tTpe.asType, sTpe.asType): @unchecked) match
+          case ('[t], '[s]) =>
+            val fExpr: Expr[t => s] = x.asExprOf[t => s]
+            '{
+              val tagIn = summon[Tag[Decoder[t]]]
+              val tagOut = summon[Tag[Decoder[s]]]
+              val entry = Entry(
+                List(tagIn.tag),
+                tagOut.tag,
+                args => args(0).asInstanceOf[Decoder[t]].map[s]($fExpr)
+              )
+              Registry[Decoder[t] *: EmptyTuple, Decoder[s] *: EmptyTuple](entries = List(entry))
+            }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+
+      case _ =>
+        report.errorAndAbort(
+          s"makeDecoder(${xTpe.show}): expected a single-argument function `T => S`. " +
+            "For type-based derivation, use `makeDecoder[T]` instead."
+        )
+
+  def impl[T: Type](mode: String)(using q: Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] =
     import q.reflect.*
 
     val tpe = TypeRepr.of[T]
@@ -70,18 +111,21 @@ private[circe] object MakeDecoderMacro:
         else
           val valueParamLists: List[List[Symbol]] = ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
           val flat: List[Symbol] = valueParamLists.flatten
-          val childTpe: TypeRepr =
-            tpe match
-              case AppliedType(_, args) =>
-                val childClassSym = childSym.typeRef.typeSymbol
-                val childTypeParams = childClassSym.typeRef.widen match
-                  case AppliedType(_, tps) => tps
-                  case _                   => Nil
-                if childTypeParams.size == args.size then AppliedType(childSym.typeRef, args)
-                else childSym.typeRef
-              case _ => childSym.typeRef
           val fieldNames = flat.map(_.name)
-          val fieldTypes = flat.map(childTpe.memberType)
+          // See [[MakeEncoderMacro]] for the rationale of the three-way dispatch on `tpe`.
+          // Compute field types substituted with the applied type's arguments. `memberType` does
+          // not auto-substitute type parameters in Scala 3 reflect; we do it explicitly via
+          // `substituteTypes` from the class's primary-constructor type-parameter symbols.
+          val rawFieldTypes: List[TypeRepr] = flat.map(childSym.typeRef.memberType)
+          val fieldTypes: List[TypeRepr] = tpe match
+            case AppliedType(_, args) =>
+              val classTypeParams: List[Symbol] = childSym.primaryConstructor.paramSymss
+                .find(ps => ps.headOption.exists(_.isType))
+                .getOrElse(Nil)
+              if classTypeParams.size == args.size && classTypeParams.nonEmpty then
+                rawFieldTypes.map(_.substituteTypes(classTypeParams, args))
+              else rawFieldTypes
+            case _ => rawFieldTypes
           CtorData(childSym, displayName, flat.isEmpty, fieldNames, fieldTypes)
 
     val ctorData: List[CtorData] = constructors.map(mkCtorData)
@@ -138,9 +182,17 @@ private[circe] object MakeDecoderMacro:
             val ctorSel: Term = Select(New(TypeIdent(c.ctorSym)), c.ctorSym.primaryConstructor)
             val ctorTyped: Term =
               tpe match
-                case AppliedType(_, targs) =>
+                case AppliedType(_, targs) if c.ctorSym == tpe.typeSymbol =>
                   val targTrees = targs.map(t => TypeTree.of(using t.asType))
                   TypeApply(ctorSel, targTrees)
+                case AppliedType(_, targs) =>
+                  val classTypeParams = c.ctorSym.primaryConstructor.paramSymss
+                    .find(ps => ps.headOption.exists(_.isType))
+                    .getOrElse(Nil)
+                  if classTypeParams.size == targs.size && classTypeParams.nonEmpty then
+                    val targTrees = targs.map(t => TypeTree.of(using t.asType))
+                    TypeApply(ctorSel, targTrees)
+                  else ctorSel
                 case _ => ctorSel
             val applied = Apply(ctorTyped, acc)
             applied.asExprOf[T] match
@@ -210,13 +262,44 @@ private[circe] object MakeDecoderMacro:
         decodeFromDefinitions[T](opts, cd, defs, value, buildFn)
     }
 
-    val entryExpr: Expr[Entry] =
-      '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
+    // Recursion detection: see MakeEncoderMacro for rationale.
+    val isRecursive: Boolean = ctorData.flatMap(_.fieldTypes).exists(ft => containsTypeSymbol(ft, sym))
+    val typeDisplayExpr: Expr[String] = Expr(typeDisplayNameStr)
 
     val insTpe = buildTupleType(allInputTypes)
     insTpe.asType match
       case '[ins] =>
-        '{ TypedEntry[ins & Tuple, Decoder[T]]($entryExpr) }
+        if isRecursive then
+          '{
+            val ref = new java.util.concurrent.atomic.AtomicReference[Decoder[T]]()
+            val rawClosure: Seq[Any] => Any = $closure
+            val mainEntry = Entry(
+              ${ Expr.ofList(inputTagExprs) },
+              $outputTagExpr,
+              (args: Seq[Any]) =>
+                val d = rawClosure(args).asInstanceOf[Decoder[T]]
+                ref.set(d)
+                d
+            )
+            val forwarderEntry = Entry(
+              Nil,
+              $outputTagExpr,
+              (_: Seq[Any]) =>
+                Decoder[T]: j =>
+                  val cached = ref.get()
+                  if cached eq null then
+                    Left(
+                      s"Recursive Decoder[${$typeDisplayExpr}] forwarder invoked before its main entry was resolved."
+                    )
+                  else cached.decode(j)
+            )
+            Registry[ins & Tuple, Decoder[T] *: EmptyTuple](entries = List(mainEntry, forwarderEntry))
+          }
+        else
+          '{
+            val theEntry = Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure)
+            Registry[ins & Tuple, Decoder[T] *: EmptyTuple](entries = List(theEntry))
+          }
 
   // -----------------------------------------------------------------------------
 
@@ -251,3 +334,13 @@ private[circe] object MakeDecoderMacro:
     types.foldRight(TypeRepr.of[EmptyTuple]): (h, acc) =>
       ((h.asType, acc.asType): @unchecked) match
         case ('[ht], '[tt]) => TypeRepr.of[ht *: (tt & Tuple)]
+
+  /** True iff `tpe`'s type tree mentions the symbol `target` anywhere (head or any type argument). */
+  private def containsTypeSymbol(using q: Quotes)(tpe: q.reflect.TypeRepr, target: q.reflect.Symbol): Boolean =
+    import q.reflect.*
+    def go(t: TypeRepr): Boolean =
+      t.dealias match
+        case AppliedType(tycon, args) =>
+          tycon.typeSymbol == target || args.exists(go)
+        case other => other.typeSymbol == target
+    go(tpe)

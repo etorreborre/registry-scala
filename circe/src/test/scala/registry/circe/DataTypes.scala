@@ -59,6 +59,16 @@ object DataTypes:
 
   final case class Name(name: String)
 
+  // -- recursive types --
+
+  /** Direct self-reference: the `next` field has type `Cons`. */
+  enum Cons:
+    case End
+    case Item(value: Int, next: Cons)
+
+  /** Recursion through a container: `children: List[Tree]`. */
+  final case class Tree(value: Int, children: List[Tree])
+
   // -- example values --
 
   val email1: Email = Email("me@here.com")

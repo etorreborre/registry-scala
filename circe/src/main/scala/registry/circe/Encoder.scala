@@ -2,7 +2,7 @@ package registry.circe
 
 import io.circe.{Json, JsonObject, Printer}
 import izumi.reflect.Tag
-import registry.{Entry, TypedEntry}
+import registry.{Entry, Registry, TypedEntry, value}
 
 /**
  * An `Encoder[A]` converts a value of type `A` into a circe `Json` value.
@@ -13,7 +13,53 @@ import registry.{Entry, TypedEntry}
 final case class Encoder[A](encode: A => Json):
   def contramap[B](f: B => A): Encoder[B] = Encoder(b => encode(f(b)))
 
+  /** Lift this registry-native `Encoder[A]` into an `io.circe.Encoder[A]` for use at API boundaries. */
+  def asCirce: io.circe.Encoder[A] = io.circe.Encoder.instance(encode)
+
 object Encoder:
+
+  // ---- primitive built-ins ----
+
+  /** Encode a `String` as a JSON string. */
+  val string: Encoder[String] = Encoder(Json.fromString)
+
+  /** Encode an `Int` as a JSON number. */
+  val int: Encoder[Int] = Encoder(Json.fromInt)
+
+  /** Encode a `Long` as a JSON number. */
+  val long: Encoder[Long] = Encoder(Json.fromLong)
+
+  /** Encode a `Boolean` as a JSON boolean. */
+  val boolean: Encoder[Boolean] = Encoder(Json.fromBoolean)
+
+  /** Encode a `Double` as a JSON number, or `Json.Null` for `NaN`/`Infinity`. */
+  val double: Encoder[Double] = Encoder(Json.fromDoubleOrNull)
+
+  /** Encode a `Unit` as an empty JSON object. */
+  val unit: Encoder[Unit] = Encoder(_ => Json.obj())
+
+  /** Encode a `Byte` as a JSON number. */
+  val byte: Encoder[Byte] = Encoder(b => Json.fromInt(b.toInt))
+
+  /**
+   * Registry bundling every primitive `Encoder[T]` (Unit, String, Int, Long, Boolean, Double) as
+   * a single value. Drop into a chain instead of listing the per-primitive entries:
+   *
+   * {{{
+   * makeEncoder[Foo] *: contramap((_:Wrapper).inner) *: Encoder.primitives *: defaultEncoderOptions
+   * }}}
+   *
+   * The return type is left to inference so the precise `AllOuts` tuple is exposed — strict `+:`
+   * needs to see the concrete outputs to verify covers.
+   */
+  val primitives =
+    value(unit) *:
+      value(string) *:
+      value(int) *:
+      value(long) *:
+      value(boolean) *:
+      value(double) *:
+      value(byte)
 
   private val printer: Printer = Printer.noSpaces.copy(dropNullValues = false)
 
@@ -109,6 +155,22 @@ object Encoder:
 
   def vectorOfEncoder[A](e: Encoder[A]): Encoder[Vector[A]] =
     Encoder(as => Json.arr(as.map(e.encode)*))
+
+  /** `Encoder[IArray[A]]`. */
+  def encodeIArrayOf[A](using
+      tagIn: Tag[Encoder[A]],
+      tagOut: Tag[Encoder[IArray[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[IArray[A]]] =
+    TypedEntry(
+      Entry(
+        List(tagIn.tag),
+        tagOut.tag,
+        args => iArrayOfEncoder(args(0).asInstanceOf[Encoder[A]])
+      )
+    )
+
+  def iArrayOfEncoder[A](e: Encoder[A]): Encoder[IArray[A]] =
+    Encoder(as => Json.arr(as.toList.map(e.encode)*))
 
   /** `Encoder[Set[A]]`. */
   def encodeSetOf[A](using

@@ -107,7 +107,7 @@ populating `io.circe.Encoder[A]` instances directly. This keeps registry-driven 
 
 Circe's `Json` AST, parser, printer, and `io.circe.Encoder[A]` / `io.circe.Decoder[A]` /
 `io.circe.KeyEncoder[A]` / `io.circe.KeyDecoder[A]` typeclass instances are reused — see the
-`jsonEncoder[A]` / `jsonDecoder[A]` / `bridgeKeyEncoder[A]` / `bridgeKeyDecoder[A]` entries.
+`jsonEncoder[A]` / `jsonDecoder[A]` / `keyEncoder[A]` / `keyDecoder[A]` entries.
 
 ## Limitations
 

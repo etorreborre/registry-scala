@@ -3,7 +3,7 @@ package registry.circe
 import io.circe.Json
 import izumi.reflect.Tag
 import izumi.reflect.macrortti.LightTypeTag
-import registry.{Entry, TypedEntry}
+import registry.{Entry, Registry, TypedEntry}
 import scala.quoted.*
 
 /**
@@ -15,17 +15,34 @@ import scala.quoted.*
  *   value and packs a [[FromConstructor]] that the [[ConstructorEncoder]] turns into `Json`.
  *
  *   For sum types (sealed traits / enums), one pattern-match branch is generated per child constructor.
+ *
+ *   Self-recursion is detected automatically (any field type whose `TypeRepr` mentions `T` — directly
+ *   or wrapped, e.g. `List[T]` / `Option[T]`). The macro emits an extra forwarder entry that picks up
+ *   the in-flight `Encoder[T]` resolution; the main entry back-patches a shared cell so the forwarder
+ *   dispatches to the real encoder once it exists. Mutual recursion across distinct types is not
+ *   handled.
  */
-transparent inline def makeEncoder[T]: TypedEntry[? <: Tuple, Encoder[T]] =
+transparent inline def makeEncoder[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
   ${ MakeEncoderMacro.implDropQualifier[T] }
 
 /** Same as [[makeEncoder]] but keep the fully-qualified type name in `fromConstructorTypes`. */
-transparent inline def makeEncoderQualified[T]: TypedEntry[? <: Tuple, Encoder[T]] =
+transparent inline def makeEncoderQualified[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
   ${ MakeEncoderMacro.implFullQualified[T] }
 
 /** Same as [[makeEncoder]] but keep only the last package segment in the type name. */
-transparent inline def makeEncoderQualifiedLast[T]: TypedEntry[? <: Tuple, Encoder[T]] =
+transparent inline def makeEncoderQualifiedLast[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
   ${ MakeEncoderMacro.implLastQualifier[T] }
+
+/**
+ * Value-driven variant: `makeEncoder(x)` for a single-argument function `f: S => T`. Registers
+ * `Encoder[S]` derived from `Encoder[T]` via `f` (contramap). Equivalent to `contramap(f)`, exposed
+ * under the `makeEncoder` name so a chain can use a single helper everywhere.
+ *
+ * Only single-arg functions are accepted — passing a multi-arg function or a module reference
+ * fails at compile time. For type-based derivation, use the type-parameter form `makeEncoder[T]`.
+ */
+transparent inline def makeEncoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple] =
+  ${ MakeEncoderMacro.valueImpl[X]('x) }
 
 private[circe] object MakeEncoderMacro:
 
@@ -33,11 +50,47 @@ private[circe] object MakeEncoderMacro:
   private inline val FullQualified = "full"
   private inline val LastQualifier = "last"
 
-  def implDropQualifier[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Encoder[T]]] = impl[T](DropQualifier)
-  def implFullQualified[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Encoder[T]]] = impl[T](FullQualified)
-  def implLastQualifier[T: Type](using Quotes): Expr[TypedEntry[? <: Tuple, Encoder[T]]] = impl[T](LastQualifier)
+  def implDropQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] = impl[T](DropQualifier)
+  def implFullQualified[T: Type](using Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] = impl[T](FullQualified)
+  def implLastQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] = impl[T](LastQualifier)
 
-  def impl[T: Type](mode: String)(using q: Quotes): Expr[TypedEntry[? <: Tuple, Encoder[T]]] =
+  /**
+   * Dispatch a value-based `makeEncoder(x)`. Only single-arg functions are accepted; anything
+   * else fails at compile time (so users don't silently lose a function body or get surprising
+   * type-witness behaviour from a value argument).
+   */
+  def valueImpl[X: Type](x: Expr[X])(using q: Quotes): Expr[Registry[? <: Tuple, ? <: Tuple]] =
+    import q.reflect.*
+    val xTpe = TypeRepr.of[X].dealias
+
+    def isFunctionTycon(tycon: TypeRepr): Boolean =
+      val name = tycon.typeSymbol.fullName
+      name.startsWith("scala.Function") || name.startsWith("scala.ContextFunction")
+
+    xTpe match
+      case AppliedType(tycon, sTpe :: tTpe :: Nil) if isFunctionTycon(tycon) =>
+        // Single-arg function S => T → contramap mode.
+        ((sTpe.asType, tTpe.asType): @unchecked) match
+          case ('[s], '[t]) =>
+            val fExpr: Expr[s => t] = x.asExprOf[s => t]
+            '{
+              val tagIn = summon[Tag[Encoder[t]]]
+              val tagOut = summon[Tag[Encoder[s]]]
+              val entry = Entry(
+                List(tagIn.tag),
+                tagOut.tag,
+                args => args(0).asInstanceOf[Encoder[t]].contramap[s]($fExpr)
+              )
+              Registry[Encoder[t] *: EmptyTuple, Encoder[s] *: EmptyTuple](entries = List(entry))
+            }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+
+      case _ =>
+        report.errorAndAbort(
+          s"makeEncoder(${xTpe.show}): expected a single-argument function `S => T`. " +
+            "For type-based derivation, use `makeEncoder[T]` instead."
+        )
+
+  def impl[T: Type](mode: String)(using q: Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] =
     import q.reflect.*
 
     val tpe = TypeRepr.of[T]
@@ -70,18 +123,19 @@ private[circe] object MakeEncoderMacro:
         else
           val valueParamLists: List[List[Symbol]] = ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
           val flat: List[Symbol] = valueParamLists.flatten
-          val childTpe: TypeRepr =
-            tpe match
-              case AppliedType(_, args) =>
-                val childClassSym = childSym.typeRef.typeSymbol
-                val childTypeParams = childClassSym.typeRef.widen match
-                  case AppliedType(_, tps) => tps
-                  case _                   => Nil
-                if childTypeParams.size == args.size then AppliedType(childSym.typeRef, args)
-                else childSym.typeRef
-              case _ => childSym.typeRef
           val fieldNames = flat.map(_.name)
-          val fieldTypes = flat.map(childTpe.memberType)
+          // Compute field types substituted with the applied type's arguments via
+          // `substituteTypes` — `memberType` does not auto-substitute in Scala 3 reflect.
+          val rawFieldTypes: List[TypeRepr] = flat.map(childSym.typeRef.memberType)
+          val fieldTypes: List[TypeRepr] = tpe match
+            case AppliedType(_, args) =>
+              val classTypeParams: List[Symbol] = childSym.primaryConstructor.paramSymss
+                .find(ps => ps.headOption.exists(_.isType))
+                .getOrElse(Nil)
+              if classTypeParams.size == args.size && classTypeParams.nonEmpty then
+                rawFieldTypes.map(_.substituteTypes(classTypeParams, args))
+              else rawFieldTypes
+            case _ => rawFieldTypes
           CtorData(childSym, displayName, flat.isEmpty, fieldNames, fieldTypes)
 
     val ctorData: List[CtorData] = constructors.map(mkCtorData)
@@ -130,10 +184,24 @@ private[circe] object MakeEncoderMacro:
             }.asTerm
           )
         else
-          val childType: TypeRepr = c.ctorSym.typeRef
+          // Use the applied form for the bind type so that field accessors return correctly
+          // substituted types (e.g. `Wrapper[Int].value : Int`, not `A`).
+          val childType: TypeRepr =
+            tpe match
+              case AppliedType(_, args) if c.ctorSym == tpe.typeSymbol => tpe
+              case AppliedType(_, args) =>
+                val classTypeParams = c.ctorSym.primaryConstructor.paramSymss
+                  .find(ps => ps.headOption.exists(_.isType))
+                  .getOrElse(Nil)
+                if classTypeParams.size == args.size && classTypeParams.nonEmpty then
+                  AppliedType(c.ctorSym.typeRef, args)
+                else c.ctorSym.typeRef
+              case _ => c.ctorSym.typeRef
           val bindSym: Symbol = Symbol.newBind(Symbol.spliceOwner, "a", Flags.EmptyFlags, childType)
           val bindRef: Term = Ref(bindSym)
-          val typedPat: Tree = Typed(Wildcard(), TypeIdent(c.ctorSym))
+          val patternTypeTree: TypeTree = childType.asType match
+            case '[childT] => TypeTree.of[childT]
+          val typedPat: Tree = Typed(Wildcard(), patternTypeTree)
           val pat: Tree = Bind(bindSym, typedPat)
 
           val fieldNamesExpr: Expr[List[String]] = Expr(c.fieldNames)
@@ -171,13 +239,47 @@ private[circe] object MakeEncoderMacro:
         ce.encodeConstructor(opts, fc)
     }
 
-    val entryExpr: Expr[Entry] =
-      '{ Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure) }
+    // Recursion detection: any field type whose TypeRepr tree contains the symbol `sym` of `T`
+    // requires a forwarder entry so the cycle through `Encoder[T]` resolves through the in-flight
+    // skip in `Resolve.go` instead of erroring out.
+    val isRecursive: Boolean = ctorData.flatMap(_.fieldTypes).exists(ft => containsTypeSymbol(ft, sym))
+    val typeDisplay: String = applyQualifierMode(sym.fullName, mode)
+    val typeDisplayExpr: Expr[String] = Expr(typeDisplay)
 
     val insTpe = buildTupleType(allInputTypes)
     insTpe.asType match
       case '[ins] =>
-        '{ TypedEntry[ins & Tuple, Encoder[T]]($entryExpr) }
+        if isRecursive then
+          '{
+            val ref = new java.util.concurrent.atomic.AtomicReference[Encoder[T]]()
+            val rawClosure: Seq[Any] => Any = $closure
+            val mainEntry = Entry(
+              ${ Expr.ofList(inputTagExprs) },
+              $outputTagExpr,
+              (args: Seq[Any]) =>
+                val e = rawClosure(args).asInstanceOf[Encoder[T]]
+                ref.set(e)
+                e
+            )
+            val forwarderEntry = Entry(
+              Nil,
+              $outputTagExpr,
+              (_: Seq[Any]) =>
+                Encoder[T]: a =>
+                  val cached = ref.get()
+                  if cached eq null then
+                    sys.error(
+                      s"Recursive Encoder[${$typeDisplayExpr}] forwarder invoked before its main entry was resolved."
+                    )
+                  else cached.encode(a)
+            )
+            Registry[ins & Tuple, Encoder[T] *: EmptyTuple](entries = List(mainEntry, forwarderEntry))
+          }
+        else
+          '{
+            val theEntry = Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure)
+            Registry[ins & Tuple, Encoder[T] *: EmptyTuple](entries = List(theEntry))
+          }
 
   // -----------------------------------------------------------------------------
 
@@ -212,3 +314,14 @@ private[circe] object MakeEncoderMacro:
     types.foldRight(TypeRepr.of[EmptyTuple]): (h, acc) =>
       ((h.asType, acc.asType): @unchecked) match
         case ('[ht], '[tt]) => TypeRepr.of[ht *: (tt & Tuple)]
+
+  /** True iff `tpe`'s type tree mentions the symbol `target` anywhere (head or any type argument). */
+  private def containsTypeSymbol(using q: Quotes)(tpe: q.reflect.TypeRepr, target: q.reflect.Symbol): Boolean =
+    import q.reflect.*
+    def go(t: TypeRepr): Boolean =
+      t.dealias match
+        case AppliedType(tycon, args) =>
+          tycon.typeSymbol == target || args.exists(go)
+        case other => other.typeSymbol == target
+    go(tpe)
+

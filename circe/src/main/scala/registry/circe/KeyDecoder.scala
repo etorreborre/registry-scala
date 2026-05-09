@@ -21,7 +21,7 @@ object KeyDecoder:
     TypedEntry(Entry(Nil, tag.tag, _ => KeyDecoder(f)))
 
   /** Lift a circe `KeyDecoder[A]` into a registry-native `KeyDecoder[A]`. */
-  def bridgeKeyDecoder[A](using
+  def keyDecoder[A](using
       cd: io.circe.KeyDecoder[A],
       tag: Tag[KeyDecoder[A]]
   ): TypedEntry[EmptyTuple, KeyDecoder[A]] =

@@ -89,9 +89,45 @@ class MacroSpec extends Specification:
     d.decode(byEmailEncoded) === Right(Delivery.ByEmail(Email("x@y.z")))
   }
 
+  "makeEncoder[Wrapper[Int]] on a generic class substitutes the type parameter in fields" >> {
+    val r =
+      makeEncoder[Wrapper[Int]] *:
+        makeDecoder[Wrapper[Int]] *:
+        jsonEncoder[Int] *:
+        jsonDecoder[Int] *:
+        defaultEncoderOptions <+>
+        defaultDecoderOptions
+
+    val e = r.make[Encoder[Wrapper[Int]]]
+    val d = r.make[Decoder[Wrapper[Int]]]
+    e.encode(Wrapper(7)) === Json.obj("value" -> Json.fromInt(7))
+    d.decode(Json.obj("value" -> Json.fromInt(7))) === Right(Wrapper(7))
+  }
+
+  "value-driven makeEncoder(S => T) — single-arg function → contramap mode" >> {
+    final case class UserId(value: Long)
+
+    val r =
+      makeEncoder((_: UserId).value) *:
+        makeDecoder((l: Long) => UserId(l)) *:
+        jsonEncoder[Long] *:
+        jsonDecoder[Long]
+
+    val e = r.make[Encoder[UserId]]
+    val d = r.make[Decoder[UserId]]
+
+    // Single-arg function dispatch — Encoder[UserId] derived from Encoder[Long] via contramap.
+    e.encode(UserId(42L)) === Json.fromLong(42L)
+    d.decode(Json.fromLong(42L)) === Right(UserId(42L))
+  }
+
 case class Identifier(value: Int)
 case class Email(email: String)
 case class Person(identifier: Identifier, email: Email)
+
+// Generic class with a field that references the type parameter — exercises the macro's
+// type-parameter substitution path.
+final case class Wrapper[A](value: A)
 
 enum Delivery:
   case NoDelivery

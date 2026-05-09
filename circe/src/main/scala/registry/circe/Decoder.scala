@@ -3,7 +3,7 @@ package registry.circe
 import io.circe.{Json, ParsingFailure}
 import io.circe.parser
 import izumi.reflect.Tag
-import registry.{Entry, TypedEntry}
+import registry.{Entry, Registry, TypedEntry, value}
 
 /**
  * A `Decoder[A]` converts a circe `Json` value into an `A` or returns an error message.
@@ -16,7 +16,62 @@ final case class Decoder[A](decode: Json => Either[String, A]):
   def map[B](f: A => B): Decoder[B] = Decoder(j => decode(j).map(f))
   def flatMap[B](f: A => Decoder[B]): Decoder[B] = Decoder(j => decode(j).flatMap(a => f(a).decode(j)))
 
+  /**
+   * Lift this registry-native `Decoder[A]` into an `io.circe.Decoder[A]` for use at API boundaries.
+   * Failure messages from this decoder are surfaced via `io.circe.DecodingFailure` with the
+   * cursor's history attached.
+   */
+  def asCirce: io.circe.Decoder[A] =
+    io.circe.Decoder.instance(c =>
+      decode(c.value) match
+        case Right(a)  => Right(a)
+        case Left(msg) => Left(io.circe.DecodingFailure(msg, c.history))
+    )
+
 object Decoder:
+
+  // ---- primitive built-ins ----
+
+  /** Decode a JSON string into a `String`. */
+  val string: Decoder[String] =
+    Decoder(j => j.asString.toRight("not a string"))
+
+  /** Decode a JSON number into an `Int` (fails if the number does not fit). */
+  val int: Decoder[Int] =
+    Decoder(j => j.asNumber.flatMap(_.toInt).toRight("not an int"))
+
+  /** Decode a JSON number into a `Long` (fails if the number does not fit). */
+  val long: Decoder[Long] =
+    Decoder(j => j.asNumber.flatMap(_.toLong).toRight("not a long"))
+
+  /** Decode a JSON boolean into a `Boolean`. */
+  val boolean: Decoder[Boolean] =
+    Decoder(j => j.asBoolean.toRight("not a boolean"))
+
+  /** Decode a JSON number into a `Double`. */
+  val double: Decoder[Double] =
+    Decoder(j => j.asNumber.map(_.toDouble).toRight("not a double"))
+
+  /** Decode any JSON value into `()`. */
+  val unit: Decoder[Unit] = Decoder(_ => Right(()))
+
+  /** Decode a JSON number into a `Byte` (fails if outside `Byte`'s range). */
+  val byte: Decoder[Byte] =
+    Decoder(j => j.asNumber.flatMap(_.toByte).toRight("not a byte"))
+
+  /**
+   * Registry bundling every primitive `Decoder[T]` (Unit, String, Int, Long, Boolean, Double) as
+   * a single value. See [[Encoder.primitives]] for the symmetric encoder bundle. The return type
+   * is left to inference so the precise `AllOuts` tuple is exposed to strict `+:` checks.
+   */
+  val primitives =
+    value(unit) *:
+      value(string) *:
+      value(int) *:
+      value(long) *:
+      value(boolean) *:
+      value(double) *:
+      value(byte)
 
   /** Parse a JSON string and then decode it with the given `Decoder`. */
   def decodeString[A](d: Decoder[A], s: String)(using tag: Tag[A]): Either[String, A] =
@@ -125,6 +180,30 @@ object Decoder:
     Decoder: j =>
       j.asArray match
         case Some(vs) => sequenceEither(vs.toList.map(d.decode)).map(_.toVector)
+        case None     => Left(s"not a list of ${showType[A]}")
+
+  /** `Decoder[IArray[A]]`. Requires `ClassTag[A]` at the call site to build the underlying array. */
+  def decodeIArrayOf[A](using
+      tagIn: Tag[Decoder[A]],
+      tagOut: Tag[Decoder[IArray[A]]],
+      tagA: Tag[A],
+      classTag: scala.reflect.ClassTag[A]
+  ): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[IArray[A]]] =
+    TypedEntry(
+      Entry(
+        List(tagIn.tag),
+        tagOut.tag,
+        args => iArrayOfDecoder(args(0).asInstanceOf[Decoder[A]])
+      )
+    )
+
+  def iArrayOfDecoder[A](d: Decoder[A])(using
+      tagA: Tag[A],
+      classTag: scala.reflect.ClassTag[A]
+  ): Decoder[IArray[A]] =
+    Decoder: j =>
+      j.asArray match
+        case Some(vs) => sequenceEither(vs.toList.map(d.decode)).map(xs => IArray.from(xs))
         case None     => Left(s"not a list of ${showType[A]}")
 
   /** `Decoder[Set[A]]`. */

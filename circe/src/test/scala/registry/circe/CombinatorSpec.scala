@@ -59,8 +59,8 @@ class CombinatorSpec extends Specification:
     val r =
       encodeMapOf[String, Int] *:
         decodeMapOf[String, Int] *:
-        bridgeKeyEncoder[String] *:
-        bridgeKeyDecoder[String] *:
+        keyEncoder[String] *:
+        keyDecoder[String] *:
         jsonEncoder[Int] *:
         jsonDecoder[Int]
 

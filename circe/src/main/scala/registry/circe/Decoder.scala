@@ -17,6 +17,12 @@ final case class Decoder[A](decode: Json => Either[String, A]):
   def flatMap[B](f: A => Decoder[B]): Decoder[B] = Decoder(j => decode(j).flatMap(a => f(a).decode(j)))
 
   /**
+   * Fallible map: decode `A`, then run `f` which may fail with an error message. Useful for
+   * post-validation (e.g. constructing types whose factory returns `Either`).
+   */
+  def emap[B](f: A => Either[String, B]): Decoder[B] = Decoder(j => decode(j).flatMap(f))
+
+  /**
    * Lift this registry-native `Decoder[A]` into an `io.circe.Decoder[A]` for use at API boundaries.
    * Failure messages from this decoder are surfaced via `io.circe.DecodingFailure` with the
    * cursor's history attached.
@@ -59,10 +65,18 @@ object Decoder:
   val byte: Decoder[Byte] =
     Decoder(j => j.asNumber.flatMap(_.toByte).toRight("not a byte"))
 
+  /** Decode a JSON number into a `BigInt`. */
+  val bigInt: Decoder[BigInt] =
+    Decoder(j => j.asNumber.flatMap(_.toBigInt).toRight("not a BigInt"))
+
+  /** Identity decoder — returns the raw `io.circe.Json` value as-is. */
+  val json: Decoder[Json] = Decoder(j => Right(j))
+
   /**
-   * Registry bundling every primitive `Decoder[T]` (Unit, String, Int, Long, Boolean, Double) as
-   * a single value. See [[Encoder.primitives]] for the symmetric encoder bundle. The return type
-   * is left to inference so the precise `AllOuts` tuple is exposed to strict `+:` checks.
+   * Registry bundling every primitive `Decoder[T]` (Unit, String, Int, Long, Boolean, Double, Byte,
+   * BigInt, Json) as a single value. See [[Encoder.primitives]] for the symmetric encoder bundle.
+   * The return type is left to inference so the precise `AllOuts` tuple is exposed to strict `+:`
+   * checks.
    */
   val primitives =
     value(unit) *:
@@ -71,7 +85,9 @@ object Decoder:
       value(long) *:
       value(boolean) *:
       value(double) *:
-      value(byte)
+      value(byte) *:
+      value(bigInt) *:
+      value(json)
 
   /** Parse a JSON string and then decode it with the given `Decoder`. */
   def decodeString[A](d: Decoder[A], s: String)(using tag: Tag[A]): Either[String, A] =

@@ -59,6 +59,9 @@ package object circe:
   /** `Encoder[Byte]` as a registry entry. */
   val byteEncoder: TypedEntry[EmptyTuple, Encoder[Byte]] = value(Encoder.byte)
 
+  /** `Encoder[BigInt]` as a registry entry. */
+  val bigIntEncoder: TypedEntry[EmptyTuple, Encoder[BigInt]] = value(Encoder.bigInt)
+
   /** `Encoder[Unit]` as a registry entry — emits an empty JSON object. */
   val unitEncoder: TypedEntry[EmptyTuple, Encoder[Unit]] = value(Encoder.unit)
 
@@ -79,6 +82,9 @@ package object circe:
 
   /** `Decoder[Byte]` as a registry entry. */
   val byteDecoder: TypedEntry[EmptyTuple, Decoder[Byte]] = value(Decoder.byte)
+
+  /** `Decoder[BigInt]` as a registry entry. */
+  val bigIntDecoder: TypedEntry[EmptyTuple, Decoder[BigInt]] = value(Decoder.bigInt)
 
   /** `Decoder[Unit]` as a registry entry — accepts any JSON. */
   val unitDecoder: TypedEntry[EmptyTuple, Decoder[Unit]] = value(Decoder.unit)
@@ -115,6 +121,23 @@ package object circe:
         List(tagIn.tag),
         tagOut.tag,
         args => args(0).asInstanceOf[Decoder[T]].map(f)
+      )
+    )
+
+  /**
+   * Derive a `Decoder[S]` from a registered `Decoder[T]` by mapping `f: T => Either[String, S]`.
+   * Use for validation steps that may fail with an error message (e.g. constructing types whose
+   * factory returns `Either`).
+   */
+  def emap[S, T](f: T => Either[String, S])(using
+      tagIn: Tag[Decoder[T]],
+      tagOut: Tag[Decoder[S]]
+  ): TypedEntry[Decoder[T] *: EmptyTuple, Decoder[S]] =
+    TypedEntry(
+      Entry(
+        List(tagIn.tag),
+        tagOut.tag,
+        args => args(0).asInstanceOf[Decoder[T]].emap(f)
       )
     )
 

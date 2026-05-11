@@ -29,9 +29,18 @@ transparent inline def makeDecoderQualifiedLast[T]: Registry[? <: Tuple, Decoder
   ${ MakeDecoderMacro.implLastQualifier[T] }
 
 /**
- * Value-driven variant: `makeDecoder(x)` for a single-argument function `f: T => S`. Registers
- * `Decoder[S]` derived from `Decoder[T]` via `f` (map). Equivalent to `map(f)`, exposed under
- * the `makeDecoder` name for chain ergonomics. Only single-arg functions are accepted.
+ * Value-driven variant: `makeDecoder(x)` for a function value `x`. Two shapes are accepted:
+ *
+ *   1. Single-arg `T => S` where `S` is **not** a `Decoder[_]` — registered as `map(f)`:
+ *      inputs `Decoder[T]`, output `Decoder[S]`. Same as the `map(...)` helper.
+ *
+ *   2. Function `(A1, …, An) => Decoder[S]` of any arity — registered as a `fun`-style entry:
+ *      inputs are the raw parameter types `A1, …, An` resolved from the registry, output is
+ *      `Decoder[S]`. Useful when the function itself produces a `Decoder` (e.g. via `emap`)
+ *      and needs config or other non-Decoder dependencies pulled from the registry.
+ *
+ * Anything else (non-function values, multi-arg with non-Decoder return) fails at compile time.
+ * For type-based derivation, use the type-parameter form `makeDecoder[T]`.
  */
 transparent inline def makeDecoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple] =
   ${ MakeDecoderMacro.valueImpl[X]('x) }
@@ -46,7 +55,11 @@ private[circe] object MakeDecoderMacro:
   def implFullQualified[T: Type](using Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] = impl[T](FullQualified)
   def implLastQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] = impl[T](LastQualifier)
 
-  /** Dispatch a value-based `makeDecoder(x)`. Single-arg functions only — everything else errors. */
+  /**
+   * Dispatch a value-based `makeDecoder(x)`. Two shapes:
+   *   - Single-arg `T => S` (S not a `Decoder`) → map mode.
+   *   - Multi-arg `(A1, …, An) => Decoder[S]` (any arity, including 1) → fun-style entry.
+   */
   def valueImpl[X: Type](x: Expr[X])(using q: Quotes): Expr[Registry[? <: Tuple, ? <: Tuple]] =
     import q.reflect.*
     val xTpe = TypeRepr.of[X].dealias
@@ -55,25 +68,72 @@ private[circe] object MakeDecoderMacro:
       val name = tycon.typeSymbol.fullName
       name.startsWith("scala.Function") || name.startsWith("scala.ContextFunction")
 
+    def asDecoderType(t: TypeRepr): Option[TypeRepr] =
+      t.dealias match
+        case AppliedType(tycon, s :: Nil) if tycon.typeSymbol.fullName == "registry.circe.Decoder" =>
+          Some(s)
+        case _ => None
+
     xTpe match
-      case AppliedType(tycon, tTpe :: sTpe :: Nil) if isFunctionTycon(tycon) =>
-        ((tTpe.asType, sTpe.asType): @unchecked) match
-          case ('[t], '[s]) =>
-            val fExpr: Expr[t => s] = x.asExprOf[t => s]
-            '{
-              val tagIn = summon[Tag[Decoder[t]]]
-              val tagOut = summon[Tag[Decoder[s]]]
-              val entry = Entry(
-                List(tagIn.tag),
-                tagOut.tag,
-                args => args(0).asInstanceOf[Decoder[t]].map[s]($fExpr)
-              )
-              Registry[Decoder[t] *: EmptyTuple, Decoder[s] *: EmptyTuple](entries = List(entry))
-            }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+      case AppliedType(tycon, params) if isFunctionTycon(tycon) && params.size >= 2 =>
+        val paramTypes = params.init
+        val returnType = params.last
+        asDecoderType(returnType) match
+          case Some(sTpe) =>
+            // Fun-style entry: inputs = raw param types, output = Decoder[s].
+            val inputTagExprs: List[Expr[LightTypeTag]] = paramTypes.map: pt =>
+              pt.asType match
+                case '[p] => '{ summon[Tag[p]].tag }
+            val outputTagExpr: Expr[LightTypeTag] = sTpe.asType match
+              case '[s] => '{ summon[Tag[Decoder[s]]].tag }
+
+            val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
+              ${
+                val argTerms: List[Term] = paramTypes.zipWithIndex.map: (pt, i) =>
+                  pt.asType match
+                    case '[p] => '{ ${ 'args }.apply(${ Expr(i) }).asInstanceOf[p] }.asTerm
+                val applyM: Term = Select.unique(x.asTerm, "apply")
+                Apply(applyM, argTerms).asExprOf[Any]
+              }
+            }
+
+            val insTpe = buildTupleType(paramTypes)
+            val outsTpe: TypeRepr = sTpe.asType match
+              case '[s] => TypeRepr.of[Decoder[s] *: EmptyTuple]
+
+            ((insTpe.asType, outsTpe.asType): @unchecked) match
+              case ('[ins], '[outs]) =>
+                '{
+                  val theEntry = Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure)
+                  Registry[ins & Tuple, outs & Tuple](entries = List(theEntry))
+                }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+
+          case None =>
+            // Map mode: single-arg only, T => S where S is not a Decoder.
+            paramTypes match
+              case tTpe :: Nil =>
+                ((tTpe.asType, returnType.asType): @unchecked) match
+                  case ('[t], '[s]) =>
+                    val fExpr: Expr[t => s] = x.asExprOf[t => s]
+                    '{
+                      val tagIn = summon[Tag[Decoder[t]]]
+                      val tagOut = summon[Tag[Decoder[s]]]
+                      val entry = Entry(
+                        List(tagIn.tag),
+                        tagOut.tag,
+                        args => args(0).asInstanceOf[Decoder[t]].map[s]($fExpr)
+                      )
+                      Registry[Decoder[t] *: EmptyTuple, Decoder[s] *: EmptyTuple](entries = List(entry))
+                    }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+              case _ =>
+                report.errorAndAbort(
+                  s"makeDecoder(${xTpe.show}): multi-arg functions must return `Decoder[S]`. " +
+                    "Single-arg `T => S` is accepted as `map(f)`."
+                )
 
       case _ =>
         report.errorAndAbort(
-          s"makeDecoder(${xTpe.show}): expected a single-argument function `T => S`. " +
+          s"makeDecoder(${xTpe.show}): expected a function value. " +
             "For type-based derivation, use `makeDecoder[T]` instead."
         )
 

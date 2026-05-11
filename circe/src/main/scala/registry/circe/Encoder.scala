@@ -41,6 +41,9 @@ object Encoder:
   /** Encode a `Byte` as a JSON number. */
   val byte: Encoder[Byte] = Encoder(b => Json.fromInt(b.toInt))
 
+  /** Encode a `BigInt` as a JSON number. */
+  val bigInt: Encoder[BigInt] = Encoder(Json.fromBigInt)
+
   /**
    * Registry bundling every primitive `Encoder[T]` (Unit, String, Int, Long, Boolean, Double) as
    * a single value. Drop into a chain instead of listing the per-primitive entries:
@@ -59,7 +62,8 @@ object Encoder:
       value(long) *:
       value(boolean) *:
       value(double) *:
-      value(byte)
+      value(byte) *:
+      value(bigInt)
 
   private val printer: Printer = Printer.noSpaces.copy(dropNullValues = false)
 

@@ -34,12 +34,15 @@ transparent inline def makeEncoderQualifiedLast[T]: Registry[? <: Tuple, Encoder
   ${ MakeEncoderMacro.implLastQualifier[T] }
 
 /**
- * Value-driven variant: `makeEncoder(x)` for a single-argument function `f: S => T`. Registers
- * `Encoder[S]` derived from `Encoder[T]` via `f` (contramap). Equivalent to `contramap(f)`, exposed
- * under the `makeEncoder` name so a chain can use a single helper everywhere.
+ * Value-driven variant: `makeEncoder(x)` for a function value. Two shapes:
  *
- * Only single-arg functions are accepted — passing a multi-arg function or a module reference
- * fails at compile time. For type-based derivation, use the type-parameter form `makeEncoder[T]`.
+ *   1. Single-arg `S => T` where `T` is **not** an `Encoder[_]` — registered as `contramap(f)`:
+ *      input `Encoder[T]`, output `Encoder[S]`.
+ *
+ *   2. `(A1, …, An) => Encoder[S]` of any arity — registered as a `fun`-style entry: inputs are
+ *      the raw parameter types resolved from the registry, output `Encoder[S]`.
+ *
+ * Anything else fails at compile time. For type-based derivation, use `makeEncoder[T]`.
  */
 transparent inline def makeEncoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple] =
   ${ MakeEncoderMacro.valueImpl[X]('x) }
@@ -55,9 +58,9 @@ private[circe] object MakeEncoderMacro:
   def implLastQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] = impl[T](LastQualifier)
 
   /**
-   * Dispatch a value-based `makeEncoder(x)`. Only single-arg functions are accepted; anything
-   * else fails at compile time (so users don't silently lose a function body or get surprising
-   * type-witness behaviour from a value argument).
+   * Dispatch a value-based `makeEncoder(x)`. Two shapes:
+   *   - Single-arg `S => T` (T not an `Encoder`) → contramap mode.
+   *   - Multi-arg `(A1, …, An) => Encoder[S]` (any arity) → fun-style entry.
    */
   def valueImpl[X: Type](x: Expr[X])(using q: Quotes): Expr[Registry[? <: Tuple, ? <: Tuple]] =
     import q.reflect.*
@@ -67,26 +70,72 @@ private[circe] object MakeEncoderMacro:
       val name = tycon.typeSymbol.fullName
       name.startsWith("scala.Function") || name.startsWith("scala.ContextFunction")
 
+    def asEncoderType(t: TypeRepr): Option[TypeRepr] =
+      t.dealias match
+        case AppliedType(tycon, s :: Nil) if tycon.typeSymbol.fullName == "registry.circe.Encoder" =>
+          Some(s)
+        case _ => None
+
     xTpe match
-      case AppliedType(tycon, sTpe :: tTpe :: Nil) if isFunctionTycon(tycon) =>
-        // Single-arg function S => T → contramap mode.
-        ((sTpe.asType, tTpe.asType): @unchecked) match
-          case ('[s], '[t]) =>
-            val fExpr: Expr[s => t] = x.asExprOf[s => t]
-            '{
-              val tagIn = summon[Tag[Encoder[t]]]
-              val tagOut = summon[Tag[Encoder[s]]]
-              val entry = Entry(
-                List(tagIn.tag),
-                tagOut.tag,
-                args => args(0).asInstanceOf[Encoder[t]].contramap[s]($fExpr)
-              )
-              Registry[Encoder[t] *: EmptyTuple, Encoder[s] *: EmptyTuple](entries = List(entry))
-            }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+      case AppliedType(tycon, params) if isFunctionTycon(tycon) && params.size >= 2 =>
+        val paramTypes = params.init
+        val returnType = params.last
+        asEncoderType(returnType) match
+          case Some(sTpe) =>
+            // Fun-style: inputs = raw param types, output = Encoder[s].
+            val inputTagExprs: List[Expr[LightTypeTag]] = paramTypes.map: pt =>
+              pt.asType match
+                case '[p] => '{ summon[Tag[p]].tag }
+            val outputTagExpr: Expr[LightTypeTag] = sTpe.asType match
+              case '[s] => '{ summon[Tag[Encoder[s]]].tag }
+
+            val closure: Expr[Seq[Any] => Any] = '{ (args: Seq[Any]) =>
+              ${
+                val argTerms: List[Term] = paramTypes.zipWithIndex.map: (pt, i) =>
+                  pt.asType match
+                    case '[p] => '{ ${ 'args }.apply(${ Expr(i) }).asInstanceOf[p] }.asTerm
+                val applyM: Term = Select.unique(x.asTerm, "apply")
+                Apply(applyM, argTerms).asExprOf[Any]
+              }
+            }
+
+            val insTpe = buildTupleType(paramTypes)
+            val outsTpe: TypeRepr = sTpe.asType match
+              case '[s] => TypeRepr.of[Encoder[s] *: EmptyTuple]
+
+            ((insTpe.asType, outsTpe.asType): @unchecked) match
+              case ('[ins], '[outs]) =>
+                '{
+                  val theEntry = Entry(${ Expr.ofList(inputTagExprs) }, $outputTagExpr, $closure)
+                  Registry[ins & Tuple, outs & Tuple](entries = List(theEntry))
+                }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+
+          case None =>
+            // Contramap mode: single-arg only, S => T where T is not an Encoder.
+            paramTypes match
+              case sTpe :: Nil =>
+                ((sTpe.asType, returnType.asType): @unchecked) match
+                  case ('[s], '[t]) =>
+                    val fExpr: Expr[s => t] = x.asExprOf[s => t]
+                    '{
+                      val tagIn = summon[Tag[Encoder[t]]]
+                      val tagOut = summon[Tag[Encoder[s]]]
+                      val entry = Entry(
+                        List(tagIn.tag),
+                        tagOut.tag,
+                        args => args(0).asInstanceOf[Encoder[t]].contramap[s]($fExpr)
+                      )
+                      Registry[Encoder[t] *: EmptyTuple, Encoder[s] *: EmptyTuple](entries = List(entry))
+                    }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+              case _ =>
+                report.errorAndAbort(
+                  s"makeEncoder(${xTpe.show}): multi-arg functions must return `Encoder[S]`. " +
+                    "Single-arg `S => T` is accepted as `contramap(f)`."
+                )
 
       case _ =>
         report.errorAndAbort(
-          s"makeEncoder(${xTpe.show}): expected a single-argument function `S => T`. " +
+          s"makeEncoder(${xTpe.show}): expected a function value. " +
             "For type-based derivation, use `makeEncoder[T]` instead."
         )
 

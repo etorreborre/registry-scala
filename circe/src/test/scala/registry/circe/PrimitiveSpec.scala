@@ -12,31 +12,31 @@ class PrimitiveSpec extends Specification:
 
   "Encoder.string / Decoder.string" >> {
     Encoder.string.encode("hi") === Json.fromString("hi")
-    Decoder.string.decode(Json.fromString("hi")) === Right("hi")
-    Decoder.string.decode(Json.fromInt(1)) === Left("not a string")
+    Decoder.string.decodeJson(Json.fromString("hi")) === Right("hi")
+    Decoder.string.decodeJson(Json.fromInt(1)) must beLeft.like { case f => f.message === "String" }
   }
 
   "Encoder.int / Decoder.int" >> {
     Encoder.int.encode(42) === Json.fromInt(42)
-    Decoder.int.decode(Json.fromInt(42)) === Right(42)
-    Decoder.int.decode(Json.fromString("nope")) === Left("not an int")
+    Decoder.int.decodeJson(Json.fromInt(42)) === Right(42)
+    Decoder.int.decodeJson(Json.fromString("nope")) must beLeft.like { case f => f.message === "Int" }
   }
 
   "Encoder.long / Decoder.long" >> {
     val big = 9_000_000_000L
     Encoder.long.encode(big) === Json.fromLong(big)
-    Decoder.long.decode(Json.fromLong(big)) === Right(big)
+    Decoder.long.decodeJson(Json.fromLong(big)) === Right(big)
   }
 
   "Encoder.boolean / Decoder.boolean" >> {
     Encoder.boolean.encode(true) === Json.fromBoolean(true)
-    Decoder.boolean.decode(Json.fromBoolean(false)) === Right(false)
-    Decoder.boolean.decode(Json.fromInt(1)) === Left("not a boolean")
+    Decoder.boolean.decodeJson(Json.fromBoolean(false)) === Right(false)
+    Decoder.boolean.decodeJson(Json.fromInt(1)) must beLeft.like { case f => f.message === "Boolean" }
   }
 
   "Encoder.double / Decoder.double" >> {
     Encoder.double.encode(1.5) === Json.fromDoubleOrNull(1.5)
-    Decoder.double.decode(Json.fromDoubleOrNull(1.5)) === Right(1.5)
+    Decoder.double.decodeJson(Json.fromDoubleOrNull(1.5)) === Right(1.5)
   }
 
   "primitives compose with contramap" >> {

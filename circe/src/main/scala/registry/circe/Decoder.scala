@@ -1,76 +1,82 @@
 package registry.circe
 
-import io.circe.{Json, ParsingFailure}
+import io.circe.{ACursor, CursorOp, DecodingFailure, HCursor, Json, ParsingFailure}
 import io.circe.parser
 import izumi.reflect.Tag
 import registry.{Entry, Registry, TypedEntry, value}
 
 /**
- * A `Decoder[A]` converts a circe `Json` value into an `A` or returns an error message.
+ * A `Decoder[A]` converts a circe `HCursor` into an `A` or returns a `DecodingFailure`.
  *
- * Scala-port counterpart to the Haskell `registry-aeson` `Decoder`. `Either[String, A]` is used rather
- * than circe's cursor-based `DecodingFailure` so error messages can be composed into field-path chains
- * the same way the Haskell port does.
+ * Scala-port counterpart to the Haskell `registry-aeson` `Decoder`. We follow circe's own model
+ * (`HCursor => Either[DecodingFailure, A]`) so cursor history and IDE tooling work end-to-end.
+ * Failure messages from this module embed field-path context the same way the Haskell port does,
+ * but they ride on top of a real `CursorOp` history instead of replacing it.
  */
-final case class Decoder[A](decode: Json => Either[String, A]):
-  def map[B](f: A => B): Decoder[B] = Decoder(j => decode(j).map(f))
-  def flatMap[B](f: A => Decoder[B]): Decoder[B] = Decoder(j => decode(j).flatMap(a => f(a).decode(j)))
+final case class Decoder[A](decode: HCursor => Decoder.Result[A]):
+  def apply(c: HCursor): Decoder.Result[A] = decode(c)
+
+  /** Decode a raw `Json` value by lifting it to an `HCursor` first. */
+  def decodeJson(j: Json): Decoder.Result[A] = decode(j.hcursor)
+
+  /** Decode from an `ACursor`; a failed cursor is surfaced as a `DecodingFailure`. */
+  def tryDecode(c: ACursor): Decoder.Result[A] = c match
+    case hc: HCursor => decode(hc)
+    case _           => Left(DecodingFailure("Attempt to decode value on failed cursor", c.history))
+
+  def map[B](f: A => B): Decoder[B] = Decoder(c => decode(c).map(f))
+  def flatMap[B](f: A => Decoder[B]): Decoder[B] = Decoder(c => decode(c).flatMap(a => f(a).decode(c)))
 
   /**
    * Fallible map: decode `A`, then run `f` which may fail with an error message. Useful for
    * post-validation (e.g. constructing types whose factory returns `Either`).
    */
-  def emap[B](f: A => Either[String, B]): Decoder[B] = Decoder(j => decode(j).flatMap(f))
+  def emap[B](f: A => Either[String, B]): Decoder[B] =
+    Decoder(c => decode(c).flatMap(a => f(a).left.map(msg => DecodingFailure(msg, c.history))))
 
-  /**
-   * Lift this registry-native `Decoder[A]` into an `io.circe.Decoder[A]` for use at API boundaries.
-   * Failure messages from this decoder are surfaced via `io.circe.DecodingFailure` with the
-   * cursor's history attached.
-   */
-  def asCirce: io.circe.Decoder[A] =
-    io.circe.Decoder.instance(c =>
-      decode(c.value) match
-        case Right(a)  => Right(a)
-        case Left(msg) => Left(io.circe.DecodingFailure(msg, c.history))
-    )
+  /** Lift this registry-native `Decoder[A]` into an `io.circe.Decoder[A]` for use at API boundaries. */
+  def asCirce: io.circe.Decoder[A] = io.circe.Decoder.instance(decode)
 
 object Decoder:
+
+  /** Same alias as `io.circe.Decoder.Result`. */
+  type Result[A] = Either[DecodingFailure, A]
 
   // ---- primitive built-ins ----
 
   /** Decode a JSON string into a `String`. */
   val string: Decoder[String] =
-    Decoder(j => j.asString.toRight("not a string"))
+    Decoder(c => c.value.asString.toRight(DecodingFailure("String", c.history)))
 
   /** Decode a JSON number into an `Int` (fails if the number does not fit). */
   val int: Decoder[Int] =
-    Decoder(j => j.asNumber.flatMap(_.toInt).toRight("not an int"))
+    Decoder(c => c.value.asNumber.flatMap(_.toInt).toRight(DecodingFailure("Int", c.history)))
 
   /** Decode a JSON number into a `Long` (fails if the number does not fit). */
   val long: Decoder[Long] =
-    Decoder(j => j.asNumber.flatMap(_.toLong).toRight("not a long"))
+    Decoder(c => c.value.asNumber.flatMap(_.toLong).toRight(DecodingFailure("Long", c.history)))
 
   /** Decode a JSON boolean into a `Boolean`. */
   val boolean: Decoder[Boolean] =
-    Decoder(j => j.asBoolean.toRight("not a boolean"))
+    Decoder(c => c.value.asBoolean.toRight(DecodingFailure("Boolean", c.history)))
 
   /** Decode a JSON number into a `Double`. */
   val double: Decoder[Double] =
-    Decoder(j => j.asNumber.map(_.toDouble).toRight("not a double"))
+    Decoder(c => c.value.asNumber.map(_.toDouble).toRight(DecodingFailure("Double", c.history)))
 
   /** Decode any JSON value into `()`. */
   val unit: Decoder[Unit] = Decoder(_ => Right(()))
 
   /** Decode a JSON number into a `Byte` (fails if outside `Byte`'s range). */
   val byte: Decoder[Byte] =
-    Decoder(j => j.asNumber.flatMap(_.toByte).toRight("not a byte"))
+    Decoder(c => c.value.asNumber.flatMap(_.toByte).toRight(DecodingFailure("Byte", c.history)))
 
   /** Decode a JSON number into a `BigInt`. */
   val bigInt: Decoder[BigInt] =
-    Decoder(j => j.asNumber.flatMap(_.toBigInt).toRight("not a BigInt"))
+    Decoder(c => c.value.asNumber.flatMap(_.toBigInt).toRight(DecodingFailure("BigInt", c.history)))
 
   /** Identity decoder — returns the raw `io.circe.Json` value as-is. */
-  val json: Decoder[Json] = Decoder(j => Right(j))
+  val json: Decoder[Json] = Decoder(c => Right(c.value))
 
   /**
    * Registry bundling every primitive `Decoder[T]` (Unit, String, Int, Long, Boolean, Double, Byte,
@@ -90,17 +96,17 @@ object Decoder:
       value(json)
 
   /** Parse a JSON string and then decode it with the given `Decoder`. */
-  def decodeString[A](d: Decoder[A], s: String)(using tag: Tag[A]): Either[String, A] =
+  def decodeString[A](d: Decoder[A], s: String)(using tag: Tag[A]): Either[io.circe.Error, A] =
     parser.parse(s) match
-      case Left(ParsingFailure(msg, _)) =>
-        Left(s"Cannot parse the string as a Json: $msg. The string is: $s")
+      case Left(pf: ParsingFailure) =>
+        Left(ParsingFailure(s"Cannot parse the string as a Json: ${pf.message}. The string is: $s", pf.underlying))
       case Right(j) =>
-        d.decode(j) match
+        d.decode(j.hcursor) match
           case Right(a) => Right(a)
-          case Left(e)  => Left(s"Cannot decode the type '${showType[A]}' >> $e")
+          case Left(df) => Left(DecodingFailure(s"Cannot decode the type '${showType[A]}' >> ${df.message}", df.history))
 
   /** Parse a JSON byte string and then decode it with the given `Decoder`. */
-  def decodeByteString[A](d: Decoder[A], bs: Array[Byte])(using tag: Tag[A]): Either[String, A] =
+  def decodeByteString[A](d: Decoder[A], bs: Array[Byte])(using tag: Tag[A]): Either[io.circe.Error, A] =
     decodeString(d, new String(bs, "UTF-8"))
 
   /** Return a short Scala type name for a given `A` using its `Tag`. */
@@ -112,11 +118,11 @@ object Decoder:
 
   /** Lift a circe `Decoder[A]` into a registry-native `Decoder[A]` ready to register. */
   def jsonDecoder[A](using cd: io.circe.Decoder[A], tag: Tag[Decoder[A]]): TypedEntry[EmptyTuple, Decoder[A]] =
-    TypedEntry(Entry(Nil, tag.tag, _ => Decoder[A](j => cd.decodeJson(j).left.map(f => f.message))))
+    TypedEntry(Entry(Nil, tag.tag, _ => Decoder[A](cd.apply)))
 
   /** A circe `Decoder[A]` → registry-native `Decoder[A]` as a plain value. */
   def jsonDecoderOf[A](using cd: io.circe.Decoder[A]): Decoder[A] =
-    Decoder(j => cd.decodeJson(j).left.map(_.message))
+    Decoder(cd.apply)
 
   // ---- combinators ----
 
@@ -134,9 +140,9 @@ object Decoder:
     )
 
   def optionOfDecoder[A](d: Decoder[A]): Decoder[Option[A]] =
-    Decoder: j =>
-      if j.isNull then Right(None)
-      else d.decode(j).map(Some(_))
+    Decoder: c =>
+      if c.value.isNull then Right(None)
+      else d.decode(c).map(Some(_))
 
   /** `Decoder[List[A]]`. */
   def decodeListOf[A](using
@@ -153,10 +159,9 @@ object Decoder:
     )
 
   def listOfDecoder[A](d: Decoder[A])(using tagA: Tag[A]): Decoder[List[A]] =
-    Decoder: j =>
-      j.asArray match
-        case Some(vs) => sequenceEither(vs.toList.map(d.decode))
-        case None     => Left(s"not a list of ${showType[A]}")
+    Decoder: c =>
+      if c.value.isArray then decodeArrayElements(c, d)
+      else Left(DecodingFailure(s"not a list of ${showType[A]}", c.history))
 
   /** `Decoder[Seq[A]]`. */
   def decodeSeqOf[A](using
@@ -173,10 +178,9 @@ object Decoder:
     )
 
   def seqOfDecoder[A](d: Decoder[A])(using tagA: Tag[A]): Decoder[Seq[A]] =
-    Decoder: j =>
-      j.asArray match
-        case Some(vs) => sequenceEither(vs.toList.map(d.decode)).map(_.toSeq)
-        case None     => Left(s"not a list of ${showType[A]}")
+    Decoder: c =>
+      if c.value.isArray then decodeArrayElements(c, d).map(_.toSeq)
+      else Left(DecodingFailure(s"not a list of ${showType[A]}", c.history))
 
   /** `Decoder[Vector[A]]`. */
   def decodeVectorOf[A](using
@@ -193,10 +197,9 @@ object Decoder:
     )
 
   def vectorOfDecoder[A](d: Decoder[A])(using tagA: Tag[A]): Decoder[Vector[A]] =
-    Decoder: j =>
-      j.asArray match
-        case Some(vs) => sequenceEither(vs.toList.map(d.decode)).map(_.toVector)
-        case None     => Left(s"not a list of ${showType[A]}")
+    Decoder: c =>
+      if c.value.isArray then decodeArrayElements(c, d).map(_.toVector)
+      else Left(DecodingFailure(s"not a list of ${showType[A]}", c.history))
 
   /** `Decoder[IArray[A]]`. Requires `ClassTag[A]` at the call site to build the underlying array. */
   def decodeIArrayOf[A](using
@@ -217,10 +220,9 @@ object Decoder:
       tagA: Tag[A],
       classTag: scala.reflect.ClassTag[A]
   ): Decoder[IArray[A]] =
-    Decoder: j =>
-      j.asArray match
-        case Some(vs) => sequenceEither(vs.toList.map(d.decode)).map(xs => IArray.from(xs))
-        case None     => Left(s"not a list of ${showType[A]}")
+    Decoder: c =>
+      if c.value.isArray then decodeArrayElements(c, d).map(xs => IArray.from(xs))
+      else Left(DecodingFailure(s"not a list of ${showType[A]}", c.history))
 
   /** `Decoder[Set[A]]`. */
   def decodeSetOf[A](using
@@ -237,10 +239,9 @@ object Decoder:
     )
 
   def setOfDecoder[A](d: Decoder[A])(using tagA: Tag[A]): Decoder[Set[A]] =
-    Decoder: j =>
-      j.asArray match
-        case Some(vs) => sequenceEither(vs.toList.map(d.decode)).map(_.toSet)
-        case None     => Left(s"not a set of ${showType[A]}")
+    Decoder: c =>
+      if c.value.isArray then decodeArrayElements(c, d).map(_.toSet)
+      else Left(DecodingFailure(s"not a set of ${showType[A]}", c.history))
 
   /** `Decoder[(A, B)]`. */
   def decodePairOf[A, B](using
@@ -263,14 +264,14 @@ object Decoder:
     )
 
   def pairOfDecoder[A, B](da: Decoder[A], db: Decoder[B])(using tagA: Tag[A], tagB: Tag[B]): Decoder[(A, B)] =
-    Decoder: j =>
-      j.asArray match
+    Decoder: c =>
+      c.value.asArray match
         case Some(vs) if vs.sizeIs == 2 =>
           for
-            a <- da.decode(vs(0))
-            b <- db.decode(vs(1))
+            a <- da.tryDecode(c.downN(0))
+            b <- db.tryDecode(c.downN(1))
           yield (a, b)
-        case _ => Left(s"not a pair of ${showType[A]}, ${showType[B]}")
+        case _ => Left(DecodingFailure(s"not a pair of ${showType[A]}, ${showType[B]}", c.history))
 
   /** `Decoder[(A, B, C)]`. */
   def decodeTripleOf[A, B, C](using
@@ -300,15 +301,15 @@ object Decoder:
       tagB: Tag[B],
       tagC: Tag[C]
   ): Decoder[(A, B, C)] =
-    Decoder: j =>
-      j.asArray match
+    Decoder: c =>
+      c.value.asArray match
         case Some(vs) if vs.sizeIs == 3 =>
           for
-            a <- da.decode(vs(0))
-            b <- db.decode(vs(1))
-            c <- dc.decode(vs(2))
-          yield (a, b, c)
-        case _ => Left(s"not a triple of ${showType[A]}, ${showType[B]}, ${showType[C]}")
+            a <- da.tryDecode(c.downN(0))
+            b <- db.tryDecode(c.downN(1))
+            cc <- dc.tryDecode(c.downN(2))
+          yield (a, b, cc)
+        case _ => Left(DecodingFailure(s"not a triple of ${showType[A]}, ${showType[B]}, ${showType[C]}", c.history))
 
   /** `Decoder[Map[K, V]]` using a `KeyDecoder[K]` for the object keys. */
   def decodeMapOf[K, V](using
@@ -331,21 +332,36 @@ object Decoder:
     )
 
   def mapOfDecoder[K, V](dk: KeyDecoder[K], dv: Decoder[V])(using tagK: Tag[K], tagV: Tag[V]): Decoder[Map[K, V]] =
-    Decoder: j =>
-      j.asObject match
+    Decoder: c =>
+      c.value.asObject match
         case Some(obj) =>
-          sequenceEither(obj.toList.map { (k, v) =>
+          val keys = obj.keys.toList
+          sequenceEither(keys.map { k =>
             for
-              key <- dk.decodeKeyAs(k)
-              value <- dv.decode(v)
+              key   <- dk.decodeKeyAs(k).left.map(msg => DecodingFailure(msg, CursorOp.DownField(k) :: c.history))
+              value <- dv.tryDecode(c.downField(k))
             yield key -> value
           }).map(_.toMap)
-        case None => Left(s"not a map of ${showType[K]} ${showType[V]}")
+        case None => Left(DecodingFailure(s"not a map of ${showType[K]} ${showType[V]}", c.history))
 
-  /** Sequence a list of `Either`s, short-circuiting on the first `Left`. */
-  private[circe] def sequenceEither[A](ls: List[Either[String, A]]): Either[String, List[A]] =
+  /** Decode the JSON array currently under `c` element-by-element using `d`. */
+  private def decodeArrayElements[A](c: HCursor, d: Decoder[A]): Result[List[A]] =
     val buf = scala.collection.mutable.ListBuffer.empty[A]
-    var err: Option[String] = None
+    var err: Option[DecodingFailure] = None
+    var ac: ACursor = c.downArray
+    while ac.succeeded && err.isEmpty do
+      d.tryDecode(ac) match
+        case Right(a) => buf += a
+        case Left(e)  => err = Some(e)
+      ac = ac.right
+    err match
+      case Some(e) => Left(e)
+      case None    => Right(buf.toList)
+
+  /** Sequence a list of decode results, short-circuiting on the first failure. */
+  private[circe] def sequenceEither[A](ls: List[Result[A]]): Result[List[A]] =
+    val buf = scala.collection.mutable.ListBuffer.empty[A]
+    var err: Option[DecodingFailure] = None
     val it = ls.iterator
     while it.hasNext && err.isEmpty do
       it.next() match

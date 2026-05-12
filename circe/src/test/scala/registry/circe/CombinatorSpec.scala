@@ -22,7 +22,7 @@ class CombinatorSpec extends Specification:
     val d = r.make[Decoder[Int]]
 
     e.encode(42) === Json.fromInt(42)
-    d.decode(Json.fromInt(42)) === Right(42)
+    d.decodeJson(Json.fromInt(42)) === Right(42)
   }
 
   "encodeListOf / decodeListOf" >> {
@@ -36,7 +36,7 @@ class CombinatorSpec extends Specification:
     val d = r.make[Decoder[List[Int]]]
 
     e.encode(List(1, 2, 3)) === Json.arr(Json.fromInt(1), Json.fromInt(2), Json.fromInt(3))
-    d.decode(Json.arr(Json.fromInt(1), Json.fromInt(2))) === Right(List(1, 2))
+    d.decodeJson(Json.arr(Json.fromInt(1), Json.fromInt(2))) === Right(List(1, 2))
   }
 
   "encodeOptionOf / decodeOptionOf" >> {
@@ -51,8 +51,8 @@ class CombinatorSpec extends Specification:
 
     e.encode(None) === Json.Null
     e.encode(Some(7)) === Json.fromInt(7)
-    d.decode(Json.Null) === Right(None)
-    d.decode(Json.fromInt(7)) === Right(Some(7))
+    d.decodeJson(Json.Null) === Right(None)
+    d.decodeJson(Json.fromInt(7)) === Right(Some(7))
   }
 
   "encodeMapOf / decodeMapOf with String keys" >> {
@@ -71,7 +71,7 @@ class CombinatorSpec extends Specification:
     encoded.hcursor.downField("a").as[Int].toOption === Some(1)
     encoded.hcursor.downField("b").as[Int].toOption === Some(2)
 
-    d.decode(encoded) === Right(Map("a" -> 1, "b" -> 2))
+    d.decodeJson(encoded) === Right(Map("a" -> 1, "b" -> 2))
   }
 
   "encodePairOf / decodePairOf" >> {
@@ -88,5 +88,5 @@ class CombinatorSpec extends Specification:
 
     val j = Json.arr(Json.fromInt(1), Json.fromString("a"))
     e.encode((1, "a")) === j
-    d.decode(j) === Right((1, "a"))
+    d.decodeJson(j) === Right((1, "a"))
   }

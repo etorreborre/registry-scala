@@ -22,7 +22,7 @@ class MacroSpec extends Specification:
     val encoded = e.encode(Identifier(1))
     encoded === Json.obj("value" -> Json.fromInt(1))
 
-    d.decode(encoded) === Right(Identifier(1))
+    d.decodeJson(encoded) === Right(Identifier(1))
   }
 
   "makeEncoder / makeDecoder on a multi-field case class" >> {
@@ -50,7 +50,7 @@ class MacroSpec extends Specification:
       "email" -> Json.obj("email" -> Json.fromString("me@here.com"))
     )
 
-    d.decode(encoded) === Right(p)
+    d.decodeJson(encoded) === Right(p)
   }
 
   "makeEncoder / makeDecoder on a sealed trait with mixed constructors" >> {
@@ -77,7 +77,7 @@ class MacroSpec extends Specification:
     // constructors, so it falls back to TaggedObject.
     val noDeliveryEncoded = e.encode(Delivery.NoDelivery)
     noDeliveryEncoded === Json.obj("tag" -> Json.fromString("NoDelivery"))
-    d.decode(noDeliveryEncoded) === Right(Delivery.NoDelivery)
+    d.decodeJson(noDeliveryEncoded) === Right(Delivery.NoDelivery)
 
     // ByEmail has a named field (`email`) — Scala enum cases always name their fields — so the JSON
     // inlines it into the tagged object rather than wrapping in "contents".
@@ -86,7 +86,7 @@ class MacroSpec extends Specification:
       "tag" -> Json.fromString("ByEmail"),
       "email" -> Json.obj("email" -> Json.fromString("x@y.z"))
     )
-    d.decode(byEmailEncoded) === Right(Delivery.ByEmail(Email("x@y.z")))
+    d.decodeJson(byEmailEncoded) === Right(Delivery.ByEmail(Email("x@y.z")))
   }
 
   "makeEncoder[Wrapper[Int]] on a generic class substitutes the type parameter in fields" >> {
@@ -101,7 +101,7 @@ class MacroSpec extends Specification:
     val e = r.make[Encoder[Wrapper[Int]]]
     val d = r.make[Decoder[Wrapper[Int]]]
     e.encode(Wrapper(7)) === Json.obj("value" -> Json.fromInt(7))
-    d.decode(Json.obj("value" -> Json.fromInt(7))) === Right(Wrapper(7))
+    d.decodeJson(Json.obj("value" -> Json.fromInt(7))) === Right(Wrapper(7))
   }
 
   "value-driven makeEncoder(S => T) — single-arg function → contramap mode" >> {
@@ -118,7 +118,7 @@ class MacroSpec extends Specification:
 
     // Single-arg function dispatch — Encoder[UserId] derived from Encoder[Long] via contramap.
     e.encode(UserId(42L)) === Json.fromLong(42L)
-    d.decode(Json.fromLong(42L)) === Right(UserId(42L))
+    d.decodeJson(Json.fromLong(42L)) === Right(UserId(42L))
   }
 
 case class Identifier(value: Int)

@@ -90,10 +90,12 @@ val decoders =
     defaultDecoderOptions
 
 val d: Decoder[Person] = decoders.make[Decoder[Person]]
-d.decode(json) // Right(Person(Identifier(1), Email("me@here.com")))
+d.decodeJson(json) // Right(Person(Identifier(1), Email("me@here.com")))
 ```
 
-Decoding errors include the full field path — for example:
+`Decoder[A]` follows circe's own shape — `HCursor => Either[DecodingFailure, A]` — so cursor
+histories are carried through every step. Failure messages embed field-path context on top of the
+real `CursorOp` history; bridging back to `io.circe.Decoder[A]` via `asCirce` keeps both intact:
 
 ```text
 Cannot decode the type 'Person' >> 'email :: Email' >> 'email :: String' >> …

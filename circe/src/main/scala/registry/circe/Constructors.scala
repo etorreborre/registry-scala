@@ -1,6 +1,6 @@
 package registry.circe
 
-import io.circe.{Json, JsonObject}
+import io.circe.{ACursor, CursorOp, DecodingFailure, HCursor, Json, JsonObject}
 
 /**
  * Metadata for a data type constructor, used to drive JSON encoding/decoding based on [[JsonOptions]].
@@ -52,11 +52,12 @@ type FieldDef = (String, String)
  * Data extracted from a JSON value for a particular constructor, ready to be handed back to the
  * `makeDecoder` macro's constructor-matching case.
  *
- * A direct port of aeson's `ToConstructor`.
+ * A direct port of aeson's `ToConstructor`. The per-field cursor carries circe's `CursorOp` history
+ * so downstream `DecodingFailure`s can be displayed with the correct JSON path.
  */
 final case class ToConstructor(
     constructorName: String,
-    values: List[(Option[FieldDef], Json)]
+    values: List[(Option[FieldDef], ACursor)]
 )
 
 /**
@@ -72,8 +73,8 @@ final case class ConstructorEncoder(encodeConstructor: (JsonOptions, FromConstru
 final case class ConstructorsDecoder(decodeConstructors: (
     JsonOptions,
     List[ConstructorDef],
-    Json
-) => Either[String, List[ToConstructor]])
+    HCursor
+) => Either[DecodingFailure, List[ToConstructor]])
 
 object ConstructorEncoder:
   val default: ConstructorEncoder = ConstructorEncoder(makeEncoderFromConstructor)
@@ -197,10 +198,11 @@ object ConstructorsDecoder:
   def makeToConstructors(
       options: JsonOptions,
       cs: List[ConstructorDef],
-      value: Json
-  ): Either[String, List[ToConstructor]] =
+      cursor: HCursor
+  ): Either[DecodingFailure, List[ToConstructor]] =
     val constructors = cs.map(c => ConstructorDef.applyOptions(options, c))
     val isEnumeration = constructors.forall(_.fieldTypes.isEmpty)
+    val value = cursor.value
 
     if isEnumeration && options.allNullaryToStringTag then
       value.asString match
@@ -208,41 +210,41 @@ object ConstructorsDecoder:
           constructors.find(_.modifiedConstructorName == name) match
             case Some(c) => Right(List(ToConstructor(c.constructorName, Nil)))
             case None =>
-              Left(
+              fail(cursor,
                 s"expected one of ${constructors.map(_.modifiedConstructorName).mkString(", ")}. Got: \"$name\""
               )
         case None =>
-          Left(
+          fail(cursor,
             s"expected one of ${constructors.map(_.constructorName).mkString(", ")}. Got: ${encodeAsText(value)}"
           )
     else
       constructors match
         // single constructor, no tagging required (and not a nullary that must be tagged)
         case c :: Nil if !options.tagSingleConstructors && !(isEnumeration && !options.allNullaryToStringTag) =>
-          makeToConstructorFromValue(options, c, value).map(List(_))
+          makeToConstructorFromValue(options, c, cursor).map(List(_))
         case _ =>
-          checkSumEncoding(options, constructors, value) match
+          checkSumEncoding(options, constructors, cursor) match
             case Some(err) => Left(err)
             case None =>
               options.sumEncoding match
                 case SumEncoding.TaggedObject(tag, contents) =>
-                  makeTaggedObject(options, tag, contents, constructors, value).map(List(_))
+                  makeTaggedObject(options, tag, contents, constructors, cursor).map(List(_))
                 case SumEncoding.UntaggedValue =>
-                  makeUntaggedValue(options, constructors, value)
+                  makeUntaggedValue(options, constructors, cursor)
                 case SumEncoding.ObjectWithSingleField =>
-                  makeObjectWithSingleField(options, constructors, value).map(List(_))
+                  makeObjectWithSingleField(options, constructors, cursor).map(List(_))
                 case SumEncoding.TwoElemArray =>
-                  makeTwoElemArray(options, constructors, value).map(List(_))
+                  makeTwoElemArray(options, constructors, cursor).map(List(_))
 
   private def makeTaggedObject(
       options: JsonOptions,
       tagFieldName: String,
       contentsFieldName: String,
       constructors: List[ConstructorDef],
-      value: Json
-  ): Either[String, ToConstructor] =
-    tryConstructors(constructors): c =>
-      value.asObject match
+      cursor: HCursor
+  ): Either[DecodingFailure, ToConstructor] =
+    tryConstructors(cursor, constructors): c =>
+      cursor.value.asObject match
         case Some(vs) =>
           vs(tagFieldName) match
             case Some(tagValue) =>
@@ -254,163 +256,190 @@ object ConstructorsDecoder:
                 // constructor with one unnamed field
                 case (Nil, Nil, _ :: Nil) if matches =>
                   vs(contentsFieldName) match
-                    case Some(fv) => Right(ToConstructor(c.constructorName, List((None, fv))))
-                    case None     => Left(s"field $contentsFieldName not found")
+                    case Some(_) => Right(ToConstructor(c.constructorName, List((None, cursor.downField(contentsFieldName)))))
+                    case None    => fail(cursor, s"field $contentsFieldName not found")
                 // constructor with one named field
                 case (mfn :: Nil, fn :: Nil, ft :: Nil) if matches =>
                   vs(mfn) match
-                    case Some(fv) => Right(ToConstructor(c.constructorName, List((Some((fn, ft)), fv))))
-                    case None     => Left(s"field $mfn not found")
+                    case Some(_) => Right(ToConstructor(c.constructorName, List((Some((fn, ft)), cursor.downField(mfn)))))
+                    case None    => fail(cursor, s"field $mfn not found")
                 // omitNothingFields fallback
                 case (_, _, _)
                     if matches && options.omitNothingFields &&
                       vs.keys.exists(k => c.modifiedFieldNames.contains(k)) =>
                   val rest = vs.filterKeys(_ != tagFieldName)
-                  makeToConstructorFromValue(options, c, Json.fromJsonObject(rest))
+                  makeToConstructorFromValue(options, c, Json.fromJsonObject(rest).hcursor)
                 // several named fields
                 case (_, _ :: _, _) if matches =>
-                  makeToConstructorFromValue(options, c, value)
+                  makeToConstructorFromValue(options, c, cursor)
                 // no named fields
                 case (_, _, _) if matches && vs.keys.exists(_ == contentsFieldName) =>
                   vs(contentsFieldName) match
-                    case Some(cv) => makeToConstructorFromValue(options, c, cv)
-                    case None     => Left(s"contents field not found '$contentsFieldName'")
+                    case Some(_) =>
+                      val contentsCursor = cursor.downField(contentsFieldName)
+                      contentsCursor.success match
+                        case Some(hc) => makeToConstructorFromValue(options, c, hc)
+                        case None     => fail(cursor, s"contents field not found '$contentsFieldName'")
+                    case None => fail(cursor, s"contents field not found '$contentsFieldName'")
                 case _ =>
-                  Left(s"failed to instantiate constructor: $c")
+                  fail(cursor, s"failed to instantiate constructor: $c")
             case None =>
-              Left(s"failed to instantiate constructor: $c. tag field not found: $tagFieldName")
+              fail(cursor, s"failed to instantiate constructor: $c. tag field not found: $tagFieldName")
         case None =>
-          Left(s"failed to instantiate constructor: $c. Expected an Object")
+          fail(cursor, s"failed to instantiate constructor: $c. Expected an Object")
 
   private def makeUntaggedValue(
       options: JsonOptions,
       constructors: List[ConstructorDef],
-      value: Json
-  ): Either[String, List[ToConstructor]] =
-    val attempts = constructors.map(c => makeToConstructorFromValue(options, c, value))
+      cursor: HCursor
+  ): Either[DecodingFailure, List[ToConstructor]] =
+    val attempts = constructors.map(c => makeToConstructorFromValue(options, c, cursor))
     val (lefts, rights) = partitionEithers(attempts)
     (lefts, rights) match
       case (errs, Nil) =>
-        if errs.isEmpty then Left("no constructors")
+        if errs.isEmpty then Left(DecodingFailure("no constructors", cursor.history))
         else Left(errs.head)
       case (_, rs) => Right(rs)
 
   private def makeObjectWithSingleField(
       options: JsonOptions,
       constructors: List[ConstructorDef],
-      value: Json
-  ): Either[String, ToConstructor] =
-    tryConstructors(constructors): c =>
-      value.asObject match
+      cursor: HCursor
+  ): Either[DecodingFailure, ToConstructor] =
+    tryConstructors(cursor, constructors): c =>
+      cursor.value.asObject match
         case Some(obj) if obj.size == 1 =>
-          val (key, contents) = obj.toList.head
-          if key == c.modifiedConstructorName then makeToConstructorFromValue(options, c, contents)
-          else Left(s"failed to instantiate constructor: $c")
+          val (key, _) = obj.toList.head
+          if key == c.modifiedConstructorName then
+            val inner = cursor.downField(key)
+            inner.success match
+              case Some(hc) => makeToConstructorFromValue(options, c, hc)
+              case None     => fail(cursor, s"failed to instantiate constructor: $c")
+          else fail(cursor, s"failed to instantiate constructor: $c")
         case _ =>
-          value.asString match
-            case Some(v) if v == c.modifiedConstructorName => makeToConstructorFromValue(options, c, value)
-            case _                                         => Left(s"failed to instantiate constructor: $c")
+          cursor.value.asString match
+            case Some(v) if v == c.modifiedConstructorName => makeToConstructorFromValue(options, c, cursor)
+            case _                                         => fail(cursor, s"failed to instantiate constructor: $c")
 
   private def makeTwoElemArray(
       options: JsonOptions,
       constructors: List[ConstructorDef],
-      value: Json
-  ): Either[String, ToConstructor] =
-    tryConstructors(constructors): c =>
-      value.asArray match
+      cursor: HCursor
+  ): Either[DecodingFailure, ToConstructor] =
+    tryConstructors(cursor, constructors): c =>
+      cursor.value.asArray match
         case Some(arr) if arr.sizeIs == 2 =>
           arr(0).asString match
-            case Some(tag) if tag == c.modifiedConstructorName => makeToConstructorFromValue(options, c, arr(1))
-            case _                                             => Left(s"failed to instantiate constructor: $c")
+            case Some(tag) if tag == c.modifiedConstructorName =>
+              cursor.downN(1).success match
+                case Some(hc) => makeToConstructorFromValue(options, c, hc)
+                case None     => fail(cursor, s"failed to instantiate constructor: $c")
+            case _ => fail(cursor, s"failed to instantiate constructor: $c")
         case _ =>
-          value.asString match
-            case Some(v) if v == c.modifiedConstructorName => makeToConstructorFromValue(options, c, value)
-            case _                                         => Left(s"failed to instantiate constructor: $c")
+          cursor.value.asString match
+            case Some(v) if v == c.modifiedConstructorName => makeToConstructorFromValue(options, c, cursor)
+            case _                                         => fail(cursor, s"failed to instantiate constructor: $c")
 
   /** Structural pre-check: the JSON value has the right *shape* for the configured [[SumEncoding]]. */
-  private def checkSumEncoding(options: JsonOptions, constructors: List[ConstructorDef], value: Json): Option[String] =
+  private def checkSumEncoding(
+      options: JsonOptions,
+      constructors: List[ConstructorDef],
+      cursor: HCursor
+  ): Option[DecodingFailure] =
     val tags = constructors.map(_.modifiedConstructorName)
+    val value = cursor.value
     options.sumEncoding match
       case SumEncoding.TaggedObject(tagFieldName, _) =>
         value.asObject match
           case Some(obj) =>
             obj(tagFieldName) match
-              case None                                              => Some(s"tag field '$tagFieldName' not found")
+              case None =>
+                Some(DecodingFailure(s"tag field '$tagFieldName' not found", cursor.history))
               case Some(tagV) if tagV.asString.exists(tags.contains) => None
-              case Some(tagV)                                        => unexpectedConstructor(tags, tagV)
-          case None => Some("expected an Object for a TaggedObject sum encoding")
+              case Some(tagV)                                        => unexpectedConstructor(cursor, tags, tagV)
+          case None => Some(DecodingFailure("expected an Object for a TaggedObject sum encoding", cursor.history))
       case SumEncoding.UntaggedValue => None
       case SumEncoding.ObjectWithSingleField =>
         value.asObject match
           case Some(obj) if obj.size == 1 =>
             val (k, _) = obj.toList.head
-            if tags.contains(k) then None else unexpectedConstructor(tags, Json.fromString(k))
+            if tags.contains(k) then None else unexpectedConstructor(cursor, tags, Json.fromString(k))
           case _ =>
             value.asString match
               case Some(v) if tags.contains(v) => None
-              case _                           => Some("expected an Object for an ObjectWithSingleField sum encoding")
+              case _ =>
+                Some(DecodingFailure("expected an Object for an ObjectWithSingleField sum encoding", cursor.history))
       case SumEncoding.TwoElemArray =>
         value.asArray match
           case Some(arr) if arr.sizeIs == 2 =>
             arr(0).asString match
               case Some(v) if tags.contains(v) => None
-              case _                           => unexpectedConstructor(tags, arr(0))
+              case _                           => unexpectedConstructor(cursor, tags, arr(0))
           case _ =>
             value.asString match
               case Some(v) if tags.contains(v) => None
-              case _ => Some("expected an Array with 2 elements for an TwoElemArray sum encoding")
+              case _ =>
+                Some(DecodingFailure("expected an Array with 2 elements for an TwoElemArray sum encoding", cursor.history))
 
-  private def unexpectedConstructor(expected: List[String], found: Json): Option[String] =
+  private def unexpectedConstructor(
+      cursor: HCursor,
+      expected: List[String],
+      found: Json
+  ): Option[DecodingFailure] =
     val foundText = found.asString.getOrElse(encodeAsText(found))
-    Some(s"expected the tag field to be one of: ${expected.mkString(", ")}, found: $foundText")
+    Some(
+      DecodingFailure(
+        s"expected the tag field to be one of: ${expected.mkString(", ")}, found: $foundText",
+        cursor.history
+      )
+    )
 
   /** Extract field values for a specific constructor from a JSON value. */
   private def makeToConstructorFromValue(
       options: JsonOptions,
       c: ConstructorDef,
-      value: Json
-  ): Either[String, ToConstructor] =
+      cursor: HCursor
+  ): Either[DecodingFailure, ToConstructor] =
+    val value = cursor.value
     (c.fieldNames, c.fieldTypes) match
       // no fields
       case (Nil, Nil) =>
         value.asString match
           case Some(v) =>
             if v == c.modifiedConstructorName then Right(ToConstructor(c.constructorName, Nil))
-            else Left(s"incorrect constructor name, expected: ${c.modifiedConstructorName}. Got: $v")
+            else fail(cursor, s"incorrect constructor name, expected: ${c.modifiedConstructorName}. Got: $v")
           case None =>
-            Left(s"incorrect constructor name, expected: ${c.modifiedConstructorName}. Got: ${encodeAsText(value)}")
+            fail(cursor, s"incorrect constructor name, expected: ${c.modifiedConstructorName}. Got: ${encodeAsText(value)}")
 
       // one field, no field name (positional single-arg constructor) — e.g. newtype-wrapper
       case (Nil, _ :: Nil) =>
-        Right(ToConstructor(c.constructorName, List((None, value))))
+        Right(ToConstructor(c.constructorName, List((None, cursor))))
 
       // one field, one field name — record with a single field
       case (f :: Nil, t :: Nil) =>
-        if options.unwrapUnaryRecords then Right(ToConstructor(c.constructorName, List((None, value))))
+        if options.unwrapUnaryRecords then Right(ToConstructor(c.constructorName, List((None, cursor))))
         else
           val mf = c.modifiedFieldNames.head
           value.asObject match
             case Some(obj) =>
               obj(mf) match
-                case Some(v) =>
+                case Some(_) =>
                   if options.rejectUnknownFields && obj.size > 1 then
                     val unknown = obj.keys.filter(_ != mf).toList
-                    Left(s"unknown field${plural(unknown)}: ${unknown.mkString(", ")}")
-                  else Right(ToConstructor(c.constructorName, List((Some((f, t)), v))))
+                    fail(cursor, s"unknown field${plural(unknown)}: ${unknown.mkString(", ")}")
+                  else Right(ToConstructor(c.constructorName, List((Some((f, t)), cursor.downField(mf)))))
                 case None =>
-                  Left(
-                    s"field '$mf' not found" + (if mf == f then "" else s" (to create field '$f')")
-                  )
+                  fail(cursor, s"field '$mf' not found" + (if mf == f then "" else s" (to create field '$f')"))
             case None =>
-              Left(
-                s"expected an object with field '$mf" + (if mf == f then "" else s" (to create field '$f')")
-              )
+              fail(cursor, s"expected an object with field '$mf" + (if mf == f then "" else s" (to create field '$f')"))
 
       // positional constructor with multiple unnamed fields
       case (Nil, _) =>
         value.asArray match
-          case Some(arr) => Right(ToConstructor(c.constructorName, arr.toList.map(v => (None, v))))
-          case None      => Right(ToConstructor(c.constructorName, List((None, value))))
+          case Some(arr) =>
+            val values = arr.toList.zipWithIndex.map((_, i) => (None: Option[FieldDef], cursor.downN(i)))
+            Right(ToConstructor(c.constructorName, values))
+          case None => Right(ToConstructor(c.constructorName, List((None, cursor))))
 
       // several fields, with names
       case _ =>
@@ -423,51 +452,60 @@ object ConstructorsDecoder:
             val fieldsNotFound = mfn.diff(objKeys)
             if !options.omitNothingFields && fieldsNotFound.nonEmpty then
               fieldsNotFound match
-                case f :: Nil => Left(s"field '$f' not found")
-                case fs       => Left(s"fields  not found: ${fs.mkString(",")}")
+                case f :: Nil => fail(cursor, s"field '$f' not found")
+                case fs       => fail(cursor, s"fields  not found: ${fs.mkString(",")}")
             else
               val tagNames = options.sumEncoding match
                 case SumEncoding.TaggedObject(t, con) => List(t, con)
                 case _                                => Nil
               val unknown = objKeys.diff(mfn).diff(tagNames)
               if options.rejectUnknownFields && unknown.nonEmpty then
-                Left(s"unknown field${plural(unknown)}: ${unknown.mkString(", ")}")
+                fail(cursor, s"unknown field${plural(unknown)}: ${unknown.mkString(", ")}")
               else
                 val fields = fieldNames.zip(fieldTypes).zip(mfn)
                 val vs = fields.flatMap { case ((fieldName, fieldType), modifiedFieldName) =>
                   obj(modifiedFieldName) match
-                    case Some(v) => Some((Some((fieldName, fieldType)), v))
+                    case Some(_) => Some((Some((fieldName, fieldType)), cursor.downField(modifiedFieldName)))
                     case None =>
                       if options.omitNothingFields && fieldType.startsWith("Option") then
-                        Some((Some((fieldName, fieldType)), Json.Null))
+                        Some((Some((fieldName, fieldType)), Json.Null.hcursor: ACursor))
                       else None
                 }
                 Right(ToConstructor(c.constructorName, vs))
           case None =>
             value.asArray match
               case Some(arr) =>
-                Right(ToConstructor(c.constructorName, arr.toList.map(v => (None, v))))
+                val values = arr.toList.zipWithIndex.map((_, i) => (None: Option[FieldDef], cursor.downN(i)))
+                Right(ToConstructor(c.constructorName, values))
               case None =>
-                Right(ToConstructor(c.constructorName, List((None, value))))
+                Right(ToConstructor(c.constructorName, List((None, cursor))))
 
   private def tryConstructors(
+      cursor: HCursor,
       constructors: List[ConstructorDef]
-  )(f: ConstructorDef => Either[String, ToConstructor]): Either[String, ToConstructor] =
-    foldEither(constructors.map(f))
+  )(f: ConstructorDef => Either[DecodingFailure, ToConstructor]): Either[DecodingFailure, ToConstructor] =
+    foldEither(cursor, constructors.map(f))
 
-  private def foldEither[A](es: List[Either[String, A]]): Either[String, A] =
+  private def foldEither[A](
+      cursor: HCursor,
+      es: List[Either[DecodingFailure, A]]
+  ): Either[DecodingFailure, A] =
     val (ls, rs) = partitionEithers(es)
     (ls, rs) match
-      case (Nil, Nil)    => Left("no results")
-      case (errors, Nil) => Left(errors.mkString(" ->> "))
-      case (_, r :: _)   => Right(r)
+      case (Nil, Nil)    => Left(DecodingFailure("no results", cursor.history))
+      case (errors, Nil) =>
+        Left(DecodingFailure(errors.map(_.message).mkString(" ->> "), cursor.history))
+      case (_, r :: _) => Right(r)
 
-  private def partitionEithers[A](es: List[Either[String, A]]): (List[String], List[A]) =
+  private def partitionEithers[A](es: List[Either[DecodingFailure, A]]): (List[DecodingFailure], List[A]) =
     val lefts = es.collect { case Left(e) => e }
     val rights = es.collect { case Right(a) => a }
     (lefts, rights)
 
   private def plural[A](as: List[A]): String = if as.sizeIs > 1 then "s" else ""
+
+  private def fail[A](cursor: HCursor, msg: String): Either[DecodingFailure, A] =
+    Left(DecodingFailure(msg, cursor.history))
 
 /** Shared helper: render a JSON value as compact text. */
 private[circe] def encodeAsText(j: Json): String = j.noSpaces
@@ -477,17 +515,17 @@ def decodeFieldValue[A](
     d: Decoder[A],
     typeName: String,
     constructorName: String,
-    field: (Option[FieldDef], Json)
-): Either[String, A] =
-  val (fieldDef, v) = field
-  d.decode(v) match
+    field: (Option[FieldDef], ACursor)
+): Decoder.Result[A] =
+  val (fieldDef, c) = field
+  d.tryDecode(c) match
     case Right(a) => Right(a)
-    case Left(e) =>
+    case Left(df) =>
       val constructor = if typeName == constructorName then "" else s"($constructorName) "
       val fieldPart = fieldDef match
         case Some((fn, ft)) => s"$constructor'$fn :: $ft' >> "
         case None           => constructor
-      Left(fieldPart + e)
+      Left(DecodingFailure(fieldPart + df.message, df.history))
 
 /**
  * Drive a decode by trying every constructor definition, returning the first successful `ToConstructor`
@@ -497,10 +535,10 @@ def decodeFromDefinitions[A](
     options: JsonOptions,
     cd: ConstructorsDecoder,
     defs: List[ConstructorDef],
-    value: Json,
-    build: ToConstructor => Either[String, A]
-): Either[String, A] =
-  cd.decodeConstructors(options, defs, value) match
+    cursor: HCursor,
+    build: ToConstructor => Decoder.Result[A]
+): Decoder.Result[A] =
+  cd.decodeConstructors(options, defs, cursor) match
     case Left(e) => Left(e)
     case Right(toConstructors) =>
       val results = toConstructors.map(build)
@@ -508,5 +546,7 @@ def decodeFromDefinitions[A](
         case Some(a) => Right(a)
         case None =>
           results match
-            case Nil   => Left("no results")
-            case lefts => Left(lefts.collect { case Left(e) => e }.mkString(" ->> "))
+            case Nil => Left(DecodingFailure("no results", cursor.history))
+            case lefts =>
+              val message = lefts.collect { case Left(e) => e.message }.mkString(" ->> ")
+              Left(DecodingFailure(message, cursor.history))

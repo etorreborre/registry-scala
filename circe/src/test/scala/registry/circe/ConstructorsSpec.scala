@@ -122,10 +122,10 @@ class ConstructorsSpec extends Specification:
     )
     val j = Json.obj("tag" -> Json.fromString("A"), "x" -> Json.fromInt(7))
 
-    cd.decodeConstructors(JsonOptions.default, defs, j) must beLike:
+    cd.decodeConstructors(JsonOptions.default, defs, j.hcursor) must beLike:
       case Right(List(tc)) =>
         tc.constructorName === "A"
-        tc.values.map(_._2) === List(Json.fromInt(7))
+        tc.values.map(_._2.focus) === List(Some(Json.fromInt(7)))
   }
 
   "TaggedObject decoder fails with an expected-tag error when the tag value is unknown" >> {
@@ -135,8 +135,8 @@ class ConstructorsSpec extends Specification:
     )
     val j = Json.obj("tag" -> Json.fromString("Z"))
 
-    cd.decodeConstructors(JsonOptions.default, defs, j) must beLeft.like { case err =>
-      err must contain("expected the tag field to be one of: A, B, found: Z")
+    cd.decodeConstructors(JsonOptions.default, defs, j.hcursor) must beLeft.like { case err =>
+      err.message must contain("expected the tag field to be one of: A, B, found: Z")
     }
   }
 
@@ -145,6 +145,6 @@ class ConstructorsSpec extends Specification:
       ConstructorDef("A", Nil, Nil),
       ConstructorDef("B", Nil, Nil)
     )
-    cd.decodeConstructors(JsonOptions.default, defs, Json.fromString("B")) must beLike:
+    cd.decodeConstructors(JsonOptions.default, defs, Json.fromString("B").hcursor) must beLike:
       case Right(List(tc)) => tc.constructorName === "B"
   }

@@ -68,11 +68,11 @@ class RoundtripSpec extends Specification:
   private def roundtrip[T](value: T, opts: JsonOptions)(using
       eTag: izumi.reflect.Tag[Encoder[T]],
       dTag: izumi.reflect.Tag[Decoder[T]]
-  ): Either[String, T] =
+  ): Either[io.circe.DecodingFailure, T] =
     val r = this.registry(opts)
     val e = r.make[Encoder[T]]
     val d = r.make[Decoder[T]]
-    d.decode(e.encode(value))
+    d.decodeJson(e.encode(value))
 
   /** Registry with every encoder/decoder required to roundtrip any of the sample types. */
   private def registry(opts: JsonOptions) =

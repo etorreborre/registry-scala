@@ -1,6 +1,6 @@
 package registry.circe
 
-import io.circe.Json
+import io.circe.{ACursor, DecodingFailure, HCursor, Json}
 import izumi.reflect.Tag
 import izumi.reflect.macrortti.LightTypeTag
 import registry.{Entry, Registry, TypedEntry}
@@ -219,14 +219,14 @@ private[circe] object MakeDecoderMacro:
       Expr.ofList(pairs)
     }
 
-    // ----- Build a (ToConstructor => Either[String, T]) function by matching on
+    // ----- Build a (ToConstructor => Decoder.Result[T]) function by matching on
     //       tc.constructorName (a plain String) and applying the appropriate constructor.
 
     def buildOneCtorApplication(
         c: CtorData,
-        tcValuesExpr: Expr[List[(Option[FieldDef], Json)]],
+        tcValuesExpr: Expr[List[(Option[FieldDef], ACursor)]],
         decoders: Expr[Seq[Decoder[Any]]]
-    ): Expr[Either[String, T]] =
+    ): Expr[Decoder.Result[T]] =
       if c.isSingleton then
         val ctorExpr: Expr[T] =
           if c.ctorSym.flags.is(Flags.Module) then Ref(c.ctorSym.companionModule).asExprOf[T]
@@ -236,7 +236,7 @@ private[circe] object MakeDecoderMacro:
         // Build nested flatMap: decodeFieldValue(d_i, typeName, ctorName, vs(i)).flatMap(v_i => ...)
         val ctorNameExpr: Expr[String] = Expr(c.displayName)
 
-        def nest(i: Int, acc: List[Term]): Expr[Either[String, T]] =
+        def nest(i: Int, acc: List[Term]): Expr[Decoder.Result[T]] =
           if i == c.fieldNames.length then
             // Apply the constructor.
             val ctorSel: Term = Select(New(TypeIdent(c.ctorSym)), c.ctorSym.primaryConstructor)
@@ -256,7 +256,7 @@ private[circe] object MakeDecoderMacro:
                 case _ => ctorSel
             val applied = Apply(ctorTyped, acc)
             applied.asExprOf[T] match
-              case e => '{ Right($e): Either[String, T] }
+              case e => '{ Right($e): Decoder.Result[T] }
           else
             val ft = c.fieldTypes(i)
             val idx = allFieldTypes.indexWhere(_ =:= ft)
@@ -264,7 +264,7 @@ private[circe] object MakeDecoderMacro:
             val iExpr = Expr(i)
             ft.asType match
               case '[p] =>
-                val fieldEither: Expr[Either[String, p]] = '{
+                val fieldEither: Expr[Decoder.Result[p]] = '{
                   decodeFieldValue[p](
                     $decoders.apply($idxExpr).asInstanceOf[Decoder[p]],
                     $typeDisplayNameExpr,
@@ -272,7 +272,7 @@ private[circe] object MakeDecoderMacro:
                     $tcValuesExpr.apply($iExpr)
                   )
                 }
-                val funcExpr: Expr[p => Either[String, T]] = buildLambda[p, Either[String, T]]: vRef =>
+                val funcExpr: Expr[p => Decoder.Result[T]] = buildLambda[p, Decoder.Result[T]]: vRef =>
                   nest(i + 1, acc :+ vRef)
                 '{ $fieldEither.flatMap($funcExpr) }
 
@@ -287,11 +287,11 @@ private[circe] object MakeDecoderMacro:
       ).asExprOf[A => B]
 
     // Build: (tc: ToConstructor) => tc.constructorName match { case "A" => ...; case _ => Left(...) }
-    def buildBuildFn(decoders: Expr[Seq[Decoder[Any]]]): Expr[ToConstructor => Either[String, T]] =
-      buildLambda[ToConstructor, Either[String, T]]: tcRef =>
+    def buildBuildFn(decoders: Expr[Seq[Decoder[Any]]]): Expr[ToConstructor => Decoder.Result[T]] =
+      buildLambda[ToConstructor, Decoder.Result[T]]: tcRef =>
         val tcExpr: Expr[ToConstructor] = tcRef.asExprOf[ToConstructor]
         val nameExpr: Expr[String] = '{ $tcExpr.constructorName }
-        val valuesExpr: Expr[List[(Option[FieldDef], Json)]] = '{ $tcExpr.values }
+        val valuesExpr: Expr[List[(Option[FieldDef], ACursor)]] = '{ $tcExpr.values }
 
         val cases: List[CaseDef] = ctorData.map: c =>
           val lit = Literal(StringConstant(c.displayName))
@@ -303,12 +303,15 @@ private[circe] object MakeDecoderMacro:
           None,
           '{
             Left(
-              s"cannot use this constructor to create an instance of type '${${ typeDisplayNameExpr }}': ${${ tcExpr }}"
-            ): Either[String, T]
+              DecodingFailure(
+                s"cannot use this constructor to create an instance of type '${${ typeDisplayNameExpr }}': ${${ tcExpr }}",
+                Nil
+              )
+            ): Decoder.Result[T]
           }.asTerm
         )
 
-        Match(nameExpr.asTerm, cases :+ defaultCase).asExprOf[Either[String, T]]
+        Match(nameExpr.asTerm, cases :+ defaultCase).asExprOf[Decoder.Result[T]]
 
     // ----- Assemble the closure -----
 
@@ -317,9 +320,9 @@ private[circe] object MakeDecoderMacro:
       val cd = args(1).asInstanceOf[ConstructorsDecoder]
       val decoders: Seq[Decoder[Any]] = args.drop(2).asInstanceOf[Seq[Decoder[Any]]]
       val defs = $constructorDefsExpr
-      val buildFn: ToConstructor => Either[String, T] = ${ buildBuildFn('decoders) }
-      Decoder[T]: (value: Json) =>
-        decodeFromDefinitions[T](opts, cd, defs, value, buildFn)
+      val buildFn: ToConstructor => Decoder.Result[T] = ${ buildBuildFn('decoders) }
+      Decoder[T]: (cursor: HCursor) =>
+        decodeFromDefinitions[T](opts, cd, defs, cursor, buildFn)
     }
 
     // Recursion detection: see MakeEncoderMacro for rationale.
@@ -345,13 +348,16 @@ private[circe] object MakeDecoderMacro:
               Nil,
               $outputTagExpr,
               (_: Seq[Any]) =>
-                Decoder[T]: j =>
+                Decoder[T]: c =>
                   val cached = ref.get()
                   if cached eq null then
                     Left(
-                      s"Recursive Decoder[${$typeDisplayExpr}] forwarder invoked before its main entry was resolved."
+                      DecodingFailure(
+                        s"Recursive Decoder[${$typeDisplayExpr}] forwarder invoked before its main entry was resolved.",
+                        c.history
+                      )
                     )
-                  else cached.decode(j)
+                  else cached.decode(c)
             )
             Registry[ins & Tuple, Decoder[T] *: EmptyTuple](entries = List(mainEntry, forwarderEntry))
           }

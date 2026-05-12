@@ -29,7 +29,7 @@ class RecursiveSpec extends Specification:
     val sample: Cons = Cons.Item(1, Cons.Item(2, Cons.Item(3, Cons.End)))
     val encoded = Encoder.encodeString(e, sample)
     val parsed = circeParser.parse(encoded).toOption.get
-    d.decode(parsed) === Right(sample)
+    d.decodeJson(parsed) === Right(sample)
   }
 
   "encode and decode a tree where children is List[Tree]" >> {
@@ -56,5 +56,5 @@ class RecursiveSpec extends Specification:
 
     val encoded = Encoder.encodeString(e, sample)
     val parsed = circeParser.parse(encoded).toOption.get
-    d.decode(parsed) === Right(sample)
+    d.decodeJson(parsed) === Right(sample)
   }

@@ -1,5 +1,6 @@
 package registry.circe
 
+import io.circe.{Encoder, Decoder}
 import io.circe.Json
 import io.circe.parser as circeParser
 import org.specs2.mutable.Specification
@@ -134,9 +135,9 @@ class DecoderSpec extends Specification:
   "decodeMapOf reconstructs a Map" >> {
     val r =
       decodeMapOf[Name, Int] *:
-        decodeKey[Name](s => Right(Name(s))) *:
-        jsonDecoder[Int] *:
-        jsonDecoder[String] *:
+        decodeKey[Name](s => Some(Name(s))) *:
+        decoderOf[Int] *:
+        decoderOf[String] *:
         defaultDecoderOptions
     val d = r.make[Decoder[Map[Name, Int]]]
     d.decodeJson(parse("""{"name1":1,"name2":2}""")) === Right(Map(Name("name1") -> 1, Name("name2") -> 2))
@@ -145,7 +146,7 @@ class DecoderSpec extends Specification:
   "makeDecoder compiles when two fields have the same type" >> {
     val _ =
       makeDecoder[Stats] *:
-        jsonDecoder[Int] *:
+        decoderOf[Int] *:
         defaultDecoderOptions
     success
   }
@@ -171,8 +172,8 @@ class DecoderSpec extends Specification:
       makeDecoder[TwoElemArraySumEncoding] *:
       decodeOptionOf[Int] *:
       decodeOptionOf[String] *:
-      jsonDecoder[String] *:
-      jsonDecoder[Int] *:
+      decoderOf[String] *:
+      decoderOf[Int] *:
       defaultDecoderOptions
 
   // ---- helpers ----

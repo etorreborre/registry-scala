@@ -1,5 +1,6 @@
 package registry.circe
 
+import io.circe.{Decoder, Encoder}
 import io.circe.parser as circeParser
 import org.specs2.mutable.Specification
 import registry.*
@@ -15,19 +16,19 @@ class RecursiveSpec extends Specification:
   "encode and decode a directly recursive enum (Cons)" >> {
     val encoders =
       makeEncoder[Cons] *:
-        jsonEncoder[Int] *:
+        encoderOf[Int] *:
         defaultEncoderOptions
 
     val decoders =
       makeDecoder[Cons] *:
-        jsonDecoder[Int] *:
+        decoderOf[Int] *:
         defaultDecoderOptions
 
     val e = encoders.make[Encoder[Cons]]
     val d = decoders.make[Decoder[Cons]]
 
     val sample: Cons = Cons.Item(1, Cons.Item(2, Cons.Item(3, Cons.End)))
-    val encoded = Encoder.encodeString(e, sample)
+    val encoded = Encoders.encodeString(e, sample)
     val parsed = circeParser.parse(encoded).toOption.get
     d.decodeJson(parsed) === Right(sample)
   }
@@ -36,13 +37,13 @@ class RecursiveSpec extends Specification:
     val encoders =
       makeEncoder[Tree] *:
         encodeListOf[Tree] *:
-        jsonEncoder[Int] *:
+        encoderOf[Int] *:
         defaultEncoderOptions
 
     val decoders =
       makeDecoder[Tree] *:
         decodeListOf[Tree] *:
-        jsonDecoder[Int] *:
+        decoderOf[Int] *:
         defaultDecoderOptions
 
     val e = encoders.make[Encoder[Tree]]
@@ -54,7 +55,7 @@ class RecursiveSpec extends Specification:
         Tree(3, Nil)
       ))
 
-    val encoded = Encoder.encodeString(e, sample)
+    val encoded = Encoders.encodeString(e, sample)
     val parsed = circeParser.parse(encoded).toOption.get
     d.decodeJson(parsed) === Right(sample)
   }

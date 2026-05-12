@@ -1,6 +1,6 @@
 package registry.circe
 
-import io.circe.{ACursor, CursorOp, DecodingFailure, HCursor, Json, JsonObject}
+import io.circe.{ACursor, CursorOp, Decoder, DecodingFailure, HCursor, Json, JsonObject}
 
 /**
  * Metadata for a data type constructor, used to drive JSON encoding/decoding based on [[JsonOptions]].

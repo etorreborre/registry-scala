@@ -1,6 +1,6 @@
 package registry.circe
 
-import io.circe.Json
+import io.circe.{Encoder, Json}
 import izumi.reflect.Tag
 import izumi.reflect.macrortti.LightTypeTag
 import registry.{Entry, Registry, TypedEntry}
@@ -72,7 +72,7 @@ private[circe] object MakeEncoderMacro:
 
     def asEncoderType(t: TypeRepr): Option[TypeRepr] =
       t.dealias match
-        case AppliedType(tycon, s :: Nil) if tycon.typeSymbol.fullName == "registry.circe.Encoder" =>
+        case AppliedType(tycon, s :: Nil) if tycon.typeSymbol.fullName == "io.circe.Encoder" =>
           Some(s)
         case _ => None
 
@@ -134,13 +134,38 @@ private[circe] object MakeEncoderMacro:
                 )
 
       case _ =>
-        report.errorAndAbort(
-          s"makeEncoder(${xTpe.show}): expected a function value. " +
-            "For type-based derivation, use `makeEncoder[T]` instead."
-        )
+        asEncoderType(xTpe) match
+          case Some(sTpe) =>
+            // Zero-arg shape: makeEncoder(e: Encoder[S]) -> value entry.
+            sTpe.asType match
+              case '[s] =>
+                val eExpr = x.asExprOf[Encoder[s]]
+                '{
+                  val tagOut = summon[Tag[Encoder[s]]]
+                  val theEntry = Entry(Nil, tagOut.tag, _ => $eExpr)
+                  Registry[EmptyTuple, Encoder[s] *: EmptyTuple](entries = List(theEntry))
+                }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+          case None =>
+            report.errorAndAbort(
+              s"makeEncoder(${xTpe.show}): expected an `Encoder[S]` or a function returning `Encoder[S]`. " +
+                "For type-based derivation, use `makeEncoder[T]` instead."
+            )
 
   def impl[T: Type](mode: String)(using q: Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] =
     import q.reflect.*
+
+    // Fast path: if `T`'s companion declares a `given Encoder[T]`, register it directly
+    // instead of generating a structural encoder. Companion-only (not full implicit scope) so
+    // the choice doesn't silently depend on imports.
+    MakeDecoderMacro.findCompanionGiven(TypeRepr.of[T], TypeRepr.of[Encoder[T]]) match
+      case Some(givenTerm) =>
+        val givenExpr = givenTerm.asExprOf[Encoder[T]]
+        return '{
+          val tagOut = summon[Tag[Encoder[T]]]
+          val theEntry = Entry(Nil, tagOut.tag, _ => $givenExpr)
+          Registry[EmptyTuple, Encoder[T] *: EmptyTuple](entries = List(theEntry))
+        }
+      case None => ()
 
     val tpe = TypeRepr.of[T]
     val sym = tpe.typeSymbol
@@ -170,7 +195,11 @@ private[circe] object MakeEncoderMacro:
         if ctor == Symbol.noSymbol then
           CtorData(childSym, displayName, true, Nil, Nil)
         else
-          val valueParamLists: List[List[Symbol]] = ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
+          val nonTypeLists: List[List[Symbol]] = ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
+          // Drop using-clause parameter lists — they aren't part of the JSON shape and aren't
+          // accessible via the standard case-class field accessors used by the encoder.
+          val valueParamLists: List[List[Symbol]] =
+            nonTypeLists.filterNot(_.exists(p => p.flags.is(Flags.Given) || p.flags.is(Flags.Implicit)))
           val flat: List[Symbol] = valueParamLists.flatten
           val fieldNames = flat.map(_.name)
           // Compute field types substituted with the applied type's arguments via
@@ -260,7 +289,7 @@ private[circe] object MakeEncoderMacro:
             val encIdxExpr = Expr(idx)
             val selected: Term = Select.unique(bindRef, fn)
             val fieldExpr: Expr[Any] = selected.asExprOf[Any]
-            '{ ${ encoders }.apply(${ encIdxExpr }).encode(${ fieldExpr }) }
+            '{ ${ encoders }.apply(${ encIdxExpr }).apply(${ fieldExpr }) }
           }
 
           val valueListExpr: Expr[List[Json]] = Expr.ofList(valueExprs)
@@ -283,7 +312,7 @@ private[circe] object MakeEncoderMacro:
       val ce = args(1).asInstanceOf[ConstructorEncoder]
       val encoders: Seq[Encoder[Any]] = args.drop(2).asInstanceOf[Seq[Encoder[Any]]]
 
-      Encoder[T]: (value: T) =>
+      Encoder.instance[T]: (value: T) =>
         val fc: FromConstructor = ${ buildMatch('value, 'encoders) }
         ce.encodeConstructor(opts, fc)
     }
@@ -314,13 +343,13 @@ private[circe] object MakeEncoderMacro:
               Nil,
               $outputTagExpr,
               (_: Seq[Any]) =>
-                Encoder[T]: a =>
+                Encoder.instance[T]: a =>
                   val cached = ref.get()
                   if cached eq null then
                     sys.error(
                       s"Recursive Encoder[${$typeDisplayExpr}] forwarder invoked before its main entry was resolved."
                     )
-                  else cached.encode(a)
+                  else cached.apply(a)
             )
             Registry[ins & Tuple, Encoder[T] *: EmptyTuple](entries = List(mainEntry, forwarderEntry))
           }

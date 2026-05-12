@@ -93,9 +93,11 @@ val d: Decoder[Person] = decoders.make[Decoder[Person]]
 d.decodeJson(json) // Right(Person(Identifier(1), Email("me@here.com")))
 ```
 
-`Decoder[A]` follows circe's own shape — `HCursor => Either[DecodingFailure, A]` — so cursor
-histories are carried through every step. Failure messages embed field-path context on top of the
-real `CursorOp` history; bridging back to `io.circe.Decoder[A]` via `asCirce` keeps both intact:
+`Encoder[A]` / `Decoder[A]` are aliases for `io.circe.Encoder[A]` / `io.circe.Decoder[A]` — the
+registry holds circe instances directly, with no wrapper in between. That means any existing
+circe instance (semiauto-derived, magnolia, third-party) drops straight in as
+`value(summon[Encoder[Foo]])` or via the `jsonEncoder[Foo]` / `jsonDecoder[Foo]` helpers. Failure
+messages embed field-path context on top of circe's `CursorOp` history:
 
 ```text
 Cannot decode the type 'Person' >> 'email :: Email' >> 'email :: String' >> …
@@ -103,13 +105,10 @@ Cannot decode the type 'Person' >> 'email :: Email' >> 'email :: String' >> …
 
 ## Relation to circe's own typeclasses
 
-This library defines its own `registry.circe.Encoder[A]` / `registry.circe.Decoder[A]` rather than
-populating `io.circe.Encoder[A]` instances directly. This keeps registry-driven customization
-(options, per-context overrides) independent from circe's typeclass resolution.
-
-Circe's `Json` AST, parser, printer, and `io.circe.Encoder[A]` / `io.circe.Decoder[A]` /
-`io.circe.KeyEncoder[A]` / `io.circe.KeyDecoder[A]` typeclass instances are reused — see the
-`jsonEncoder[A]` / `jsonDecoder[A]` / `keyEncoder[A]` / `keyDecoder[A]` entries.
+`registry.circe.Encoder[A]` and `registry.circe.Decoder[A]` are type aliases for `io.circe.Encoder[A]`
+and `io.circe.Decoder[A]`. The registry just holds circe instances and arranges how they're assembled.
+This keeps registry-driven customization (options, per-context overrides) compatible with circe's
+typeclass resolution — any circe-derived instance can be registered without conversion.
 
 ## Limitations
 

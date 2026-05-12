@@ -1,5 +1,6 @@
 package registry.circe
 
+import io.circe.{Encoder, Decoder}
 import io.circe.Json
 import org.specs2.mutable.Specification
 import registry.{Person as _, *}
@@ -72,7 +73,7 @@ class RoundtripSpec extends Specification:
     val r = this.registry(opts)
     val e = r.make[Encoder[T]]
     val d = r.make[Decoder[T]]
-    d.decodeJson(e.encode(value))
+    d.decodeJson(e(value))
 
   /** Registry with every encoder/decoder required to roundtrip any of the sample types. */
   private def registry(opts: JsonOptions) =
@@ -93,11 +94,11 @@ class RoundtripSpec extends Specification:
       decodeListOf[Person] *:
       encodeOptionOf[String] *:
       decodeOptionOf[String] *:
-      jsonEncoder[String] *:
-      jsonDecoder[String] *:
-      jsonEncoder[Int] *:
-      jsonDecoder[Int] *:
+      encoderOf[String] *:
+      decoderOf[String] *:
+      encoderOf[Int] *:
+      decoderOf[Int] *:
       value(ConstructorEncoder.default) *:
       value(ConstructorsDecoder.default) *:
-      value(KeyEncoder.stringKeyEncoder) *:
-      value(KeyDecoder.stringKeyDecoder)
+      value(KeyEncoders.stringKeyEncoder) *:
+      value(KeyDecoders.stringKeyDecoder)

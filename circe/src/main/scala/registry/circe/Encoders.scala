@@ -1,59 +1,50 @@
 package registry.circe
 
-import io.circe.{Json, JsonObject, Printer}
+import io.circe.{Encoder, Json, JsonObject, KeyEncoder, Printer}
 import izumi.reflect.Tag
 import registry.{Entry, Registry, TypedEntry, value}
+import scala.collection.immutable.TreeMap
 
 /**
- * An `Encoder[A]` converts a value of type `A` into a circe `Json` value.
- *
- * Scala-port counterpart to the Haskell `registry-aeson` `Encoder`. The Haskell version bundles a
- * streaming `Encoding` alongside the `Value`; circe has no such concept, so we produce `Json` only.
+ * Namespace for primitive `Encoder[A]` (= `io.circe.Encoder[A]`) entries and the registry
+ * combinators that derive new encoders from existing ones. There is no registry-specific wrapper —
+ * users can drop in any circe-derived encoder via `value(...)` or [[encoderOf]].
  */
-final case class Encoder[A](encode: A => Json):
-  def contramap[B](f: B => A): Encoder[B] = Encoder(b => encode(f(b)))
-
-  /** Lift this registry-native `Encoder[A]` into an `io.circe.Encoder[A]` for use at API boundaries. */
-  def asCirce: io.circe.Encoder[A] = io.circe.Encoder.instance(encode)
-
-object Encoder:
+object Encoders:
 
   // ---- primitive built-ins ----
 
   /** Encode a `String` as a JSON string. */
-  val string: Encoder[String] = Encoder(Json.fromString)
+  val string: Encoder[String] = Encoder.encodeString
 
   /** Encode an `Int` as a JSON number. */
-  val int: Encoder[Int] = Encoder(Json.fromInt)
+  val int: Encoder[Int] = Encoder.encodeInt
 
   /** Encode a `Long` as a JSON number. */
-  val long: Encoder[Long] = Encoder(Json.fromLong)
+  val long: Encoder[Long] = Encoder.encodeLong
 
   /** Encode a `Boolean` as a JSON boolean. */
-  val boolean: Encoder[Boolean] = Encoder(Json.fromBoolean)
+  val boolean: Encoder[Boolean] = Encoder.encodeBoolean
 
   /** Encode a `Double` as a JSON number, or `Json.Null` for `NaN`/`Infinity`. */
-  val double: Encoder[Double] = Encoder(Json.fromDoubleOrNull)
+  val double: Encoder[Double] = Encoder.instance(d => Json.fromDoubleOrNull(d))
 
-  /** Encode a `Unit` as an empty JSON object. */
-  val unit: Encoder[Unit] = Encoder(_ => Json.obj())
+  /** Encode a `Unit` as an empty JSON object (matches aeson's default). */
+  val unit: Encoder[Unit] = Encoder.instance(_ => Json.obj())
 
   /** Encode a `Byte` as a JSON number. */
-  val byte: Encoder[Byte] = Encoder(b => Json.fromInt(b.toInt))
+  val byte: Encoder[Byte] = Encoder.instance(b => Json.fromInt(b.toInt))
 
   /** Encode a `BigInt` as a JSON number. */
-  val bigInt: Encoder[BigInt] = Encoder(Json.fromBigInt)
+  val bigInt: Encoder[BigInt] = Encoder.encodeBigInt
 
   /**
-   * Registry bundling every primitive `Encoder[T]` (Unit, String, Int, Long, Boolean, Double) as
-   * a single value. Drop into a chain instead of listing the per-primitive entries:
+   * Registry bundling every primitive `Encoder[T]` (Unit, String, Int, Long, Boolean, Double, Byte,
+   * BigInt) as a single value.
    *
    * {{{
-   * makeEncoder[Foo] *: contramap((_:Wrapper).inner) *: Encoder.primitives *: defaultEncoderOptions
+   * makeEncoder[Foo] *: contramap((_:Wrapper).inner) *: Encoders.primitives *: defaultEncoderOptions
    * }}}
-   *
-   * The return type is left to inference so the precise `AllOuts` tuple is exposed — strict `+:`
-   * needs to see the concrete outputs to verify covers.
    */
   val primitives =
     value(unit) *:
@@ -69,26 +60,23 @@ object Encoder:
 
   /** Render a value as a compact JSON byte string. */
   def encodeByteString[A](e: Encoder[A], a: A): Array[Byte] =
-    printer.print(e.encode(a)).getBytes("UTF-8")
+    printer.print(e(a)).getBytes("UTF-8")
 
   /** Render a value as a compact JSON string. */
   def encodeString[A](e: Encoder[A], a: A): String =
-    printer.print(e.encode(a))
+    printer.print(e(a))
 
   /** Return the `Json` produced by the encoder (alias for symmetry with aeson's `encodeValue`). */
-  def encodeValue[A](e: Encoder[A], a: A): Json = e.encode(a)
+  def encodeValue[A](e: Encoder[A], a: A): Json = e(a)
 
   /** Build an `Encoder[A]` from a function returning `Json`. */
-  def fromValue[A](f: A => Json): Encoder[A] = Encoder(f)
+  def fromValue[A](f: A => Json): Encoder[A] = Encoder.instance(f)
 
   // ---- bridges ----
 
-  /** Lift a circe `Encoder[A]` into a registry-native `Encoder[A]` ready to register. */
-  def jsonEncoder[A](using ce: io.circe.Encoder[A], tag: Tag[Encoder[A]]): TypedEntry[EmptyTuple, Encoder[A]] =
-    TypedEntry(Entry(Nil, tag.tag, _ => Encoder[A](a => ce(a))))
-
-  /** A circe `Encoder[A]` → registry-native `Encoder[A]` as a plain value (not a `TypedEntry`). */
-  def jsonEncoderOf[A](using ce: io.circe.Encoder[A]): Encoder[A] = Encoder(a => ce(a))
+  /** Summon an `io.circe.Encoder[A]` and register it as a [[TypedEntry]]. */
+  def encoderOf[A](using ce: Encoder[A], tag: Tag[Encoder[A]]): TypedEntry[EmptyTuple, Encoder[A]] =
+    TypedEntry(Entry(Nil, tag.tag, _ => ce))
 
   // ---- combinators ----
 
@@ -101,16 +89,9 @@ object Encoder:
       Entry(
         List(tagIn.tag),
         tagOut.tag,
-        args =>
-          val e = args(0).asInstanceOf[Encoder[A]]
-          optionOfEncoder(e)
+        args => Encoder.encodeOption(using args(0).asInstanceOf[Encoder[A]])
       )
     )
-
-  def optionOfEncoder[A](e: Encoder[A]): Encoder[Option[A]] =
-    Encoder:
-      case None    => Json.Null
-      case Some(a) => e.encode(a)
 
   /** `Encoder[List[A]]`. */
   def encodeListOf[A](using
@@ -121,12 +102,9 @@ object Encoder:
       Entry(
         List(tagIn.tag),
         tagOut.tag,
-        args => listOfEncoder(args(0).asInstanceOf[Encoder[A]])
+        args => Encoder.encodeList(using args(0).asInstanceOf[Encoder[A]])
       )
     )
-
-  def listOfEncoder[A](e: Encoder[A]): Encoder[List[A]] =
-    Encoder(as => Json.arr(as.map(e.encode)*))
 
   /** `Encoder[Seq[A]]`. */
   def encodeSeqOf[A](using
@@ -137,12 +115,9 @@ object Encoder:
       Entry(
         List(tagIn.tag),
         tagOut.tag,
-        args => seqOfEncoder(args(0).asInstanceOf[Encoder[A]])
+        args => Encoder.encodeSeq(using args(0).asInstanceOf[Encoder[A]])
       )
     )
-
-  def seqOfEncoder[A](e: Encoder[A]): Encoder[Seq[A]] =
-    Encoder(as => Json.arr(as.map(e.encode)*))
 
   /** `Encoder[Vector[A]]`. */
   def encodeVectorOf[A](using
@@ -153,12 +128,9 @@ object Encoder:
       Entry(
         List(tagIn.tag),
         tagOut.tag,
-        args => vectorOfEncoder(args(0).asInstanceOf[Encoder[A]])
+        args => Encoder.encodeVector(using args(0).asInstanceOf[Encoder[A]])
       )
     )
-
-  def vectorOfEncoder[A](e: Encoder[A]): Encoder[Vector[A]] =
-    Encoder(as => Json.arr(as.map(e.encode)*))
 
   /** `Encoder[IArray[A]]`. */
   def encodeIArrayOf[A](using
@@ -169,12 +141,11 @@ object Encoder:
       Entry(
         List(tagIn.tag),
         tagOut.tag,
-        args => iArrayOfEncoder(args(0).asInstanceOf[Encoder[A]])
+        args =>
+          val e = args(0).asInstanceOf[Encoder[A]]
+          Encoder.instance[IArray[A]](as => Json.arr(as.toList.map(e(_))*))
       )
     )
-
-  def iArrayOfEncoder[A](e: Encoder[A]): Encoder[IArray[A]] =
-    Encoder(as => Json.arr(as.toList.map(e.encode)*))
 
   /** `Encoder[Set[A]]`. */
   def encodeSetOf[A](using
@@ -185,12 +156,9 @@ object Encoder:
       Entry(
         List(tagIn.tag),
         tagOut.tag,
-        args => setOfEncoder(args(0).asInstanceOf[Encoder[A]])
+        args => Encoder.encodeSet(using args(0).asInstanceOf[Encoder[A]])
       )
     )
-
-  def setOfEncoder[A](e: Encoder[A]): Encoder[Set[A]] =
-    Encoder(as => Json.arr(as.toList.map(e.encode)*))
 
   /** `Encoder[(A, B)]`. */
   def encodePairOf[A, B](using
@@ -203,15 +171,9 @@ object Encoder:
         List(tagInA.tag, tagInB.tag),
         tagOut.tag,
         args =>
-          pairOfEncoder(
-            args(0).asInstanceOf[Encoder[A]],
-            args(1).asInstanceOf[Encoder[B]]
-          )
+          Encoder.encodeTuple2(using args(0).asInstanceOf[Encoder[A]], args(1).asInstanceOf[Encoder[B]])
       )
     )
-
-  def pairOfEncoder[A, B](ea: Encoder[A], eb: Encoder[B]): Encoder[(A, B)] =
-    Encoder { case (a, b) => Json.arr(ea.encode(a), eb.encode(b)) }
 
   /** `Encoder[(A, B, C)]`. */
   def encodeTripleOf[A, B, C](using
@@ -225,16 +187,13 @@ object Encoder:
         List(tagInA.tag, tagInB.tag, tagInC.tag),
         tagOut.tag,
         args =>
-          tripleOfEncoder(
+          Encoder.encodeTuple3(using
             args(0).asInstanceOf[Encoder[A]],
             args(1).asInstanceOf[Encoder[B]],
             args(2).asInstanceOf[Encoder[C]]
           )
       )
     )
-
-  def tripleOfEncoder[A, B, C](ea: Encoder[A], eb: Encoder[B], ec: Encoder[C]): Encoder[(A, B, C)] =
-    Encoder { case (a, b, c) => Json.arr(ea.encode(a), eb.encode(b), ec.encode(c)) }
 
   /** `Encoder[Map[K, V]]` using a `KeyEncoder[K]` for the object keys. */
   def encodeMapOf[K, V](using
@@ -247,14 +206,29 @@ object Encoder:
         List(tagKey.tag, tagVal.tag),
         tagOut.tag,
         args =>
-          mapOfEncoder(
+          Encoder.encodeMap(using
             args(0).asInstanceOf[KeyEncoder[K]],
             args(1).asInstanceOf[Encoder[V]]
           )
       )
     )
 
-  def mapOfEncoder[K, V](ek: KeyEncoder[K], ev: Encoder[V]): Encoder[Map[K, V]] =
-    Encoder(m =>
-      Json.fromJsonObject(JsonObject.fromIterable(m.toList.map((k, v) => ek.encodeAsKey(k) -> ev.encode(v))))
+  /** `Encoder[TreeMap[K, V]]` using a `KeyEncoder[K]` for the object keys. Keys are emitted in
+    *  sorted order (since `TreeMap.iterator` is sorted). */
+  def encodeTreeMapOf[K, V](using
+      tagKey: Tag[KeyEncoder[K]],
+      tagVal: Tag[Encoder[V]],
+      tagOut: Tag[Encoder[TreeMap[K, V]]]
+  ): TypedEntry[KeyEncoder[K] *: Encoder[V] *: EmptyTuple, Encoder[TreeMap[K, V]]] =
+    TypedEntry(
+      Entry(
+        List(tagKey.tag, tagVal.tag),
+        tagOut.tag,
+        args =>
+          val ek = args(0).asInstanceOf[KeyEncoder[K]]
+          val ev = args(1).asInstanceOf[Encoder[V]]
+          Encoder.instance[TreeMap[K, V]] { tm =>
+            Json.fromJsonObject(JsonObject.fromIterable(tm.iterator.map((k, v) => ek(k) -> ev(v)).toList))
+          }
+      )
     )

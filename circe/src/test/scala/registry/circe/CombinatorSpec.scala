@@ -1,5 +1,6 @@
 package registry.circe
 
+import io.circe.{Encoder, Decoder}
 import io.circe.Json
 import org.specs2.mutable.Specification
 import registry.*
@@ -15,13 +16,13 @@ class CombinatorSpec extends Specification:
 
   "jsonEncoder / jsonDecoder bridges" >> {
     val r =
-      jsonEncoder[Int] *:
-        jsonDecoder[Int]
+      encoderOf[Int] *:
+        decoderOf[Int]
 
     val e = r.make[Encoder[Int]]
     val d = r.make[Decoder[Int]]
 
-    e.encode(42) === Json.fromInt(42)
+    e(42) === Json.fromInt(42)
     d.decodeJson(Json.fromInt(42)) === Right(42)
   }
 
@@ -29,13 +30,13 @@ class CombinatorSpec extends Specification:
     val r =
       encodeListOf[Int] *:
         decodeListOf[Int] *:
-        jsonEncoder[Int] *:
-        jsonDecoder[Int]
+        encoderOf[Int] *:
+        decoderOf[Int]
 
     val e = r.make[Encoder[List[Int]]]
     val d = r.make[Decoder[List[Int]]]
 
-    e.encode(List(1, 2, 3)) === Json.arr(Json.fromInt(1), Json.fromInt(2), Json.fromInt(3))
+    e(List(1, 2, 3)) === Json.arr(Json.fromInt(1), Json.fromInt(2), Json.fromInt(3))
     d.decodeJson(Json.arr(Json.fromInt(1), Json.fromInt(2))) === Right(List(1, 2))
   }
 
@@ -43,14 +44,14 @@ class CombinatorSpec extends Specification:
     val r =
       encodeOptionOf[Int] *:
         decodeOptionOf[Int] *:
-        jsonEncoder[Int] *:
-        jsonDecoder[Int]
+        encoderOf[Int] *:
+        decoderOf[Int]
 
     val e = r.make[Encoder[Option[Int]]]
     val d = r.make[Decoder[Option[Int]]]
 
-    e.encode(None) === Json.Null
-    e.encode(Some(7)) === Json.fromInt(7)
+    e(None) === Json.Null
+    e(Some(7)) === Json.fromInt(7)
     d.decodeJson(Json.Null) === Right(None)
     d.decodeJson(Json.fromInt(7)) === Right(Some(7))
   }
@@ -59,15 +60,15 @@ class CombinatorSpec extends Specification:
     val r =
       encodeMapOf[String, Int] *:
         decodeMapOf[String, Int] *:
-        keyEncoder[String] *:
-        keyDecoder[String] *:
-        jsonEncoder[Int] *:
-        jsonDecoder[Int]
+        keyEncoderOf[String] *:
+        keyDecoderOf[String] *:
+        encoderOf[Int] *:
+        decoderOf[Int]
 
     val e = r.make[Encoder[Map[String, Int]]]
     val d = r.make[Decoder[Map[String, Int]]]
 
-    val encoded = e.encode(Map("a" -> 1, "b" -> 2))
+    val encoded = e(Map("a" -> 1, "b" -> 2))
     encoded.hcursor.downField("a").as[Int].toOption === Some(1)
     encoded.hcursor.downField("b").as[Int].toOption === Some(2)
 
@@ -78,15 +79,34 @@ class CombinatorSpec extends Specification:
     val r =
       encodePairOf[Int, String] *:
         decodePairOf[Int, String] *:
-        jsonEncoder[Int] *:
-        jsonDecoder[Int] *:
-        jsonEncoder[String] *:
-        jsonDecoder[String]
+        encoderOf[Int] *:
+        decoderOf[Int] *:
+        encoderOf[String] *:
+        decoderOf[String]
 
     val e = r.make[Encoder[(Int, String)]]
     val d = r.make[Decoder[(Int, String)]]
 
     val j = Json.arr(Json.fromInt(1), Json.fromString("a"))
-    e.encode((1, "a")) === j
+    e((1, "a")) === j
     d.decodeJson(j) === Right((1, "a"))
+  }
+
+  "encodeTreeMapOf / decodeTreeMapOf preserve key order" >> {
+    import scala.collection.immutable.TreeMap
+    val r =
+      encodeTreeMapOf[String, Int] *:
+        decodeTreeMapOf[String, Int] *:
+        keyEncoderOf[String] *:
+        keyDecoderOf[String] *:
+        encoderOf[Int] *:
+        decoderOf[Int]
+
+    val e = r.make[Encoder[TreeMap[String, Int]]]
+    val d = r.make[Decoder[TreeMap[String, Int]]]
+
+    val tm = TreeMap("b" -> 2, "a" -> 1, "c" -> 3)
+    val encoded = e(tm)
+    encoded.asObject.map(_.keys.toList) === Some(List("a", "b", "c"))
+    d.decodeJson(encoded) === Right(tm)
   }

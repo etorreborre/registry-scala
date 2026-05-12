@@ -1,6 +1,6 @@
 package registry.circe
 
-import io.circe.{ACursor, DecodingFailure, HCursor, Json}
+import io.circe.{ACursor, Decoder, DecodingFailure, HCursor, Json}
 import izumi.reflect.Tag
 import izumi.reflect.macrortti.LightTypeTag
 import registry.{Entry, Registry, TypedEntry}
@@ -70,7 +70,7 @@ private[circe] object MakeDecoderMacro:
 
     def asDecoderType(t: TypeRepr): Option[TypeRepr] =
       t.dealias match
-        case AppliedType(tycon, s :: Nil) if tycon.typeSymbol.fullName == "registry.circe.Decoder" =>
+        case AppliedType(tycon, s :: Nil) if tycon.typeSymbol.fullName == "io.circe.Decoder" =>
           Some(s)
         case _ => None
 
@@ -132,13 +132,38 @@ private[circe] object MakeDecoderMacro:
                 )
 
       case _ =>
-        report.errorAndAbort(
-          s"makeDecoder(${xTpe.show}): expected a function value. " +
-            "For type-based derivation, use `makeDecoder[T]` instead."
-        )
+        asDecoderType(xTpe) match
+          case Some(sTpe) =>
+            // Zero-arg shape: makeDecoder(d: Decoder[S]) -> value entry.
+            sTpe.asType match
+              case '[s] =>
+                val dExpr = x.asExprOf[Decoder[s]]
+                '{
+                  val tagOut = summon[Tag[Decoder[s]]]
+                  val theEntry = Entry(Nil, tagOut.tag, _ => $dExpr)
+                  Registry[EmptyTuple, Decoder[s] *: EmptyTuple](entries = List(theEntry))
+                }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
+          case None =>
+            report.errorAndAbort(
+              s"makeDecoder(${xTpe.show}): expected a `Decoder[S]` or a function returning `Decoder[S]`. " +
+                "For type-based derivation, use `makeDecoder[T]` instead."
+            )
 
   def impl[T: Type](mode: String)(using q: Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] =
     import q.reflect.*
+
+    // Fast path: if `T`'s companion declares a `given Decoder[T]`, register it directly
+    // instead of generating a structural decoder. Companion-only (not full implicit scope) so
+    // the choice doesn't silently depend on imports.
+    findCompanionGiven(TypeRepr.of[T], TypeRepr.of[Decoder[T]]) match
+      case Some(givenTerm) =>
+        val givenExpr = givenTerm.asExprOf[Decoder[T]]
+        return '{
+          val tagOut = summon[Tag[Decoder[T]]]
+          val theEntry = Entry(Nil, tagOut.tag, _ => $givenExpr)
+          Registry[EmptyTuple, Decoder[T] *: EmptyTuple](entries = List(theEntry))
+        }
+      case None => ()
 
     val tpe = TypeRepr.of[T]
     val sym = tpe.typeSymbol
@@ -156,37 +181,50 @@ private[circe] object MakeDecoderMacro:
         displayName: String,
         isSingleton: Boolean,
         fieldNames: List[String],
-        fieldTypes: List[TypeRepr]
+        fieldTypes: List[TypeRepr],
+        // Sizes of the value parameter lists (using lists are excluded from fields). The
+        // constructor invocation needs to apply each list separately so the compiler doesn't
+        // auto-tuple a flat arg list into a synthetic tuple.
+        valueListSizes: List[Int],
+        // Types of using-clause parameters, list-by-list. Summoned at macro time and applied
+        // after the value lists.
+        usingLists: List[List[TypeRepr]]
     )
 
     def mkCtorData(childSym: Symbol): CtorData =
       val displayName = applyQualifierMode(childSym.fullName, mode)
       val isModule = childSym.flags.is(Flags.Module) || childSym.isTerm
       if isModule then
-        CtorData(childSym, displayName, true, Nil, Nil)
+        CtorData(childSym, displayName, true, Nil, Nil, Nil, Nil)
       else
         val ctor = childSym.primaryConstructor
         if ctor == Symbol.noSymbol then
-          CtorData(childSym, displayName, true, Nil, Nil)
+          CtorData(childSym, displayName, true, Nil, Nil, Nil, Nil)
         else
-          val valueParamLists: List[List[Symbol]] = ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
+          val nonTypeLists: List[List[Symbol]] = ctor.paramSymss.filterNot(_.headOption.exists(_.isType))
+          // Partition each list into value/using parts. A using clause has all parameters marked
+          // Given (and/or Implicit). We discard the using lists from field discovery and remember
+          // their types so we can summon them at constructor-application time.
+          val (usingParamLists, valueParamLists) =
+            nonTypeLists.partition(_.exists(p => p.flags.is(Flags.Given) || p.flags.is(Flags.Implicit)))
           val flat: List[Symbol] = valueParamLists.flatten
           val fieldNames = flat.map(_.name)
+          val valueListSizes = valueParamLists.map(_.size)
+
           // See [[MakeEncoderMacro]] for the rationale of the three-way dispatch on `tpe`.
-          // Compute field types substituted with the applied type's arguments. `memberType` does
-          // not auto-substitute type parameters in Scala 3 reflect; we do it explicitly via
-          // `substituteTypes` from the class's primary-constructor type-parameter symbols.
           val rawFieldTypes: List[TypeRepr] = flat.map(childSym.typeRef.memberType)
-          val fieldTypes: List[TypeRepr] = tpe match
-            case AppliedType(_, args) =>
-              val classTypeParams: List[Symbol] = childSym.primaryConstructor.paramSymss
-                .find(ps => ps.headOption.exists(_.isType))
-                .getOrElse(Nil)
-              if classTypeParams.size == args.size && classTypeParams.nonEmpty then
-                rawFieldTypes.map(_.substituteTypes(classTypeParams, args))
-              else rawFieldTypes
-            case _ => rawFieldTypes
-          CtorData(childSym, displayName, flat.isEmpty, fieldNames, fieldTypes)
+          val classTypeParams: List[Symbol] = childSym.primaryConstructor.paramSymss
+            .find(ps => ps.headOption.exists(_.isType))
+            .getOrElse(Nil)
+          val maybeSubstitute: TypeRepr => TypeRepr = tpe match
+            case AppliedType(_, args) if classTypeParams.size == args.size && classTypeParams.nonEmpty =>
+              _.substituteTypes(classTypeParams, args)
+            case _ => identity
+          val fieldTypes: List[TypeRepr] = rawFieldTypes.map(maybeSubstitute)
+          val usingLists: List[List[TypeRepr]] =
+            usingParamLists.map(_.map(p => maybeSubstitute(childSym.typeRef.memberType(p))))
+
+          CtorData(childSym, displayName, flat.isEmpty, fieldNames, fieldTypes, valueListSizes, usingLists)
 
     val ctorData: List[CtorData] = constructors.map(mkCtorData)
 
@@ -254,7 +292,24 @@ private[circe] object MakeDecoderMacro:
                     TypeApply(ctorSel, targTrees)
                   else ctorSel
                 case _ => ctorSel
-            val applied = Apply(ctorTyped, acc)
+            // Apply each value parameter list separately so the compiler doesn't auto-tuple a
+            // flattened arg list. Then apply each using list with macro-summoned instances.
+            var applied: Term = ctorTyped
+            var remaining = acc
+            for size <- c.valueListSizes do
+              val (args, rest) = remaining.splitAt(size)
+              applied = Apply(applied, args)
+              remaining = rest
+            for usingList <- c.usingLists do
+              val usingArgs: List[Term] = usingList.map { uTpe =>
+                Implicits.search(uTpe) match
+                  case iss: ImplicitSearchSuccess => iss.tree
+                  case _: ImplicitSearchFailure =>
+                    report.errorAndAbort(
+                      s"makeDecoder[${tpe.show}]: cannot summon using-clause parameter of type ${uTpe.show}"
+                    )
+              }
+              applied = Apply(applied, usingArgs)
             applied.asExprOf[T] match
               case e => '{ Right($e): Decoder.Result[T] }
           else
@@ -321,7 +376,7 @@ private[circe] object MakeDecoderMacro:
       val decoders: Seq[Decoder[Any]] = args.drop(2).asInstanceOf[Seq[Decoder[Any]]]
       val defs = $constructorDefsExpr
       val buildFn: ToConstructor => Decoder.Result[T] = ${ buildBuildFn('decoders) }
-      Decoder[T]: (cursor: HCursor) =>
+      Decoder.instance[T]: (cursor: HCursor) =>
         decodeFromDefinitions[T](opts, cd, defs, cursor, buildFn)
     }
 
@@ -348,7 +403,7 @@ private[circe] object MakeDecoderMacro:
               Nil,
               $outputTagExpr,
               (_: Seq[Any]) =>
-                Decoder[T]: c =>
+                Decoder.instance[T]: c =>
                   val cached = ref.get()
                   if cached eq null then
                     Left(
@@ -357,7 +412,7 @@ private[circe] object MakeDecoderMacro:
                         c.history
                       )
                     )
-                  else cached.decode(c)
+                  else cached.apply(c)
             )
             Registry[ins & Tuple, Decoder[T] *: EmptyTuple](entries = List(mainEntry, forwarderEntry))
           }
@@ -410,3 +465,40 @@ private[circe] object MakeDecoderMacro:
           tycon.typeSymbol == target || args.exists(go)
         case other => other.typeSymbol == target
     go(tpe)
+
+  /**
+   * Look for an implicit/given member of type `targetTpe` declared directly in `tTpe`'s companion
+   * object — or, for an opaque type alias defined inside an `object`, in that enclosing object —
+   * and nowhere else. Returns a `Term` that references the member, or `None` if no matching member
+   * exists. Polymorphic givens (`given [A]: Foo[Bar[A]]`) are skipped: first-cut handles
+   * monomorphic vals/defs only.
+   */
+  private[circe] def findCompanionGiven(using q: Quotes)(
+      tTpe: q.reflect.TypeRepr,
+      targetTpe: q.reflect.TypeRepr
+  ): Option[q.reflect.Term] =
+    import q.reflect.*
+    val tSym = tTpe.dealias.typeSymbol
+    // Candidate scopes: the proper companion module, plus the enclosing module for opaque types
+    // (whose givens live in the surrounding `object`, not a separate companion).
+    val candidates: List[Symbol] =
+      val companion = tSym.companionModule
+      val owner     = tSym.maybeOwner
+      val ownerAsModule =
+        if owner == Symbol.noSymbol then Symbol.noSymbol
+        else if owner.flags.is(Flags.Module) then owner
+        else owner.companionModule // module class -> module term, or noSymbol otherwise
+      List(companion, ownerAsModule).filter(_ != Symbol.noSymbol).distinct
+
+    candidates.iterator.flatMap { scope =>
+      val members = scope.declaredFields ++ scope.declaredMethods
+      members.iterator.flatMap { m =>
+        if !(m.flags.is(Flags.Given) || m.flags.is(Flags.Implicit)) then None
+        else
+          val resType: Option[TypeRepr] = m.tree match
+            case d: DefDef if d.paramss.isEmpty => Some(d.returnTpt.tpe)
+            case v: ValDef                       => Some(v.tpt.tpe)
+            case _                               => None
+          resType.filter(_ <:< targetTpe).map(_ => Ref(m))
+      }
+    }.nextOption()

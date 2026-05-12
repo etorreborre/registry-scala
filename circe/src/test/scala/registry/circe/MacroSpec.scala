@@ -1,5 +1,6 @@
 package registry.circe
 
+import io.circe.{Encoder, Decoder}
 import io.circe.Json
 import org.specs2.mutable.Specification
 import registry.*
@@ -10,8 +11,8 @@ class MacroSpec extends Specification:
     val r =
       makeEncoder[Identifier] *:
         makeDecoder[Identifier] *:
-        jsonEncoder[Int] *:
-        jsonDecoder[Int] *:
+        encoderOf[Int] *:
+        decoderOf[Int] *:
         defaultEncoderOptions <+>
         defaultDecoderOptions
 
@@ -19,7 +20,7 @@ class MacroSpec extends Specification:
     val d = r.make[Decoder[Identifier]]
 
     // single-constructor, single named field => default drops the wrapper and emits {"value": 1}
-    val encoded = e.encode(Identifier(1))
+    val encoded = e(Identifier(1))
     encoded === Json.obj("value" -> Json.fromInt(1))
 
     d.decodeJson(encoded) === Right(Identifier(1))
@@ -33,10 +34,10 @@ class MacroSpec extends Specification:
         makeDecoder[Identifier] *:
         makeEncoder[Email] *:
         makeDecoder[Email] *:
-        jsonEncoder[Int] *:
-        jsonDecoder[Int] *:
-        jsonEncoder[String] *:
-        jsonDecoder[String] *:
+        encoderOf[Int] *:
+        decoderOf[Int] *:
+        encoderOf[String] *:
+        decoderOf[String] *:
         defaultEncoderOptions <+>
         defaultDecoderOptions
 
@@ -44,7 +45,7 @@ class MacroSpec extends Specification:
     val d = r.make[Decoder[Person]]
 
     val p = Person(Identifier(1), Email("me@here.com"))
-    val encoded = e.encode(p)
+    val encoded = e(p)
     encoded === Json.obj(
       "identifier" -> Json.obj("value" -> Json.fromInt(1)),
       "email" -> Json.obj("email" -> Json.fromString("me@here.com"))
@@ -63,10 +64,10 @@ class MacroSpec extends Specification:
         makeDecoder[Identifier] *:
         makeEncoder[Email] *:
         makeDecoder[Email] *:
-        jsonEncoder[Int] *:
-        jsonDecoder[Int] *:
-        jsonEncoder[String] *:
-        jsonDecoder[String] *:
+        encoderOf[Int] *:
+        decoderOf[Int] *:
+        encoderOf[String] *:
+        decoderOf[String] *:
         defaultEncoderOptions <+>
         defaultDecoderOptions
 
@@ -75,13 +76,13 @@ class MacroSpec extends Specification:
 
     // NoDelivery is a nullary case object — allNullaryToStringTag is false when the sum has mixed
     // constructors, so it falls back to TaggedObject.
-    val noDeliveryEncoded = e.encode(Delivery.NoDelivery)
+    val noDeliveryEncoded = e(Delivery.NoDelivery)
     noDeliveryEncoded === Json.obj("tag" -> Json.fromString("NoDelivery"))
     d.decodeJson(noDeliveryEncoded) === Right(Delivery.NoDelivery)
 
     // ByEmail has a named field (`email`) — Scala enum cases always name their fields — so the JSON
     // inlines it into the tagged object rather than wrapping in "contents".
-    val byEmailEncoded = e.encode(Delivery.ByEmail(Email("x@y.z")))
+    val byEmailEncoded = e(Delivery.ByEmail(Email("x@y.z")))
     byEmailEncoded === Json.obj(
       "tag" -> Json.fromString("ByEmail"),
       "email" -> Json.obj("email" -> Json.fromString("x@y.z"))
@@ -93,14 +94,14 @@ class MacroSpec extends Specification:
     val r =
       makeEncoder[Wrapper[Int]] *:
         makeDecoder[Wrapper[Int]] *:
-        jsonEncoder[Int] *:
-        jsonDecoder[Int] *:
+        encoderOf[Int] *:
+        decoderOf[Int] *:
         defaultEncoderOptions <+>
         defaultDecoderOptions
 
     val e = r.make[Encoder[Wrapper[Int]]]
     val d = r.make[Decoder[Wrapper[Int]]]
-    e.encode(Wrapper(7)) === Json.obj("value" -> Json.fromInt(7))
+    e(Wrapper(7)) === Json.obj("value" -> Json.fromInt(7))
     d.decodeJson(Json.obj("value" -> Json.fromInt(7))) === Right(Wrapper(7))
   }
 
@@ -110,14 +111,14 @@ class MacroSpec extends Specification:
     val r =
       makeEncoder((_: UserId).value) *:
         makeDecoder((l: Long) => UserId(l)) *:
-        jsonEncoder[Long] *:
-        jsonDecoder[Long]
+        encoderOf[Long] *:
+        decoderOf[Long]
 
     val e = r.make[Encoder[UserId]]
     val d = r.make[Decoder[UserId]]
 
     // Single-arg function dispatch — Encoder[UserId] derived from Encoder[Long] via contramap.
-    e.encode(UserId(42L)) === Json.fromLong(42L)
+    e(UserId(42L)) === Json.fromLong(42L)
     d.decodeJson(Json.fromLong(42L)) === Right(UserId(42L))
   }
 

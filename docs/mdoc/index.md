@@ -45,9 +45,9 @@ Learn more:
 
 - [Modules](modules.md) per-artifact guides:
   - [`registry`](modules/core.md) the dependency-injection core.
-  - [`registry-scalacheck`](modules/scalacheck.md) derive `Gen[T]`
-    instances from a registry.
-  - [`registry-circe`](modules/circe.md) derive `Encoder[T]` /
-    `Decoder[T]` instances from a registry.
   - [`registry-cats`](modules/cats.md) lift constructors, functions,
     and values into any `Applicative[F]`
+  - [`registry-circe`](modules/circe.md) derive `Encoder[T]` /
+    `Decoder[T]` instances from a registry.
+  - [`registry-scalacheck`](modules/scalacheck.md) derive `Gen[T]`
+    instances from a registry.

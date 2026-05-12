@@ -48,9 +48,9 @@ is produced by something on the right.
 | Module                | Purpose                                                            |
 | --------------------- | ------------------------------------------------------------------ |
 | `registry`            | Core registry, entries, prepend operators, resolution.             |
-| `registry-scalacheck` | Derive ScalaCheck `Gen[T]` for case classes and sealed hierarchies.|
 | `registry-cats`       | Lift constructors into any `Applicative[F]` via `funTo[F, T]`.     |
 | `registry-circe`      | Derive `Encoder[T]` / `Decoder[T]` with configurable JSON options. |
+| `registry-scalacheck` | Derive ScalaCheck `Gen[T]` for case classes and sealed hierarchies.|
 
 ## Documentation
 

@@ -47,20 +47,23 @@ val n =
 //     Basic(
 //       inputs = List(Int),
 //       output = Int,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a002659568@4e3a6d0c,
-//       fresh = false
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007f6ec9a35750@50d7c44e,
+//       fresh = false,
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
 //     ),
 //     Basic(
 //       inputs = List(Int),
 //       output = Int,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a002659940@2b52162f,
-//       fresh = false
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007f6ec9a35b20@66845eac,
+//       fresh = false,
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = Int,
-//       invoke = registry.Fun$package$$$Lambda/0x000000a00265e2a8@65b91b,
-//       fresh = false
+//       invoke = registry.Fun$package$$$Lambda/0x00007f6ec9a327d8@1592c2b0,
+//       fresh = false,
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
 //     )
 //   ),
 //   refinements = List()
@@ -73,11 +76,16 @@ Within a single `make` call the wrapper is invoked once and shared across
 all consumers (per-make cache; see [Memoization](memoization.md)). To opt
 out, mark the wrapping entry `.fresh`.
 
-## `refine[Path, T]` — path-scoped override
+## `refine[Path](v)` — path-scoped override
 
 When the resolution stack contains the types of `Path` as a subsequence
 (in order, not necessarily contiguous) and the resolver is looking for
 `T`, return `v` instead of doing the normal lookup.
+
+The target type `T` is inferred from `v`, so you normally only specify the
+path: `refine[Server]("server-")`. The explicit form
+`refine[Server, String]("server-")` is still available when you want to
+ascribe `T`.
 
 `Path` may be a **single type** (the override fires whenever that type
 appears anywhere on the stack) or a **tuple** of types (the override fires
@@ -108,11 +116,11 @@ app.make[Worker].log.prefix
 // res3: String = "default"
 ```
 
-`refine[Server, String]("server-")` overrides `String` only when the
+`refine[Server]("server-")` overrides `String` only when the
 resolution stack passes through `Server`:
 
 ```scala
-val tagged = app.refine[Server, String]("server-")
+val tagged = app.refine[Server]("server-")
 ```
 
 ```scala
@@ -136,7 +144,7 @@ val withOuter =
 ```
 
 ```scala
-val pathed = withOuter.refine[(Outer, Server), String]("from-outer-")
+val pathed = withOuter.refine[(Outer, Server)]("from-outer-")
 ```
 
 ```scala
@@ -148,14 +156,14 @@ pathed.make[Server].log.prefix     // not reached via Outer — default wins
 
 ## `refine` — refinements as standalone values
 
-`refine[Path, T](v)` (top-level, not on a `Registry`) produces a
+`refine[Path](v)` (top-level, not on a `Registry`) produces a
 `Refinement` value that you can prepend with any of `+:`, `*:`, `-:`. It's
 the same machinery as the `refine` method on `Registry` but expressed as
 a value, which is sometimes cleaner when assembling registries from parts.
 
 ```scala
 val refined =
-  refine[Server, String]("from-refinement-") +: app
+  refine[Server]("from-refinement-") +: app
 ```
 
 ```scala

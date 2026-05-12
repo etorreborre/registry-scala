@@ -42,6 +42,7 @@ codecs.
 | Method                              | Effect                                                |
 |-------------------------------------|-------------------------------------------------------|
 | `refine[Path, T](v)`                | path-scoped override; `Path` is a single type or tuple |
+| `refine[Path](v)`                   | same override, with `T` inferred from `v`              |
 | `refine[Path, T](v)` (factory)      | refinement as a value; composes with `+:`/`*:`/`-:`    |
 | `memoize[A]`                        | cache every entry whose output is `A` (subtype-aware) |
 | `memoizeAll`                        | cache every entry                                     |
@@ -79,7 +80,7 @@ app.makeSafe[App]
 Override the host without rewriting the registry:
 
 ```scala
-app.refine[Db, Host](Host("override")).make[App]
+app.refine[Db](Host("override")).make[App]
 // res1: App = App(
 //   db = Db(DbConfig(host = Host("override"), port = Port(5432))),
 //   env = "dev"
@@ -89,7 +90,7 @@ app.refine[Db, Host](Host("override")).make[App]
 Override the host only when reached via `App` → `Db`:
 
 ```scala
-app.refine[(App, Db), Host](Host("via-app-db")).make[App]
+app.refine[(App, Db)](Host("via-app-db")).make[App]
 // res2: App = App(
 //   db = Db(DbConfig(host = Host("via-app-db"), port = Port(5432))),
 //   env = "dev"
@@ -105,38 +106,44 @@ val pooled = app.memoize[Db]
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::Db, String),
 //       output = MdocSession::MdocApp::App,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a0027067f8@bd2a775,
-//       fresh = false
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007f6ec9add5b8@1499cf28,
+//       fresh = false,
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
 //     ),
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::DbConfig),
 //       output = MdocSession::MdocApp::Db,
-//       invoke = registry.Registry$$$Lambda/0x000000a0026b87e8@ed4d474,
-//       fresh = false
+//       invoke = registry.Registry$$$Lambda/0x00007f6ec9a8dba8@4ae1f6fc,
+//       fresh = false,
+//       resetFn = registry.Entry$Basic$$Lambda/0x00007f6ec9a8e258@5b6a7d4d
 //     ),
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::Host, MdocSession::MdocApp::Port),
 //       output = MdocSession::MdocApp::DbConfig,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a002707848@18795b7b,
-//       fresh = false
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007f6ec9ade6a0@1d34ba3e,
+//       fresh = false,
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = MdocSession::MdocApp::Host,
-//       invoke = registry.Fun$package$$$Lambda/0x000000a00265e2a8@8f5d30a,
-//       fresh = false
+//       invoke = registry.Fun$package$$$Lambda/0x00007f6ec9a327d8@28abdf98,
+//       fresh = false,
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = MdocSession::MdocApp::Port,
-//       invoke = registry.Fun$package$$$Lambda/0x000000a00265e2a8@1682346e,
-//       fresh = false
+//       invoke = registry.Fun$package$$$Lambda/0x00007f6ec9a327d8@7211a52a,
+//       fresh = false,
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = String,
-//       invoke = registry.Fun$package$$$Lambda/0x000000a00265e2a8@7e48d0a9,
-//       fresh = false
+//       invoke = registry.Fun$package$$$Lambda/0x00007f6ec9a327d8@7d771436,
+//       fresh = false,
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
 //     )
 //   ),
 //   refinements = List()

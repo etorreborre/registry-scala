@@ -36,22 +36,24 @@ register first, how each piece composes, recursion, sharing — see
 Each factory below registers a 1-input entry that wraps the corresponding
 ScalaCheck combinator.
 
-| Factory                          | Produces                                              |
-| -------------------------------- | ----------------------------------------------------- |
-| `listOf[T]`                      | `Gen[List[T]]` of arbitrary length                    |
-| `nonEmptyListOf[T]`              | `Gen[List[T]]`, never empty                           |
-| `listOfN[T](n)`                  | `Gen[List[T]]` of exactly `n` elements                |
-| `listOfMinMax[T](min, max)`      | `Gen[List[T]]` with size in `[min, max]`              |
-| `optionOf[T]`                    | `Gen[Option[T]]`                                      |
-| `setOf[T]`                       | `Gen[Set[T]]` of arbitrary size                       |
-| `setOfN[T](n)`                   | `Gen[Set[T]]` of exactly `n` elements                 |
-| `eitherOf[L, R]`                 | `Gen[Either[L, R]]`                                   |
-| `pairOf[A, B]`                   | `Gen[(A, B)]`                                         |
-| `tripleOf[A, B, C]`              | `Gen[(A, B, C)]`                                      |
-| `mapOf[K, V]`                    | `Gen[Map[K, V]]` of arbitrary size                    |
-| `mapOfN[K, V](n)`                | `Gen[Map[K, V]]` with exactly `n` entries             |
+| Factory                          | Produces                                                  |
+|----------------------------------|-----------------------------------------------------------|
+| `listOf[T]`                      | `Gen[List[T]]` of arbitrary length                        |
+| `nonEmptyListOf[T]`              | `Gen[List[T]]`, never empty                               |
+| `listOfN[T](n)`                  | `Gen[List[T]]` of exactly `n` elements                    |
+| `listOfMinMax[T](min, max)`      | `Gen[List[T]]` with size in `[min, max]`                  |
+| `optionOf[T]`                    | `Gen[Option[T]]`                                          |
+| `someOf[T]`                      | `Gen[Option[T]]` generating always `Some`                 |
+| `noneOf[T]`                      | `Gen[Option[T]]` generating always `None`                 |
+| `setOf[T]`                       | `Gen[Set[T]]` of arbitrary size                           |
+| `setOfN[T](n)`                   | `Gen[Set[T]]` of exactly `n` elements                     |
+| `eitherOf[L, R]`                 | `Gen[Either[L, R]]`                                       |
+| `pairOf[A, B]`                   | `Gen[(A, B)]`                                             |
+| `tripleOf[A, B, C]`              | `Gen[(A, B, C)]`                                          |
+| `mapOf[K, V]`                    | `Gen[Map[K, V]]` of arbitrary size                        |
+| `mapOfN[K, V](n)`                | `Gen[Map[K, V]]` with exactly `n` entries                 |
 | `indexedSeqOf[T]` (and variants) | `Gen[IndexedSeq[T]]` — same shape as the `listOf*` family |
-| `iArrayOf[T]` (and variants)     | `Gen[IArray[T]]` — same shape as the `listOf*` family |
+| `iArrayOf[T]` (and variants)     | `Gen[IArray[T]]` — same shape as the `listOf*` family     |
 
 ## Recursion
 
@@ -68,7 +70,19 @@ ScalaCheck combinator.
 | `memoize[T] +: r`             | cache the *Gen instance* across `makeGen` calls                        |
 | `share[T] +: r`               | pin one *sampled value* per `makeGen` build                            |
 | `const[T] +: r`               | pin one *sampled value* for the registry's lifetime                    |
+| `r.share[T]`                  | call-site form — equivalent to `share[T] +: r`                         |
+| `r.const[T]`                  | call-site form — equivalent to `const[T] +: r`                         |
 | `entry.share`, `entry.const`  | apply the same flags inline at registration                            |
+| `r.reset()`                   | clear all `memoize` / `const` mutable state in place                   |
+
+## Refinements
+
+| Factory / method              | Effect                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `r.refineGen[Path](v)`        | override the generated payload type inferred from `v` under `Path`     |
+| `refineGen[Path](v) +: r`     | standalone refinement added to `r`; plain `v` becomes `Gen.const(v)`   |
+| `refineGen[Path](gen) +: r`   | standalone refinement added to `r` using the supplied `Gen[T]` as-is   |
+| `refineGen[Path, T](v) +: r`  | explicit standalone form added to `r` when `T` needs ascription        |
 
 ## Building
 

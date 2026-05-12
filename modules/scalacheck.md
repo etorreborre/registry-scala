@@ -88,6 +88,42 @@ The macro inspects the value passed to `gen(...)`:
 
 You can also pass an eta-expanded constructor reference: `gen(Person.apply)`.
 
+## `refineGen[Path](v)` — path-scoped generator overrides
+
+`refineGen` is the ScalaCheck-flavored version of core `refine`: each
+element of `Path` is interpreted as a generated type, and the refined
+payload type is inferred from the value you pass.
+
+```scala
+case class User(name: String, age: Int)
+
+val users =
+  gen[User] +:
+    gen(Gen.alphaStr) +:
+    gen(Gen.choose(0, 120))
+```
+
+```scala
+sample(users.refineGen[User]("eric").makeGen[User])
+// res2: User = User(name = "eric", age = 103)
+sample(users.refineGen[User](Gen.choose(18, 99)).makeGen[User])
+// res3: User = User(
+//   name = "FvlhjKViMdsWQsLnxhZBfGsJOjZFcubqkzndbmKTlYENcyNUcbgpVXYouhedbBNtsWQcLx",
+//   age = 58
+// )
+```
+
+Plain values are lifted with `Gen.const`; existing `Gen[T]` values are
+used as-is. The standalone form composes like any other refinement:
+
+```scala
+sample((refineGen[User]("standalone") +: users).makeGen[User])
+// res4: User = User(name = "standalone", age = 103)
+```
+
+For multi-step scopes, use a tuple path just like core `refine`:
+`r.refineGen[(Outer, User)]("nested")`.
+
 ## `arb[T]` — from an in-scope `Arbitrary`
 
 ```scala
@@ -101,7 +137,7 @@ val stamps =
 
 ```scala
 sample(stamps.makeGen[Stamp])
-// res2: Stamp = Stamp(2147483647)
+// res5: Stamp = Stamp(2147483647)
 ```
 
 Equivalent to `gen(Arbitrary.arbitrary[Int])` but lighter at the call
@@ -126,7 +162,7 @@ val zoo =
 
 ```scala
 sample(zoo.makeGen[Animal])
-// res3: Animal = Cat(7)
+// res6: Animal = Cat(7)
 ```
 
 To control the variant distribution, swap the registered `Chooser` —
@@ -151,9 +187,9 @@ val samples =
 
 ```scala
 samples.count(_.isInstanceOf[Dog])
-// res4: Int = 48
+// res7: Int = 48
 samples.count(_.isInstanceOf[Cat])
-// res5: Int = 2
+// res8: Int = 2
 ```
 
 `Chooser.weighted(...)` matches `Mirror.SumOf[T].MirroredElemTypes` order;
@@ -170,7 +206,7 @@ val ints =
 
 ```scala
 sample(ints.makeGen[List[Int]])
-// res6: List[Int] = List(70, 100, 94, 72, 100)
+// res9: List[Int] = List(70, 100, 94, 72, 100)
 ```
 
 Each helper registers a 1-input entry that consumes `Gen[T]` (or two
@@ -198,15 +234,9 @@ val trees =
 
 ```scala
 sample(trees.makeGen[Tree])
-// res7: Tree = Node(
-//   left = Node(
-//     left = Node(left = Leaf, right = Leaf),
-//     right = Node(left = Leaf, right = Leaf)
-//   ),
-//   right = Node(
-//     left = Node(left = Leaf, right = Leaf),
-//     right = Node(left = Leaf, right = Leaf)
-//   )
+// res10: Tree = Node(
+//   left = Node(left = Leaf, right = Leaf),
+//   right = Node(left = Leaf, right = Leaf)
 // )
 ```
 
@@ -247,7 +277,7 @@ val flatTrees =
 
 ```scala
 sample(flatTrees.makeGen[Tree])
-// res8: Tree = Leaf
+// res11: Tree = Leaf
 ```
 
 Common shapes:
@@ -277,7 +307,7 @@ val pinned =
 
 ```scala
 sample(pinned.makeGen[Bundle])
-// res9: Bundle = Bundle(a = 235804, b = 235804)
+// res12: Bundle = Bundle(a = 235804, b = 235804)
 ```
 
 Both fields draw the same `Int`. The registry-level form
@@ -293,7 +323,7 @@ val pinnedRetro =
 
 ```scala
 sample(pinnedRetro.makeGen[Bundle])
-// res10: Bundle = Bundle(a = 235804, b = 235804)
+// res13: Bundle = Bundle(a = 235804, b = 235804)
 ```
 
 `const[T]` is `share[T]` with cross-build pinning: every `makeGen` call on
@@ -303,9 +333,73 @@ useful for "fixture" data shared across an entire test run.
 `memoize[T]` is the lightest — it caches the produced `Gen` instance
 across `makeGen` calls but does no sample-time pinning.
 
+The same flags are also available as **call-site extensions** on the
+registry, useful when the registry is built once (e.g. as a `def`) and
+each consumer chooses which types to pin without modifying the construction
+site:
+
+```scala
+val gens = baseRegistry.const[MultiNodeConfig].share[Onchain]
+// equivalent to:
+val gens2 = const[MultiNodeConfig] +: share[Onchain] +: baseRegistry
+```
+
 See [Memoization](../concepts/memoization.md) for the underlying machinery
 (per-make resolver cache, the `shared` flag on `GenEntry`, the build path
 that prepends a `Gen.const(sample)` entry per shared type).
+
+### Resetting pinned state with `reset()`
+
+`memoize[T]` and `const[T]` install `AtomicReference`-backed caches inside
+the registry's entries. Those caches survive the registry value (closures
+capture them) — so a `lazy val voteGens = ...` shared across multiple
+property tests would carry the **first** test's pinned values into every
+subsequent test.
+
+`r.reset()` mutates each entry in place, clearing every memoized / const-
+pinned value without rebuilding the registry. Call it at the start of a
+property to give that property fresh fixture samples while still letting
+the const pins do their job for the property's iterations:
+
+```scala
+class MyTest extends Properties("…"):
+  val gens = voteGens                  // shared registry — see voteGens above
+  val _ = property("Vote Tx") = {
+    gens.reset()                       // fresh MultiNodeConfig, etc., for this property
+    runDefault(/* … forAll … */)
+  }
+  val _ = property("Tally Tx") = {
+    gens.reset()                       // and again, independent of the previous property
+    runDefault(/* … forAll … */)
+  }
+```
+
+Entries that don't hold mutable state (the default `Basic` / `GenEntry`
+without memoize / const wrapping) are unaffected — `reset()` is a no-op
+on them.
+
+### `share` vs `const` when both are used
+
+`share` and `const` are NOT interchangeable when one type transitively
+contains another. Suppose `Onchain` has a `versionMajor: V` field built
+via `gen(genOnchainBlockHeader)` that consumes `Gen[V]`:
+
+```scala
+const[Onchain] +:    // pin Onchain's value across the entire run
+share[V]      +:     // re-sample V per makeGen build
+gen(genOnchainBlockHeader) +:
+gen(genV)
+```
+
+`const[Onchain]` pins one Onchain forever — including the V baked into
+its `versionMajor`. `share[V]` re-samples V per build. Other consumers
+of `V` see fresh samples; the const-pinned Onchain keeps the iter-1 V
+forever. The two views diverge.
+
+If you only need *intra-tree* consistency (the same Onchain inside one
+`makeGen` call, fresh per call), use `share[Onchain]` — it composes with
+`share[V]` cleanly. Reach for `const` only when you genuinely want one
+value to outlive all builds. `r.reset()` lets you step back when needed.
 
 ## `makeGen[T]` vs `make[Gen[T]]`
 
@@ -326,6 +420,5 @@ without sharing and the right thing on registries with it.
   per-make resolver cache, the `shared` flag and the share build path.
 - [Resolution](../concepts/resolution.md) — the recursive-entry mechanism
   that powers `genRec`.
-- [Customization](../concepts/customization.md) — `refine` for context-
-  scoped overrides; useful for swapping in a different `Chooser` only
-  when generating one specific type.
+- [Customization](../concepts/customization.md) — core `refine` for
+  context-scoped overrides; use `refineGen` for generated payloads.

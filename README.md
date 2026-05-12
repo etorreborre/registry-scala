@@ -12,10 +12,10 @@ function that produces it and recursively builds its inputs.
 
 ```scala
 libraryDependencies ++= Seq(
-  "org.atnos" %% "registry"            % "1.0.0", // core
-  "org.atnos" %% "registry-scalacheck" % "1.0.0", // optional
-  "org.atnos" %% "registry-cats"       % "1.0.0", // optional
-  "org.atnos" %% "registry-circe"      % "1.0.0"  // optional
+  "org.atnos" %% "registry"            % "0.1.5", // core
+  "org.atnos" %% "registry-scalacheck" % "0.1.5", // optional
+  "org.atnos" %% "registry-cats"       % "0.1.5", // optional
+  "org.atnos" %% "registry-circe"      % "0.1.5"  // optional
 )
 ```
 

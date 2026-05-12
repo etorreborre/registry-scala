@@ -295,7 +295,7 @@ package object circe:
     Decoders.decodeTreeMapOf[K, V]
 
   /**
-   * Default entries required by the `makeEncoder[T]` macro: a `ConstructorEncoder`, a `JsonOptions`,
+   * Default entries required by the `encoder[T]` macro: a `ConstructorEncoder`, a `JsonOptions`,
    * and a built-in `KeyEncoder[String]`.
    */
   def defaultEncoderOptions =
@@ -304,10 +304,18 @@ package object circe:
       value(JsonOptions.default)
 
   /**
-   * Default entries required by the `makeDecoder[T]` macro: a `ConstructorsDecoder`, a `JsonOptions`,
+   * Default entries required by the `decoder[T]` macro: a `ConstructorsDecoder`, a `JsonOptions`,
    * and a built-in `KeyDecoder[String]`.
    */
   def defaultDecoderOptions =
     value(ConstructorsDecoder.default) *:
       value(KeyDecoders.stringKeyDecoder) *:
       value(JsonOptions.default)
+
+  /**
+   * Resolve an `Encoder[T]` from a registry. Thin alias for `r.make[Encoder[T]]` — symmetrical
+   * with `registry-scalacheck`'s `makeGen[T]` resolver.
+   */
+  extension [AllIns <: Tuple, AllOuts <: Tuple](r: Registry[AllIns, AllOuts])
+    def makeEncoder[T](using tag: Tag[Encoder[T]]): Encoder[T] = r.make[Encoder[T]]
+    def makeDecoder[T](using tag: Tag[Decoder[T]]): Decoder[T] = r.make[Decoder[T]]

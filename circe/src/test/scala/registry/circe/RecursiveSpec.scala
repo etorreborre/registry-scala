@@ -7,7 +7,7 @@ import registry.*
 import registry.circe.DataTypes.*
 
 /**
- * Recursive types via [[makeEncoder]] / [[makeDecoder]] — the macros detect self-references in field
+ * Recursive types via [[encoder]] / [[decoder]] — the macros detect self-references in field
  * types and emit an extra forwarder entry that picks up the in-flight `Encoder[T]` resolution. The
  * user writes the same registry chain as for any other type.
  */
@@ -15,12 +15,12 @@ class RecursiveSpec extends Specification:
 
   "encode and decode a directly recursive enum (Cons)" >> {
     val encoders =
-      makeEncoder[Cons] *:
+      encoder[Cons] *:
         encoderOf[Int] *:
         defaultEncoderOptions
 
     val decoders =
-      makeDecoder[Cons] *:
+      decoder[Cons] *:
         decoderOf[Int] *:
         defaultDecoderOptions
 
@@ -35,13 +35,13 @@ class RecursiveSpec extends Specification:
 
   "encode and decode a tree where children is List[Tree]" >> {
     val encoders =
-      makeEncoder[Tree] *:
+      encoder[Tree] *:
         encodeListOf[Tree] *:
         encoderOf[Int] *:
         defaultEncoderOptions
 
     val decoders =
-      makeDecoder[Tree] *:
+      decoder[Tree] *:
         decodeListOf[Tree] *:
         decoderOf[Int] *:
         defaultDecoderOptions

@@ -143,9 +143,9 @@ class DecoderSpec extends Specification:
     d.decodeJson(parse("""{"name1":1,"name2":2}""")) === Right(Map(Name("name1") -> 1, Name("name2") -> 2))
   }
 
-  "makeDecoder compiles when two fields have the same type" >> {
+  "decoder compiles when two fields have the same type" >> {
     val _ =
-      makeDecoder[Stats] *:
+      decoder[Stats] *:
         decoderOf[Int] *:
         defaultDecoderOptions
     success
@@ -154,22 +154,22 @@ class DecoderSpec extends Specification:
   // ---- shared decoder registry ----
 
   lazy val decoders =
-    makeDecoder[Delivery] *:
-      makeDecoder[Team] *:
+    decoder[Delivery] *:
+      decoder[Team] *:
       decodeListOf[Person] *:
-      makeDecoder[Person] *:
-      makeDecoder[Email] *:
-      makeDecoder[Identifier] *:
-      makeDecoder[DateTime] *:
-      makeDecoder[AllNullary] *:
-      makeDecoder[FieldLabelModifier] *:
-      makeDecoder[ConstructorTagModifier] *:
-      makeDecoder[OmitNothingFields] *:
-      makeDecoder[UnwrapUnaryRecords] *:
-      makeDecoder[TagSingleConstructors] *:
-      makeDecoder[UntaggedValueSumEncoding] *:
-      makeDecoder[ObjectWithSingleFieldSumEncoding] *:
-      makeDecoder[TwoElemArraySumEncoding] *:
+      decoder[Person] *:
+      decoder[Email] *:
+      decoder[Identifier] *:
+      decoder[DateTime] *:
+      decoder[AllNullary] *:
+      decoder[FieldLabelModifier] *:
+      decoder[ConstructorTagModifier] *:
+      decoder[OmitNothingFields] *:
+      decoder[UnwrapUnaryRecords] *:
+      decoder[TagSingleConstructors] *:
+      decoder[UntaggedValueSumEncoding] *:
+      decoder[ObjectWithSingleFieldSumEncoding] *:
+      decoder[TwoElemArraySumEncoding] *:
       decodeOptionOf[Int] *:
       decodeOptionOf[String] *:
       decoderOf[String] *:

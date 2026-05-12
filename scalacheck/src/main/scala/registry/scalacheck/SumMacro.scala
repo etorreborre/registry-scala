@@ -104,7 +104,7 @@ private[scalacheck] object SumMacro:
    *   - if the child is a `case object` (class with `Module` flag), its companion module's
    *     singleton type;
    *   - otherwise the class's type, reapplying the parent type's args when arities match
-   *     (mirrors `MakeDecoderMacro`'s logic for Aux-style sealed hierarchies).
+   *     (mirrors `DecoderMacro`'s logic for Aux-style sealed hierarchies).
    */
   private def mkChildTpe(using q: Quotes)(
       parentTpe: q.reflect.TypeRepr,

@@ -78,18 +78,18 @@ class RoundtripSpec extends Specification:
   /** Registry with every encoder/decoder required to roundtrip any of the sample types. */
   private def registry(opts: JsonOptions) =
     value(opts) -:
-      makeEncoder[Delivery] *:
-      makeDecoder[Delivery] *:
-      makeEncoder[Team] *:
-      makeDecoder[Team] *:
-      makeEncoder[Person] *:
-      makeDecoder[Person] *:
-      makeEncoder[Identifier] *:
-      makeDecoder[Identifier] *:
-      makeEncoder[Email] *:
-      makeDecoder[Email] *:
-      makeEncoder[DateTime] *:
-      makeDecoder[DateTime] *:
+      encoder[Delivery] *:
+      decoder[Delivery] *:
+      encoder[Team] *:
+      decoder[Team] *:
+      encoder[Person] *:
+      decoder[Person] *:
+      encoder[Identifier] *:
+      decoder[Identifier] *:
+      encoder[Email] *:
+      decoder[Email] *:
+      encoder[DateTime] *:
+      decoder[DateTime] *:
       encodeListOf[Person] *:
       decodeListOf[Person] *:
       encodeOptionOf[String] *:

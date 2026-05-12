@@ -9,27 +9,27 @@ import scala.quoted.*
 /**
  * Generate a `Decoder[T]` for a case class, a sealed trait, or a Scala 3 enum.
  *
- *   `makeDecoder[Person]` expands to an entry declaring inputs
+ *   `decoder[Person]` expands to an entry declaring inputs
  *   `(JsonOptions, ConstructorsDecoder, Decoder[F1], Decoder[F2], …)` where `F1, F2, …` are the unique
  *   field types across all constructors of `T`. At runtime, the entry's closure builds a list of
  *   [[ConstructorDef]]s, calls [[decodeFromDefinitions]] to pick the right constructor and decode each
  *   field, and applies the constructor to the decoded values.
  *
- *   Self-recursion is detected automatically (see [[makeEncoder]] for the same scheme).
+ *   Self-recursion is detected automatically (see [[encoder]] for the same scheme).
  */
-transparent inline def makeDecoder[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
-  ${ MakeDecoderMacro.implDropQualifier[T] }
+transparent inline def decoder[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
+  ${ DecoderMacro.implDropQualifier[T] }
 
-/** Same as [[makeDecoder]] but keep the fully-qualified type name in `fieldTypes`. */
-transparent inline def makeDecoderQualified[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
-  ${ MakeDecoderMacro.implFullQualified[T] }
+/** Same as [[decoder]] but keep the fully-qualified type name in `fieldTypes`. */
+transparent inline def decoderQualified[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
+  ${ DecoderMacro.implFullQualified[T] }
 
-/** Same as [[makeDecoder]] but keep only the last package segment in the type name. */
-transparent inline def makeDecoderQualifiedLast[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
-  ${ MakeDecoderMacro.implLastQualifier[T] }
+/** Same as [[decoder]] but keep only the last package segment in the type name. */
+transparent inline def decoderQualifiedLast[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
+  ${ DecoderMacro.implLastQualifier[T] }
 
 /**
- * Value-driven variant: `makeDecoder(x)` for a function value `x`. Two shapes are accepted:
+ * Value-driven variant: `decoder(x)` for a function value `x`. Two shapes are accepted:
  *
  *   1. Single-arg `T => S` where `S` is **not** a `Decoder[_]` — registered as `map(f)`:
  *      inputs `Decoder[T]`, output `Decoder[S]`. Same as the `map(...)` helper.
@@ -40,12 +40,12 @@ transparent inline def makeDecoderQualifiedLast[T]: Registry[? <: Tuple, Decoder
  *      and needs config or other non-Decoder dependencies pulled from the registry.
  *
  * Anything else (non-function values, multi-arg with non-Decoder return) fails at compile time.
- * For type-based derivation, use the type-parameter form `makeDecoder[T]`.
+ * For type-based derivation, use the type-parameter form `decoder[T]`.
  */
-transparent inline def makeDecoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple] =
-  ${ MakeDecoderMacro.valueImpl[X]('x) }
+transparent inline def decoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple] =
+  ${ DecoderMacro.valueImpl[X]('x) }
 
-private[circe] object MakeDecoderMacro:
+private[circe] object DecoderMacro:
 
   private inline val DropQualifier = "drop"
   private inline val FullQualified = "full"
@@ -56,7 +56,7 @@ private[circe] object MakeDecoderMacro:
   def implLastQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] = impl[T](LastQualifier)
 
   /**
-   * Dispatch a value-based `makeDecoder(x)`. Two shapes:
+   * Dispatch a value-based `decoder(x)`. Two shapes:
    *   - Single-arg `T => S` (S not a `Decoder`) → map mode.
    *   - Multi-arg `(A1, …, An) => Decoder[S]` (any arity, including 1) → fun-style entry.
    */
@@ -91,7 +91,7 @@ private[circe] object MakeDecoderMacro:
               ${
                 val argTerms: List[Term] = paramTypes.zipWithIndex.map: (pt, i) =>
                   pt.asType match
-                    case '[p] => '{ ${ 'args }.apply(${ Expr(i) }).asInstanceOf[p] }.asTerm
+                    case '[p] => '{ args.apply(${ Expr(i) }).asInstanceOf[p] }.asTerm
                 val applyM: Term = Select.unique(x.asTerm, "apply")
                 Apply(applyM, argTerms).asExprOf[Any]
               }
@@ -127,14 +127,14 @@ private[circe] object MakeDecoderMacro:
                     }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
               case _ =>
                 report.errorAndAbort(
-                  s"makeDecoder(${xTpe.show}): multi-arg functions must return `Decoder[S]`. " +
+                  s"decoder(${xTpe.show}): multi-arg functions must return `Decoder[S]`. " +
                     "Single-arg `T => S` is accepted as `map(f)`."
                 )
 
       case _ =>
         asDecoderType(xTpe) match
           case Some(sTpe) =>
-            // Zero-arg shape: makeDecoder(d: Decoder[S]) -> value entry.
+            // Zero-arg shape: decoder(d: Decoder[S]) -> value entry.
             sTpe.asType match
               case '[s] =>
                 val dExpr = x.asExprOf[Decoder[s]]
@@ -145,8 +145,8 @@ private[circe] object MakeDecoderMacro:
                 }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
           case None =>
             report.errorAndAbort(
-              s"makeDecoder(${xTpe.show}): expected a `Decoder[S]` or a function returning `Decoder[S]`. " +
-                "For type-based derivation, use `makeDecoder[T]` instead."
+              s"decoder(${xTpe.show}): expected a `Decoder[S]` or a function returning `Decoder[S]`. " +
+                "For type-based derivation, use `decoder[T]` instead."
             )
 
   def impl[T: Type](mode: String)(using q: Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] =
@@ -171,7 +171,7 @@ private[circe] object MakeDecoderMacro:
     val constructors: List[Symbol] = discoverConstructors(sym)
     if constructors.isEmpty then
       report.errorAndAbort(
-        s"makeDecoder: ${tpe.show} has no constructors to decode (not a case class, sealed hierarchy, or enum)"
+        s"decoder: ${tpe.show} has no constructors to decode (not a case class, sealed hierarchy, or enum)"
       )
 
     // ----- Per-constructor data (kept local: referencing q.reflect types) -----
@@ -211,7 +211,7 @@ private[circe] object MakeDecoderMacro:
           val fieldNames = flat.map(_.name)
           val valueListSizes = valueParamLists.map(_.size)
 
-          // See [[MakeEncoderMacro]] for the rationale of the three-way dispatch on `tpe`.
+          // See [[EncoderMacro]] for the rationale of the three-way dispatch on `tpe`.
           val rawFieldTypes: List[TypeRepr] = flat.map(childSym.typeRef.memberType)
           val classTypeParams: List[Symbol] = childSym.primaryConstructor.paramSymss
             .find(ps => ps.headOption.exists(_.isType))
@@ -306,7 +306,7 @@ private[circe] object MakeDecoderMacro:
                   case iss: ImplicitSearchSuccess => iss.tree
                   case _: ImplicitSearchFailure =>
                     report.errorAndAbort(
-                      s"makeDecoder[${tpe.show}]: cannot summon using-clause parameter of type ${uTpe.show}"
+                      s"decoder[${tpe.show}]: cannot summon using-clause parameter of type ${uTpe.show}"
                     )
               }
               applied = Apply(applied, usingArgs)
@@ -380,7 +380,7 @@ private[circe] object MakeDecoderMacro:
         decodeFromDefinitions[T](opts, cd, defs, cursor, buildFn)
     }
 
-    // Recursion detection: see MakeEncoderMacro for rationale.
+    // Recursion detection: see EncoderMacro for rationale.
     val isRecursive: Boolean = ctorData.flatMap(_.fieldTypes).exists(ft => containsTypeSymbol(ft, sym))
     val typeDisplayExpr: Expr[String] = Expr(typeDisplayNameStr)
 

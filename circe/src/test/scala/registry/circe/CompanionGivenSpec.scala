@@ -5,28 +5,28 @@ import org.specs2.mutable.Specification
 import registry.*
 
 /**
- * `makeEncoder[T]` / `makeDecoder[T]` defer to a companion-object `given Encoder[T]` / `given Decoder[T]`
+ * `encoder[T]` / `decoder[T]` defer to a companion-object `given Encoder[T]` / `given Decoder[T]`
  * when one exists, registering it directly instead of generating a structural codec. This avoids the
  * need to write `encoderOf[T]` / `decoderOf[T]` for types that already provide their own circe codecs.
  */
 class CompanionGivenSpec extends Specification:
 
-  "makeEncoder[T] uses a companion-given Encoder[T] when present" >> {
-    val r = makeEncoder[CGType]
+  "encoder[T] uses a companion-given Encoder[T] when present" >> {
+    val r = encoder[CGType]
     val e = r.make[Encoder[CGType]]
     e(CGType("hello")) === Json.fromString("companion:hello")
   }
 
-  "makeDecoder[T] uses a companion-given Decoder[T] when present" >> {
-    val r = makeDecoder[CGType]
+  "decoder[T] uses a companion-given Decoder[T] when present" >> {
+    val r = decoder[CGType]
     val d = r.make[Decoder[CGType]]
     d.decodeJson(Json.fromString("companion:hello")) === Right(CGType("hello"))
   }
 
-  "makeEncoder[T] / makeDecoder[T] fall back to structural derivation when no companion-given exists" >> {
+  "encoder[T] / decoder[T] fall back to structural derivation when no companion-given exists" >> {
     val r =
-      makeEncoder[Structural] *:
-        makeDecoder[Structural] *:
+      encoder[Structural] *:
+        decoder[Structural] *:
         encoderOf[Int] *:
         decoderOf[Int] *:
         defaultEncoderOptions <+>
@@ -60,10 +60,10 @@ object CGOpaqueModule:
   given Decoder[CGOpaque] = Decoder.decodeInt.map(apply)
 
 class CompanionGivenOpaqueSpec extends Specification:
-  "makeEncoder[T] / makeDecoder[T] also find givens declared in the surrounding object of an opaque type" >> {
+  "encoder[T] / decoder[T] also find givens declared in the surrounding object of an opaque type" >> {
     val r =
-      makeEncoder[CGOpaque] *:
-        makeDecoder[CGOpaque]
+      encoder[CGOpaque] *:
+        decoder[CGOpaque]
 
     val e = r.make[Encoder[CGOpaque]]
     val d = r.make[Decoder[CGOpaque]]
@@ -73,16 +73,16 @@ class CompanionGivenOpaqueSpec extends Specification:
 
 class MakeValueShapeSpec extends Specification:
 
-  "makeDecoder(d: Decoder[S]) registers it as a value entry" >> {
+  "decoder(d: Decoder[S]) registers it as a value entry" >> {
     val explicit: Decoder[Int] = Decoder.decodeInt
-    val r = makeDecoder(explicit)
+    val r = decoder(explicit)
     val d = r.make[Decoder[Int]]
     d.decodeJson(Json.fromInt(42)) === Right(42)
   }
 
-  "makeEncoder(e: Encoder[S]) registers it as a value entry" >> {
+  "encoder(e: Encoder[S]) registers it as a value entry" >> {
     val explicit: Encoder[Int] = Encoder.encodeInt
-    val r = makeEncoder(explicit)
+    val r = encoder(explicit)
     val e = r.make[Encoder[Int]]
     e(42) === Json.fromInt(42)
   }
@@ -96,10 +96,10 @@ object WithUsing:
   given Ordering[Int] = scala.math.Ordering.Int
 
 class MakeCurriedSpec extends Specification:
-  "makeEncoder[T] / makeDecoder[T] handle a case class with a using clause" >> {
+  "encoder[T] / decoder[T] handle a case class with a using clause" >> {
     val r =
-      makeEncoder[WithUsing] *:
-        makeDecoder[WithUsing] *:
+      encoder[WithUsing] *:
+        decoder[WithUsing] *:
         encoderOf[Int] *:
         decoderOf[Int] *:
         defaultEncoderOptions <+>

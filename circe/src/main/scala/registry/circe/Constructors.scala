@@ -50,7 +50,7 @@ type FieldDef = (String, String)
 
 /**
  * Data extracted from a JSON value for a particular constructor, ready to be handed back to the
- * `makeDecoder` macro's constructor-matching case.
+ * `decoder` macro's constructor-matching case.
  *
  * A direct port of aeson's `ToConstructor`. The per-field cursor carries circe's `CursorOp` history
  * so downstream `DecodingFailure`s can be displayed with the correct JSON path.

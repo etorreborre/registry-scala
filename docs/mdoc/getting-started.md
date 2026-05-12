@@ -11,10 +11,10 @@ The library is published as four artifacts. Pick the ones you need:
 
 ```scala
 libraryDependencies ++= Seq(
-  "org.atnos" %% "registry"            % "1.0.0", // core
-  "org.atnos" %% "registry-scalacheck" % "1.0.0", // optional
-  "org.atnos" %% "registry-cats"       % "1.0.0", // optional
-  "org.atnos" %% "registry-circe"      % "1.0.0"  // optional
+  "org.atnos" %% "registry"            % "0.1.5", // core
+  "org.atnos" %% "registry-scalacheck" % "0.1.5", // optional
+  "org.atnos" %% "registry-cats"       % "0.1.5", // optional
+  "org.atnos" %% "registry-circe"      % "0.1.5"  // optional
 )
 ```
 
@@ -70,5 +70,5 @@ val safeApp = r.makeSafe[App]
 - Concepts: `+:` vs `*:` vs `-:`, resolution rules, `make` vs `makeSafe`,
   memoization.
 - Modules: ScalaCheck (`gen[T]`), cats (`funTo[F, T]`), circe
-  (`makeEncoder[T]`).
+  (`encoder[T]`).
 - Recipes: overriding by context, sealed traits, effectful wiring.

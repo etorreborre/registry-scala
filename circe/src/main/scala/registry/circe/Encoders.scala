@@ -43,7 +43,7 @@ object Encoders:
    * BigInt) as a single value.
    *
    * {{{
-   * makeEncoder[Foo] *: contramap((_:Wrapper).inner) *: Encoders.primitives *: defaultEncoderOptions
+   * encoder[Foo] *: contramap((_:Wrapper).inner) *: Encoders.primitives *: defaultEncoderOptions
    * }}}
    */
   val primitives =

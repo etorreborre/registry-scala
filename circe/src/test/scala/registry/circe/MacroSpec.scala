@@ -7,10 +7,10 @@ import registry.*
 
 class MacroSpec extends Specification:
 
-  "makeEncoder / makeDecoder on a single-field case class" >> {
+  "encoder / decoder on a single-field case class" >> {
     val r =
-      makeEncoder[Identifier] *:
-        makeDecoder[Identifier] *:
+      encoder[Identifier] *:
+        decoder[Identifier] *:
         encoderOf[Int] *:
         decoderOf[Int] *:
         defaultEncoderOptions <+>
@@ -26,14 +26,14 @@ class MacroSpec extends Specification:
     d.decodeJson(encoded) === Right(Identifier(1))
   }
 
-  "makeEncoder / makeDecoder on a multi-field case class" >> {
+  "encoder / decoder on a multi-field case class" >> {
     val r =
-      makeEncoder[Person] *:
-        makeDecoder[Person] *:
-        makeEncoder[Identifier] *:
-        makeDecoder[Identifier] *:
-        makeEncoder[Email] *:
-        makeDecoder[Email] *:
+      encoder[Person] *:
+        decoder[Person] *:
+        encoder[Identifier] *:
+        decoder[Identifier] *:
+        encoder[Email] *:
+        decoder[Email] *:
         encoderOf[Int] *:
         decoderOf[Int] *:
         encoderOf[String] *:
@@ -54,16 +54,16 @@ class MacroSpec extends Specification:
     d.decodeJson(encoded) === Right(p)
   }
 
-  "makeEncoder / makeDecoder on a sealed trait with mixed constructors" >> {
+  "encoder / decoder on a sealed trait with mixed constructors" >> {
     val r =
-      makeEncoder[Delivery] *:
-        makeDecoder[Delivery] *:
-        makeEncoder[Person] *:
-        makeDecoder[Person] *:
-        makeEncoder[Identifier] *:
-        makeDecoder[Identifier] *:
-        makeEncoder[Email] *:
-        makeDecoder[Email] *:
+      encoder[Delivery] *:
+        decoder[Delivery] *:
+        encoder[Person] *:
+        decoder[Person] *:
+        encoder[Identifier] *:
+        decoder[Identifier] *:
+        encoder[Email] *:
+        decoder[Email] *:
         encoderOf[Int] *:
         decoderOf[Int] *:
         encoderOf[String] *:
@@ -90,10 +90,10 @@ class MacroSpec extends Specification:
     d.decodeJson(byEmailEncoded) === Right(Delivery.ByEmail(Email("x@y.z")))
   }
 
-  "makeEncoder[Wrapper[Int]] on a generic class substitutes the type parameter in fields" >> {
+  "encoder[Wrapper[Int]] on a generic class substitutes the type parameter in fields" >> {
     val r =
-      makeEncoder[Wrapper[Int]] *:
-        makeDecoder[Wrapper[Int]] *:
+      encoder[Wrapper[Int]] *:
+        decoder[Wrapper[Int]] *:
         encoderOf[Int] *:
         decoderOf[Int] *:
         defaultEncoderOptions <+>
@@ -105,12 +105,12 @@ class MacroSpec extends Specification:
     d.decodeJson(Json.obj("value" -> Json.fromInt(7))) === Right(Wrapper(7))
   }
 
-  "value-driven makeEncoder(S => T) — single-arg function → contramap mode" >> {
+  "value-driven encoder(S => T) — single-arg function → contramap mode" >> {
     final case class UserId(value: Long)
 
     val r =
-      makeEncoder((_: UserId).value) *:
-        makeDecoder((l: Long) => UserId(l)) *:
+      encoder((_: UserId).value) *:
+        decoder((l: Long) => UserId(l)) *:
         encoderOf[Long] *:
         decoderOf[Long]
 

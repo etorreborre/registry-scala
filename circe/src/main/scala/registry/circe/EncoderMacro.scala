@@ -9,7 +9,7 @@ import scala.quoted.*
 /**
  * Generate an `Encoder[T]` for a case class, a sealed trait, or a Scala 3 enum.
  *
- *   `makeEncoder[Person]` expands to an entry declaring inputs
+ *   `encoder[Person]` expands to an entry declaring inputs
  *   `(JsonOptions, ConstructorEncoder, Encoder[F1], Encoder[F2], …)` where `F1, F2, …` are the unique
  *   field types across all constructors of `T`. At runtime, the entry's closure matches on the runtime
  *   value and packs a [[FromConstructor]] that the [[ConstructorEncoder]] turns into `Json`.
@@ -22,19 +22,19 @@ import scala.quoted.*
  *   dispatches to the real encoder once it exists. Mutual recursion across distinct types is not
  *   handled.
  */
-transparent inline def makeEncoder[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
-  ${ MakeEncoderMacro.implDropQualifier[T] }
+transparent inline def encoder[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
+  ${ EncoderMacro.implDropQualifier[T] }
 
-/** Same as [[makeEncoder]] but keep the fully-qualified type name in `fromConstructorTypes`. */
-transparent inline def makeEncoderQualified[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
-  ${ MakeEncoderMacro.implFullQualified[T] }
+/** Same as [[encoder]] but keep the fully-qualified type name in `fromConstructorTypes`. */
+transparent inline def encoderQualified[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
+  ${ EncoderMacro.implFullQualified[T] }
 
-/** Same as [[makeEncoder]] but keep only the last package segment in the type name. */
-transparent inline def makeEncoderQualifiedLast[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
-  ${ MakeEncoderMacro.implLastQualifier[T] }
+/** Same as [[encoder]] but keep only the last package segment in the type name. */
+transparent inline def encoderQualifiedLast[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
+  ${ EncoderMacro.implLastQualifier[T] }
 
 /**
- * Value-driven variant: `makeEncoder(x)` for a function value. Two shapes:
+ * Value-driven variant: `encoder(x)` for a function value. Two shapes:
  *
  *   1. Single-arg `S => T` where `T` is **not** an `Encoder[_]` — registered as `contramap(f)`:
  *      input `Encoder[T]`, output `Encoder[S]`.
@@ -42,12 +42,12 @@ transparent inline def makeEncoderQualifiedLast[T]: Registry[? <: Tuple, Encoder
  *   2. `(A1, …, An) => Encoder[S]` of any arity — registered as a `fun`-style entry: inputs are
  *      the raw parameter types resolved from the registry, output `Encoder[S]`.
  *
- * Anything else fails at compile time. For type-based derivation, use `makeEncoder[T]`.
+ * Anything else fails at compile time. For type-based derivation, use `encoder[T]`.
  */
-transparent inline def makeEncoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple] =
-  ${ MakeEncoderMacro.valueImpl[X]('x) }
+transparent inline def encoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple] =
+  ${ EncoderMacro.valueImpl[X]('x) }
 
-private[circe] object MakeEncoderMacro:
+private[circe] object EncoderMacro:
 
   private inline val DropQualifier = "drop"
   private inline val FullQualified = "full"
@@ -58,7 +58,7 @@ private[circe] object MakeEncoderMacro:
   def implLastQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] = impl[T](LastQualifier)
 
   /**
-   * Dispatch a value-based `makeEncoder(x)`. Two shapes:
+   * Dispatch a value-based `encoder(x)`. Two shapes:
    *   - Single-arg `S => T` (T not an `Encoder`) → contramap mode.
    *   - Multi-arg `(A1, …, An) => Encoder[S]` (any arity) → fun-style entry.
    */
@@ -93,7 +93,7 @@ private[circe] object MakeEncoderMacro:
               ${
                 val argTerms: List[Term] = paramTypes.zipWithIndex.map: (pt, i) =>
                   pt.asType match
-                    case '[p] => '{ ${ 'args }.apply(${ Expr(i) }).asInstanceOf[p] }.asTerm
+                    case '[p] => '{ args.apply(${ Expr(i) }).asInstanceOf[p] }.asTerm
                 val applyM: Term = Select.unique(x.asTerm, "apply")
                 Apply(applyM, argTerms).asExprOf[Any]
               }
@@ -129,14 +129,14 @@ private[circe] object MakeEncoderMacro:
                     }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
               case _ =>
                 report.errorAndAbort(
-                  s"makeEncoder(${xTpe.show}): multi-arg functions must return `Encoder[S]`. " +
+                  s"encoder(${xTpe.show}): multi-arg functions must return `Encoder[S]`. " +
                     "Single-arg `S => T` is accepted as `contramap(f)`."
                 )
 
       case _ =>
         asEncoderType(xTpe) match
           case Some(sTpe) =>
-            // Zero-arg shape: makeEncoder(e: Encoder[S]) -> value entry.
+            // Zero-arg shape: encoder(e: Encoder[S]) -> value entry.
             sTpe.asType match
               case '[s] =>
                 val eExpr = x.asExprOf[Encoder[s]]
@@ -147,8 +147,8 @@ private[circe] object MakeEncoderMacro:
                 }.asInstanceOf[Expr[Registry[? <: Tuple, ? <: Tuple]]]
           case None =>
             report.errorAndAbort(
-              s"makeEncoder(${xTpe.show}): expected an `Encoder[S]` or a function returning `Encoder[S]`. " +
-                "For type-based derivation, use `makeEncoder[T]` instead."
+              s"encoder(${xTpe.show}): expected an `Encoder[S]` or a function returning `Encoder[S]`. " +
+                "For type-based derivation, use `encoder[T]` instead."
             )
 
   def impl[T: Type](mode: String)(using q: Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] =
@@ -157,7 +157,7 @@ private[circe] object MakeEncoderMacro:
     // Fast path: if `T`'s companion declares a `given Encoder[T]`, register it directly
     // instead of generating a structural encoder. Companion-only (not full implicit scope) so
     // the choice doesn't silently depend on imports.
-    MakeDecoderMacro.findCompanionGiven(TypeRepr.of[T], TypeRepr.of[Encoder[T]]) match
+    DecoderMacro.findCompanionGiven(TypeRepr.of[T], TypeRepr.of[Encoder[T]]) match
       case Some(givenTerm) =>
         val givenExpr = givenTerm.asExprOf[Encoder[T]]
         return '{
@@ -173,7 +173,7 @@ private[circe] object MakeEncoderMacro:
     val constructors: List[Symbol] = discoverConstructors(sym)
     if constructors.isEmpty then
       report.errorAndAbort(
-        s"makeEncoder: ${tpe.show} has no constructors to encode (not a case class, sealed hierarchy, or enum)"
+        s"encoder: ${tpe.show} has no constructors to encode (not a case class, sealed hierarchy, or enum)"
       )
 
     // Extract per-constructor data as plain Scala values (no path-dependent types).

@@ -133,10 +133,10 @@ class EncoderSpec extends Specification:
     )
   }
 
-  "makeEncoder compiles when two fields have the same type" >> {
+  "encoder compiles when two fields have the same type" >> {
     // If it compiles the test passes — runtime behavior is not the concern here.
     val _ =
-      makeEncoder[Stats] *:
+      encoder[Stats] *:
         encoderOf[Int] *:
         defaultEncoderOptions
     success
@@ -159,21 +159,21 @@ class EncoderSpec extends Specification:
   // ---- shared encoder registry (mirrors aeson's `encoders`) ----
 
   lazy val encoders =
-    makeEncoder[Delivery] *:
-      makeEncoder[Person] *:
-      makeEncoder[Team] *:
-      makeEncoder[Email] *:
-      makeEncoder[Identifier] *:
-      makeEncoder[DateTime] *:
-      makeEncoder[AllNullary] *:
-      makeEncoder[FieldLabelModifier] *:
-      makeEncoder[ConstructorTagModifier] *:
-      makeEncoder[OmitNothingFields] *:
-      makeEncoder[UnwrapUnaryRecords] *:
-      makeEncoder[TagSingleConstructors] *:
-      makeEncoder[UntaggedValueSumEncoding] *:
-      makeEncoder[ObjectWithSingleFieldSumEncoding] *:
-      makeEncoder[TwoElemArraySumEncoding] *:
+    encoder[Delivery] *:
+      encoder[Person] *:
+      encoder[Team] *:
+      encoder[Email] *:
+      encoder[Identifier] *:
+      encoder[DateTime] *:
+      encoder[AllNullary] *:
+      encoder[FieldLabelModifier] *:
+      encoder[ConstructorTagModifier] *:
+      encoder[OmitNothingFields] *:
+      encoder[UnwrapUnaryRecords] *:
+      encoder[TagSingleConstructors] *:
+      encoder[UntaggedValueSumEncoding] *:
+      encoder[ObjectWithSingleFieldSumEncoding] *:
+      encoder[TwoElemArraySumEncoding] *:
       encodeOptionOf[Int] *:
       encodeOptionOf[String] *:
       encodeListOf[Person] *:

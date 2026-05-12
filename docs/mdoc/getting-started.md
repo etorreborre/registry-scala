@@ -69,6 +69,5 @@ val safeApp = r.makeSafe[App]
 
 - Concepts: `+:` vs `*:` vs `-:`, resolution rules, `make` vs `makeSafe`,
   memoization.
-- Modules: ScalaCheck (`gen[T]`), cats (`funTo[F, T]`), circe
-  (`encoder[T]`).
+- Modules: [ScalaCheck](modules/scalacheck.md), cats, [circe](modules/circe.md).
 - Recipes: overriding by context, sealed traits, effectful wiring.

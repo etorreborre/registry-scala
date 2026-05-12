@@ -13,4 +13,5 @@ The library is split into a small core and per-integration artifacts:
 - [`registry-scalacheck`](modules/scalacheck.md) — derive
   `Gen[T]` instances from a registry.
 - `registry-cats` <span class="badge-soon">coming soon</span>
-- `registry-circe` — derive `Encoder[T]` / `Decoder[T]` with configurable JSON options.
+- [`registry-circe`](modules/circe.md) — derive `Encoder[T]` / `Decoder[T]`
+  with configurable JSON options.

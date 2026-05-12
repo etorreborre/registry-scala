@@ -7,8 +7,7 @@ import scala.collection.immutable.TreeMap
 
 /**
  * Namespace for primitive `Encoder[A]` (= `io.circe.Encoder[A]`) entries and the registry
- * combinators that derive new encoders from existing ones. There is no registry-specific wrapper —
- * users can drop in any circe-derived encoder via `value(...)` or [[encoderOf]].
+ * combinators that derive new encoders from existing ones.
  */
 object Encoders:
 

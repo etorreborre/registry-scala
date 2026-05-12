@@ -16,6 +16,10 @@ import scala.quoted.*
  *
  *   For sum types (sealed traits / enums), one pattern-match branch is generated per child constructor.
  *
+ *   The macro emits the fully-qualified constructor name. The presentation of that name in the JSON
+ *   tag is controlled by [[JsonOptions.constructorTagModifier]] (default: drop the qualifier, matching
+ *   aeson). Use `identity` to keep the FQN or [[JsonOptions.lastTwoSegments]] for a mid-ground.
+ *
  *   Self-recursion is detected automatically (any field type whose `TypeRepr` mentions `T` — directly
  *   or wrapped, e.g. `List[T]` / `Option[T]`). The macro emits an extra forwarder entry that picks up
  *   the in-flight `Encoder[T]` resolution; the main entry back-patches a shared cell so the forwarder
@@ -23,15 +27,7 @@ import scala.quoted.*
  *   handled.
  */
 transparent inline def encoder[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
-  ${ EncoderMacro.implDropQualifier[T] }
-
-/** Same as [[encoder]] but keep the fully-qualified type name in `fromConstructorTypes`. */
-transparent inline def encoderQualified[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
-  ${ EncoderMacro.implFullQualified[T] }
-
-/** Same as [[encoder]] but keep only the last package segment in the type name. */
-transparent inline def encoderQualifiedLast[T]: Registry[? <: Tuple, Encoder[T] *: EmptyTuple] =
-  ${ EncoderMacro.implLastQualifier[T] }
+  ${ EncoderMacro.impl[T] }
 
 /**
  * Value-driven variant: `encoder(x)` for a function value. Two shapes:
@@ -48,14 +44,6 @@ transparent inline def encoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple]
   ${ EncoderMacro.valueImpl[X]('x) }
 
 private[circe] object EncoderMacro:
-
-  private inline val DropQualifier = "drop"
-  private inline val FullQualified = "full"
-  private inline val LastQualifier = "last"
-
-  def implDropQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] = impl[T](DropQualifier)
-  def implFullQualified[T: Type](using Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] = impl[T](FullQualified)
-  def implLastQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] = impl[T](LastQualifier)
 
   /**
    * Dispatch a value-based `encoder(x)`. Two shapes:
@@ -151,7 +139,7 @@ private[circe] object EncoderMacro:
                 "For type-based derivation, use `encoder[T]` instead."
             )
 
-  def impl[T: Type](mode: String)(using q: Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] =
+  def impl[T: Type](using q: Quotes): Expr[Registry[? <: Tuple, Encoder[T] *: EmptyTuple]] =
     import q.reflect.*
 
     // Fast path: if `T`'s companion declares a `given Encoder[T]`, register it directly
@@ -186,7 +174,7 @@ private[circe] object EncoderMacro:
     )
 
     def mkCtorData(childSym: Symbol): CtorData =
-      val displayName = applyQualifierMode(childSym.fullName, mode)
+      val displayName = cleanFullName(childSym.fullName)
       val isModule = childSym.flags.is(Flags.Module) || childSym.isTerm
       if isModule then
         CtorData(childSym, displayName, true, Nil, Nil)
@@ -237,7 +225,7 @@ private[circe] object EncoderMacro:
 
     // Precompute String metadata.
     val constructorNamesExpr: Expr[List[String]] = Expr(ctorData.map(_.displayName))
-    val constructorTypesListExpr: Expr[List[String]] = Expr(allFieldTypes.map(t => typeDisplayName(t, mode)))
+    val constructorTypesListExpr: Expr[List[String]] = Expr(allFieldTypes.map(typeDisplayName(_)))
 
     // Build the match expression as a function Expr.
     def buildMatch(value: Expr[T], encoders: Expr[Seq[Encoder[Any]]]): Expr[FromConstructor] =
@@ -321,7 +309,7 @@ private[circe] object EncoderMacro:
     // requires a forwarder entry so the cycle through `Encoder[T]` resolves through the in-flight
     // skip in `Resolve.go` instead of erroring out.
     val isRecursive: Boolean = ctorData.flatMap(_.fieldTypes).exists(ft => containsTypeSymbol(ft, sym))
-    val typeDisplay: String = applyQualifierMode(sym.fullName, mode)
+    val typeDisplay: String = cleanFullName(sym.fullName)
     val typeDisplayExpr: Expr[String] = Expr(typeDisplay)
 
     val insTpe = buildTupleType(allInputTypes)
@@ -368,24 +356,18 @@ private[circe] object EncoderMacro:
     else if sym.isClassDef && !sym.flags.is(Flags.Abstract) && !sym.flags.is(Flags.Trait) then List(sym)
     else Nil
 
-  private def typeDisplayName(using q: Quotes)(tpe: q.reflect.TypeRepr, mode: String): String =
+  private def typeDisplayName(using q: Quotes)(tpe: q.reflect.TypeRepr): String =
     import q.reflect.*
     tpe.dealias match
       case AppliedType(tycon, args) =>
-        val head = applyQualifierMode(tycon.typeSymbol.fullName, mode)
-        val tail = args.map(a => applyQualifierMode(a.typeSymbol.fullName, mode)).mkString(" ")
+        val head = cleanFullName(tycon.typeSymbol.fullName)
+        val tail = args.map(a => cleanFullName(a.typeSymbol.fullName)).mkString(" ")
         if args.isEmpty then head else s"$head $tail"
-      case other => applyQualifierMode(other.typeSymbol.fullName, mode)
+      case other => cleanFullName(other.typeSymbol.fullName)
 
-  private def applyQualifierMode(fq: String, mode: String): String =
-    val cleaned = if fq.endsWith("$") then fq.dropRight(1) else fq
-    mode match
-      case "drop" => cleaned.split('.').last
-      case "full" => cleaned
-      case "last" =>
-        val parts = cleaned.split('.')
-        if parts.length >= 2 then parts.takeRight(2).mkString(".") else cleaned
-      case _ => cleaned
+  /** Strip the trailing `$` that companion module symbols carry in their `fullName`. */
+  private def cleanFullName(fq: String): String =
+    if fq.endsWith("$") then fq.dropRight(1) else fq
 
   private def buildTupleType(using q: Quotes)(types: List[q.reflect.TypeRepr]): q.reflect.TypeRepr =
     import q.reflect.*

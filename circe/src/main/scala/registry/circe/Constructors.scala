@@ -467,7 +467,7 @@ object ConstructorsDecoder:
                   obj(modifiedFieldName) match
                     case Some(_) => Some((Some((fieldName, fieldType)), cursor.downField(modifiedFieldName)))
                     case None =>
-                      if options.omitNothingFields && fieldType.startsWith("Option") then
+                      if options.omitNothingFields && isOptionType(fieldType) then
                         Some((Some((fieldName, fieldType)), Json.Null.hcursor: ACursor))
                       else None
                 }
@@ -506,6 +506,10 @@ object ConstructorsDecoder:
 
   private def fail[A](cursor: HCursor, msg: String): Either[DecodingFailure, A] =
     Left(DecodingFailure(msg, cursor.history))
+
+  /** Recognize `Option`-typed fields from the macro's `typeDisplayName` output (FQN-based). */
+  private def isOptionType(fieldType: String): Boolean =
+    fieldType.startsWith("scala.Option") || fieldType.startsWith("Option")
 
 /** Shared helper: render a JSON value as compact text. */
 private[circe] def encodeAsText(j: Json): String = j.noSpaces

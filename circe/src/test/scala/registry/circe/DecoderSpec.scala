@@ -65,7 +65,10 @@ class DecoderSpec extends Specification:
   }
 
   "constructorTagModifier maps JSON tag values to constructors" >> {
-    val r = value(JsonOptions.default.copy(constructorTagModifier = "__" + _)) -: decoders
+    val r =
+      value(
+        JsonOptions.default.copy(constructorTagModifier = JsonOptions.dropQualifier andThen ("__" + _))
+      ) -: decoders
     val d = r.make[Decoder[ConstructorTagModifier]]
     d.decodeJson(parse("""{"tag":"__ConstructorTagModifier1","ctField1":123}""")) ===
       Right(ConstructorTagModifier.ConstructorTagModifier1(123))

@@ -15,18 +15,13 @@ import scala.quoted.*
  *   [[ConstructorDef]]s, calls [[decodeFromDefinitions]] to pick the right constructor and decode each
  *   field, and applies the constructor to the decoded values.
  *
+ *   The macro emits the fully-qualified constructor name. [[JsonOptions.constructorTagModifier]]
+ *   controls how that name is matched against the JSON tag — see [[encoder]] for details.
+ *
  *   Self-recursion is detected automatically (see [[encoder]] for the same scheme).
  */
 transparent inline def decoder[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
-  ${ DecoderMacro.implDropQualifier[T] }
-
-/** Same as [[decoder]] but keep the fully-qualified type name in `fieldTypes`. */
-transparent inline def decoderQualified[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
-  ${ DecoderMacro.implFullQualified[T] }
-
-/** Same as [[decoder]] but keep only the last package segment in the type name. */
-transparent inline def decoderQualifiedLast[T]: Registry[? <: Tuple, Decoder[T] *: EmptyTuple] =
-  ${ DecoderMacro.implLastQualifier[T] }
+  ${ DecoderMacro.impl[T] }
 
 /**
  * Value-driven variant: `decoder(x)` for a function value `x`. Two shapes are accepted:
@@ -46,14 +41,6 @@ transparent inline def decoder[X](inline x: X): Registry[? <: Tuple, ? <: Tuple]
   ${ DecoderMacro.valueImpl[X]('x) }
 
 private[circe] object DecoderMacro:
-
-  private inline val DropQualifier = "drop"
-  private inline val FullQualified = "full"
-  private inline val LastQualifier = "last"
-
-  def implDropQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] = impl[T](DropQualifier)
-  def implFullQualified[T: Type](using Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] = impl[T](FullQualified)
-  def implLastQualifier[T: Type](using Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] = impl[T](LastQualifier)
 
   /**
    * Dispatch a value-based `decoder(x)`. Two shapes:
@@ -149,7 +136,7 @@ private[circe] object DecoderMacro:
                 "For type-based derivation, use `decoder[T]` instead."
             )
 
-  def impl[T: Type](mode: String)(using q: Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] =
+  def impl[T: Type](using q: Quotes): Expr[Registry[? <: Tuple, Decoder[T] *: EmptyTuple]] =
     import q.reflect.*
 
     // Fast path: if `T`'s companion declares a `given Decoder[T]`, register it directly
@@ -192,7 +179,7 @@ private[circe] object DecoderMacro:
     )
 
     def mkCtorData(childSym: Symbol): CtorData =
-      val displayName = applyQualifierMode(childSym.fullName, mode)
+      val displayName = cleanFullName(childSym.fullName)
       val isModule = childSym.flags.is(Flags.Module) || childSym.isTerm
       if isModule then
         CtorData(childSym, displayName, true, Nil, Nil, Nil, Nil)
@@ -245,14 +232,14 @@ private[circe] object DecoderMacro:
 
     val outputTagExpr: Expr[LightTypeTag] = '{ summon[Tag[Decoder[T]]].tag }
 
-    val typeDisplayNameStr: String = applyQualifierMode(sym.fullName, mode)
+    val typeDisplayNameStr: String = cleanFullName(sym.fullName)
     val typeDisplayNameExpr: Expr[String] = Expr(typeDisplayNameStr)
 
     val constructorDefsExpr: Expr[List[ConstructorDef]] = {
       val pairs: List[Expr[ConstructorDef]] = ctorData.map: c =>
         val nameExpr = Expr(c.displayName)
         val fieldNamesExpr = Expr(c.fieldNames)
-        val fieldTypesExpr = Expr(c.fieldTypes.map(t => typeDisplayName(t, mode)))
+        val fieldTypesExpr = Expr(c.fieldTypes.map(typeDisplayName(_)))
         '{ ConstructorDef($nameExpr, $fieldNamesExpr, $fieldTypesExpr) }
       Expr.ofList(pairs)
     }
@@ -431,24 +418,18 @@ private[circe] object DecoderMacro:
     else if sym.isClassDef && !sym.flags.is(Flags.Abstract) && !sym.flags.is(Flags.Trait) then List(sym)
     else Nil
 
-  private def typeDisplayName(using q: Quotes)(tpe: q.reflect.TypeRepr, mode: String): String =
+  private def typeDisplayName(using q: Quotes)(tpe: q.reflect.TypeRepr): String =
     import q.reflect.*
     tpe.dealias match
       case AppliedType(tycon, args) =>
-        val head = applyQualifierMode(tycon.typeSymbol.fullName, mode)
-        val tail = args.map(a => applyQualifierMode(a.typeSymbol.fullName, mode)).mkString(" ")
+        val head = cleanFullName(tycon.typeSymbol.fullName)
+        val tail = args.map(a => cleanFullName(a.typeSymbol.fullName)).mkString(" ")
         if args.isEmpty then head else s"$head $tail"
-      case other => applyQualifierMode(other.typeSymbol.fullName, mode)
+      case other => cleanFullName(other.typeSymbol.fullName)
 
-  private def applyQualifierMode(fq: String, mode: String): String =
-    val cleaned = if fq.endsWith("$") then fq.dropRight(1) else fq
-    mode match
-      case "drop" => cleaned.split('.').last
-      case "full" => cleaned
-      case "last" =>
-        val parts = cleaned.split('.')
-        if parts.length >= 2 then parts.takeRight(2).mkString(".") else cleaned
-      case _ => cleaned
+  /** Strip the trailing `$` that companion module symbols carry in their `fullName`. */
+  private def cleanFullName(fq: String): String =
+    if fq.endsWith("$") then fq.dropRight(1) else fq
 
   private def buildTupleType(using q: Quotes)(types: List[q.reflect.TypeRepr]): q.reflect.TypeRepr =
     import q.reflect.*

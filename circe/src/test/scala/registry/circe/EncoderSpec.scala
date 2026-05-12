@@ -74,7 +74,10 @@ class EncoderSpec extends Specification:
   }
 
   "constructorTagModifier rewrites the constructor tag" >> {
-    val r = value(JsonOptions.default.copy(constructorTagModifier = "__" + _)) -: encoders
+    val r =
+      value(
+        JsonOptions.default.copy(constructorTagModifier = JsonOptions.dropQualifier andThen ("__" + _))
+      ) -: encoders
     val e = r.make[Encoder[ConstructorTagModifier]]
     expectJsonEqual(
       Encoders.encodeString(e, ConstructorTagModifier.ConstructorTagModifier1(123)),

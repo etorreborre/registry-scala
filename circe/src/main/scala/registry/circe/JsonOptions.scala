@@ -18,10 +18,16 @@ enum SumEncoding:
  * Options controlling how generated encoders/decoders shape the JSON output.
  *
  * Direct port of aeson's `Data.Aeson.Options`, with the same default values.
+ *
+ * The `encoder[T]` / `decoder[T]` macros emit the fully-qualified type name for each constructor
+ * (e.g. `com.acme.MyType.Foo`). `constructorTagModifier` is the single hook for shortening, renaming,
+ * or otherwise transforming that name before it lands in the JSON tag. The default is
+ * [[JsonOptions.dropQualifier]] which keeps only the last segment, matching aeson's behavior. Override
+ * with `identity` to keep the FQN, or with [[JsonOptions.lastTwoSegments]] for `MyType.Foo`-style names.
  */
 final case class JsonOptions(
     fieldLabelModifier: String => String = identity,
-    constructorTagModifier: String => String = identity,
+    constructorTagModifier: String => String = JsonOptions.dropQualifier,
     allNullaryToStringTag: Boolean = true,
     omitNothingFields: Boolean = false,
     sumEncoding: SumEncoding = SumEncoding.TaggedObject("tag", "contents"),
@@ -31,4 +37,12 @@ final case class JsonOptions(
 )
 
 object JsonOptions:
+  /** Keep only the last segment of a dotted name: `com.acme.MyType.Foo` → `Foo`. */
+  val dropQualifier: String => String = _.split('.').last
+
+  /** Keep the last two segments: `com.acme.MyType.Foo` → `MyType.Foo`. */
+  val lastTwoSegments: String => String = fq =>
+    val parts = fq.split('.')
+    if parts.length >= 2 then parts.takeRight(2).mkString(".") else fq
+
   val default: JsonOptions = JsonOptions()

@@ -8,9 +8,7 @@ import scala.collection.immutable.TreeMap
 
 /**
  * Namespace for primitive `Decoder[A]` (= `io.circe.Decoder[A]`) entries and the registry
- * combinators that derive new decoders from existing ones. There is no registry-specific wrapper —
- * users can drop in any circe-derived decoder via `value(...)` or [[decoderOf]]. Failures propagate
- * as `DecodingFailure` with cursor history intact.
+ * combinators that derive new decoders from existing ones.
  */
 object Decoders:
 

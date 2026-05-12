@@ -6,6 +6,9 @@ import registry.{Entry, Registry, TypedEntry, fun, value}
 
 package object circe:
 
+  /** Re-export the four circe typeclasses so `import registry.circe.*` is a one-stop shop. */
+  export io.circe.{Encoder, Decoder, KeyEncoder, KeyDecoder}
+
   /**
    * Decode the focused JSON value at this cursor with the given decoder, returning `None` if the
    * cursor missed (no focus) or the decoder failed. For in-flight cursor navigation inside a

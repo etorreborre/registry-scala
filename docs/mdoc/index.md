@@ -48,3 +48,5 @@ Read on:
   - [`registry`](modules/core.md) — the dependency-injection core.
   - [`registry-scalacheck`](modules/scalacheck.md) — derive `Gen[T]`
     instances from a registry.
+  - [`registry-circe`](modules/circe.md) — derive `Encoder[T]` /
+    `Decoder[T]` instances from a registry.

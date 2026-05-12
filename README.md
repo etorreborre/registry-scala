@@ -1,12 +1,10 @@
 # registry
 
-A small dependency-injection / wiring library for Scala 3, ported from the
-Haskell [`registry`](https://github.com/etorreborre/registry) library.
+A small dependency-injection / wiring library for Scala 3.
 
-A `Registry` is a list of value-producing functions ("entries") plus the
-machinery to invoke them in the right order. You assemble a graph by
-prepending entries, then ask for a value of some type — the library finds the
-function that produces it and recursively builds its inputs.
+A `Registry` is a list of functions and values. The `Registry` main function, `make[T]`, can be called to make
+a value of type `T` by invoking the first function that returns a `T`.
+The function parameters are retrieved by recursively calling `make` on the `Registry`. That's it!
 
 ## Install
 
@@ -56,7 +54,7 @@ is produced by something on the right.
 
 ## Documentation
 
-The rendered site lives at <https://etorreborre.github.io/registry-scala/>.
+The rendered site lives at <https://etorreborre.github.io/registry-scala>.
 
 Sources are under [`docs/mdoc/`](docs/mdoc/) and are typechecked at build time
 via [mdoc](https://scalameta.org/mdoc/):

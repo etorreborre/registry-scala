@@ -50,10 +50,13 @@ class RecursiveSpec extends Specification:
     val d = decoders.make[Decoder[Tree]]
 
     val sample =
-      Tree(1, List(
-        Tree(2, List(Tree(4, Nil), Tree(5, Nil))),
-        Tree(3, Nil)
-      ))
+      Tree(
+        1,
+        List(
+          Tree(2, List(Tree(4, Nil), Tree(5, Nil))),
+          Tree(3, Nil)
+        )
+      )
 
     val encoded = Encoders.encodeString(e, sample)
     val parsed = circeParser.parse(encoded).toOption.get

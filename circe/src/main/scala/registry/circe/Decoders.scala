@@ -230,8 +230,10 @@ object Decoders:
       )
     )
 
-  /** `Decoder[TreeMap[K, V]]` using a `KeyDecoder[K]` for the object keys. Requires `Ordering[K]`
-    *  at registration time to build the `TreeMap`. */
+  /**
+   * `Decoder[TreeMap[K, V]]` using a `KeyDecoder[K]` for the object keys. Requires `Ordering[K]`
+   *  at registration time to build the `TreeMap`.
+   */
   def decodeTreeMapOf[K, V](using
       tagKey: Tag[KeyDecoder[K]],
       tagVal: Tag[Decoder[V]],

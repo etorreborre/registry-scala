@@ -464,7 +464,7 @@ private[circe] object DecoderMacro:
     // (whose givens live in the surrounding `object`, not a separate companion).
     val candidates: List[Symbol] =
       val companion = tSym.companionModule
-      val owner     = tSym.maybeOwner
+      val owner = tSym.maybeOwner
       val ownerAsModule =
         if owner == Symbol.noSymbol then Symbol.noSymbol
         else if owner.flags.is(Flags.Module) then owner
@@ -478,8 +478,8 @@ private[circe] object DecoderMacro:
         else
           val resType: Option[TypeRepr] = m.tree match
             case d: DefDef if d.paramss.isEmpty => Some(d.returnTpt.tpe)
-            case v: ValDef                       => Some(v.tpt.tpe)
-            case _                               => None
+            case v: ValDef                      => Some(v.tpt.tpe)
+            case _                              => None
           resType.filter(_ <:< targetTpe).map(_ => Ref(m))
       }
     }.nextOption()

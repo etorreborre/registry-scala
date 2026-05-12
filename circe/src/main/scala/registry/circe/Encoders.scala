@@ -212,8 +212,10 @@ object Encoders:
       )
     )
 
-  /** `Encoder[TreeMap[K, V]]` using a `KeyEncoder[K]` for the object keys. Keys are emitted in
-    *  sorted order (since `TreeMap.iterator` is sorted). */
+  /**
+   * `Encoder[TreeMap[K, V]]` using a `KeyEncoder[K]` for the object keys. Keys are emitted in
+   *  sorted order (since `TreeMap.iterator` is sorted).
+   */
   def encodeTreeMapOf[K, V](using
       tagKey: Tag[KeyEncoder[K]],
       tagVal: Tag[Encoder[V]],

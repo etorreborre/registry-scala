@@ -113,7 +113,7 @@ class RefineGenSpec extends Specification:
       // The pinned `gen(Gen.const(7L))` makes the registry deliver CoinW(7) deterministically.
       def f(c: CoinW): Output = Output(c)
       val base =
-        gen[Output] +:        // auto-derived — will be shadowed by the refinement
+        gen[Output] +: // auto-derived — will be shadowed by the refinement
           gen[CoinW] +:
           gen(Gen.const(7L))
 

@@ -39,8 +39,10 @@ class CompanionGivenSpec extends Specification:
   }
 
 final case class CGType(value: String)
+
 object CGType:
   given Encoder[CGType] = Encoder.instance(c => Json.fromString(s"companion:${c.value}"))
+
   given Decoder[CGType] = Decoder.instance(c =>
     c.value.asString match
       case Some(s) if s.startsWith("companion:") => Right(CGType(s.drop("companion:".length)))
@@ -52,6 +54,7 @@ final case class Structural(value: Int)
 // Opaque type whose given codecs live in the enclosing `object` — the companion-given lookup
 // needs to fall back to `maybeOwner` here, since opaque types don't have a separate companion.
 type CGOpaque = CGOpaqueModule.CGOpaque
+
 object CGOpaqueModule:
   opaque type CGOpaque = Int
   def apply(i: Int): CGOpaque = i
@@ -60,6 +63,7 @@ object CGOpaqueModule:
   given Decoder[CGOpaque] = Decoder.decodeInt.map(apply)
 
 class CompanionGivenOpaqueSpec extends Specification:
+
   "encoder[T] / decoder[T] also find givens declared in the surrounding object of an opaque type" >> {
     val r =
       encoder[CGOpaque] *:
@@ -92,10 +96,12 @@ class MakeValueShapeSpec extends Specification:
 // a position-less synthetic tuple and crashed dotty. Value params are now treated as fields and
 // the using-clause values are summoned at macro time.
 final case class WithUsing(value: Int)(using val ord: Ordering[Int])
+
 object WithUsing:
   given Ordering[Int] = scala.math.Ordering.Int
 
 class MakeCurriedSpec extends Specification:
+
   "encoder[T] / decoder[T] handle a case class with a using clause" >> {
     val r =
       encoder[WithUsing] *:

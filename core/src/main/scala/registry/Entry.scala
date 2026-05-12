@@ -75,6 +75,7 @@ object Entry:
   ) extends Entry:
     def withInvoke(f: Seq[Any] => Any): Entry = copy(invoke = f)
     def withFresh(b: Boolean = true): Entry = copy(fresh = b)
+
     def withResetFn(f: () => Unit): Entry =
       val prev = resetFn
       copy(resetFn = () => { prev(); f() })

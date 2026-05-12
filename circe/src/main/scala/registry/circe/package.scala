@@ -15,6 +15,7 @@ package object circe:
    * for-comprehension where you don't want the `DecodingFailure` history.
    */
   extension (cursor: ACursor)
+
     def decodeAs[A](decoder: Decoder[A]): Option[A] =
       cursor.focus.flatMap(v => decoder.decodeJson(v).toOption)
 

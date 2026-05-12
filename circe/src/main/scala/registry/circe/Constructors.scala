@@ -210,11 +210,13 @@ object ConstructorsDecoder:
           constructors.find(_.modifiedConstructorName == name) match
             case Some(c) => Right(List(ToConstructor(c.constructorName, Nil)))
             case None =>
-              fail(cursor,
+              fail(
+                cursor,
                 s"expected one of ${constructors.map(_.modifiedConstructorName).mkString(", ")}. Got: \"$name\""
               )
         case None =>
-          fail(cursor,
+          fail(
+            cursor,
             s"expected one of ${constructors.map(_.constructorName).mkString(", ")}. Got: ${encodeAsText(value)}"
           )
     else
@@ -256,13 +258,15 @@ object ConstructorsDecoder:
                 // constructor with one unnamed field
                 case (Nil, Nil, _ :: Nil) if matches =>
                   vs(contentsFieldName) match
-                    case Some(_) => Right(ToConstructor(c.constructorName, List((None, cursor.downField(contentsFieldName)))))
-                    case None    => fail(cursor, s"field $contentsFieldName not found")
+                    case Some(_) =>
+                      Right(ToConstructor(c.constructorName, List((None, cursor.downField(contentsFieldName)))))
+                    case None => fail(cursor, s"field $contentsFieldName not found")
                 // constructor with one named field
                 case (mfn :: Nil, fn :: Nil, ft :: Nil) if matches =>
                   vs(mfn) match
-                    case Some(_) => Right(ToConstructor(c.constructorName, List((Some((fn, ft)), cursor.downField(mfn)))))
-                    case None    => fail(cursor, s"field $mfn not found")
+                    case Some(_) =>
+                      Right(ToConstructor(c.constructorName, List((Some((fn, ft)), cursor.downField(mfn)))))
+                    case None => fail(cursor, s"field $mfn not found")
                 // omitNothingFields fallback
                 case (_, _, _)
                     if matches && options.omitNothingFields &&
@@ -379,7 +383,10 @@ object ConstructorsDecoder:
             value.asString match
               case Some(v) if tags.contains(v) => None
               case _ =>
-                Some(DecodingFailure("expected an Array with 2 elements for an TwoElemArray sum encoding", cursor.history))
+                Some(DecodingFailure(
+                  "expected an Array with 2 elements for an TwoElemArray sum encoding",
+                  cursor.history
+                ))
 
   private def unexpectedConstructor(
       cursor: HCursor,
@@ -409,7 +416,10 @@ object ConstructorsDecoder:
             if v == c.modifiedConstructorName then Right(ToConstructor(c.constructorName, Nil))
             else fail(cursor, s"incorrect constructor name, expected: ${c.modifiedConstructorName}. Got: $v")
           case None =>
-            fail(cursor, s"incorrect constructor name, expected: ${c.modifiedConstructorName}. Got: ${encodeAsText(value)}")
+            fail(
+              cursor,
+              s"incorrect constructor name, expected: ${c.modifiedConstructorName}. Got: ${encodeAsText(value)}"
+            )
 
       // one field, no field name (positional single-arg constructor) — e.g. newtype-wrapper
       case (Nil, _ :: Nil) =>
@@ -492,7 +502,7 @@ object ConstructorsDecoder:
   ): Either[DecodingFailure, A] =
     val (ls, rs) = partitionEithers(es)
     (ls, rs) match
-      case (Nil, Nil)    => Left(DecodingFailure("no results", cursor.history))
+      case (Nil, Nil) => Left(DecodingFailure("no results", cursor.history))
       case (errors, Nil) =>
         Left(DecodingFailure(errors.map(_.message).mkString(" ->> "), cursor.history))
       case (_, r :: _) => Right(r)

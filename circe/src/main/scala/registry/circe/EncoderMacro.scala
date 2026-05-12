@@ -384,4 +384,3 @@ private[circe] object EncoderMacro:
           tycon.typeSymbol == target || args.exists(go)
         case other => other.typeSymbol == target
     go(tpe)
-

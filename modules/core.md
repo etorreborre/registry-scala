@@ -106,44 +106,44 @@ val pooled = app.memoize[Db]
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::Db, String),
 //       output = MdocSession::MdocApp::App,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007f6ec9add5b8@1499cf28,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a0026e57f8@27bbea7f,
 //       fresh = false,
-//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
+//       resetFn = registry.Entry$Basic$$$Lambda/0x000000a002638c50@3ad0fe24
 //     ),
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::DbConfig),
 //       output = MdocSession::MdocApp::Db,
-//       invoke = registry.Registry$$$Lambda/0x00007f6ec9a8dba8@4ae1f6fc,
+//       invoke = registry.Registry$$$Lambda/0x000000a002695c68@354337d5,
 //       fresh = false,
-//       resetFn = registry.Entry$Basic$$Lambda/0x00007f6ec9a8e258@5b6a7d4d
+//       resetFn = registry.Entry$Basic$$Lambda/0x000000a002696328@68516156
 //     ),
 //     Basic(
 //       inputs = List(MdocSession::MdocApp::Host, MdocSession::MdocApp::Port),
 //       output = MdocSession::MdocApp::DbConfig,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007f6ec9ade6a0@1d34ba3e,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a0026e6988@55b54175,
 //       fresh = false,
-//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
+//       resetFn = registry.Entry$Basic$$$Lambda/0x000000a002638c50@3ad0fe24
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = MdocSession::MdocApp::Host,
-//       invoke = registry.Fun$package$$$Lambda/0x00007f6ec9a327d8@28abdf98,
+//       invoke = registry.Fun$package$$$Lambda/0x000000a002639698@170f321a,
 //       fresh = false,
-//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
+//       resetFn = registry.Entry$Basic$$$Lambda/0x000000a002638c50@3ad0fe24
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = MdocSession::MdocApp::Port,
-//       invoke = registry.Fun$package$$$Lambda/0x00007f6ec9a327d8@7211a52a,
+//       invoke = registry.Fun$package$$$Lambda/0x000000a002639698@6f1fca96,
 //       fresh = false,
-//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
+//       resetFn = registry.Entry$Basic$$$Lambda/0x000000a002638c50@3ad0fe24
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = String,
-//       invoke = registry.Fun$package$$$Lambda/0x00007f6ec9a327d8@7d771436,
+//       invoke = registry.Fun$package$$$Lambda/0x000000a002639698@7dd4d9db,
 //       fresh = false,
-//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f6ec9a31db0@5bb7d4ab
+//       resetFn = registry.Entry$Basic$$$Lambda/0x000000a002638c50@3ad0fe24
 //     )
 //   ),
 //   refinements = List()

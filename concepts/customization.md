@@ -47,23 +47,23 @@ val n =
 //     Basic(
 //       inputs = List(Int),
 //       output = Int,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a00263c600@21c10e53,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007f92d9a205f0@7a5abd14,
 //       fresh = false,
-//       resetFn = registry.Entry$Basic$$$Lambda/0x000000a002638c50@3ad0fe24
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f92d9a1a768@4d80783a
 //     ),
 //     Basic(
 //       inputs = List(Int),
 //       output = Int,
-//       invoke = repl.MdocSession$MdocApp$$Lambda/0x000000a00263c9d8@6e614790,
+//       invoke = repl.MdocSession$MdocApp$$Lambda/0x00007f92d9a209c0@546f6c73,
 //       fresh = false,
-//       resetFn = registry.Entry$Basic$$$Lambda/0x000000a002638c50@3ad0fe24
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f92d9a1a768@4d80783a
 //     ),
 //     Basic(
 //       inputs = List(),
 //       output = Int,
-//       invoke = registry.Fun$package$$$Lambda/0x000000a002639698@68ba0213,
+//       invoke = registry.Fun$package$$$Lambda/0x00007f92d9a1b190@20977aa0,
 //       fresh = false,
-//       resetFn = registry.Entry$Basic$$$Lambda/0x000000a002638c50@3ad0fe24
+//       resetFn = registry.Entry$Basic$$$Lambda/0x00007f92d9a1a768@4d80783a
 //     )
 //   ),
 //   refinements = List()

@@ -28,6 +28,7 @@ val scalaCheckDep = "org.scalacheck" %% "scalacheck" % "1.18.1"
 val circeCore = "io.circe" %% "circe-core" % "0.14.10"
 val circeParser = "io.circe" %% "circe-parser" % "0.14.10"
 val borerCore = "io.bullet" %% "borer-core" % "1.16.2"
+val borerDerivation = "io.bullet" %% "borer-derivation" % "1.16.2"
 val catsCore   = "org.typelevel" %% "cats-core"   % "2.12.0"
 val catsEffect = "org.typelevel" %% "cats-effect" % "3.5.7"
 
@@ -102,6 +103,7 @@ lazy val cbor = (project in file("cbor"))
     name := "registry-cbor",
     libraryDependencies ++= Seq(
       borerCore,
+      borerDerivation % Test,
       specs2 % Test
     )
   )

@@ -135,6 +135,12 @@ package object cbor:
   ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[List[A]]] =
     Encoders.encodeListOf[A]
 
+  inline def encodeLinearSeqOf[A, M[X] <: scala.collection.LinearSeq[X]](using
+      Tag[Encoder[A]],
+      Tag[Encoder[M[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[M[A]]] =
+    Encoders.encodeLinearSeqOf[A, M]
+
   inline def encodeSeqOf[A](using
       Tag[Encoder[A]],
       Tag[Encoder[Seq[A]]]
@@ -202,6 +208,14 @@ package object cbor:
       Tag[A]
   ): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[List[A]]] =
     Decoders.decodeListOf[A]
+
+  inline def decodeLinearSeqOf[A, M[X] <: scala.collection.LinearSeq[X]](using
+      Tag[Decoder[A]],
+      Tag[Decoder[M[A]]],
+      Tag[A],
+      scala.collection.Factory[A, M[A]]
+  ): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[M[A]]] =
+    Decoders.decodeLinearSeqOf[A, M]
 
   inline def decodeSeqOf[A](using
       Tag[Decoder[A]],

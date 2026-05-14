@@ -58,6 +58,7 @@ segment).
 | Factory                          | Produces                                                  |
 | -------------------------------- | --------------------------------------------------------- |
 | `encodeListOf[A]`                | `Encoder[List[A]]` (sized CBOR array)                     |
+| `encodeLinearSeqOf[A, M]`        | `Encoder[M[A]]` for any `M[X] <: LinearSeq[X]` (e.g. `Queue`, `LazyList`) |
 | `encodeSeqOf[A]`                 | `Encoder[Seq[A]]`                                         |
 | `encodeVectorOf[A]`              | `Encoder[Vector[A]]`                                      |
 | `encodeIArrayOf[A]`              | `Encoder[IArray[A]]`                                      |
@@ -68,6 +69,7 @@ segment).
 | `encodeMapOf[K, V]`              | `Encoder[Map[K, V]]` — needs `Encoder[K]`                 |
 | `encodeTreeMapOf[K, V]`          | `Encoder[TreeMap[K, V]]` — needs `Encoder[K]`             |
 | `decodeListOf[A]`                | `Decoder[List[A]]`                                        |
+| `decodeLinearSeqOf[A, M]`        | `Decoder[M[A]]` for any `M[X] <: LinearSeq[X]` (needs `Factory[A, M[A]]`) |
 | `decodeSeqOf[A]`                 | `Decoder[Seq[A]]`                                         |
 | `decodeVectorOf[A]`              | `Decoder[Vector[A]]`                                      |
 | `decodeIArrayOf[A]`              | `Decoder[IArray[A]]`                                      |

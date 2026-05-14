@@ -114,6 +114,28 @@ object Encoders:
       )
     )
 
+  /**
+   * `Encoder[M[A]]` for any `M[X] <: LinearSeq[X]` (e.g. `List`, `Queue`, `LazyList`). Writes a
+   * sized CBOR array (definite-length), matching the rest of our container helpers. Saves the
+   * caller from inlining `Encoder.forLinearSeq[A, M]` for one-off collection types.
+   */
+  def encodeLinearSeqOf[A, M[X] <: scala.collection.LinearSeq[X]](using
+      tagIn: Tag[Encoder[A]],
+      tagOut: Tag[Encoder[M[A]]]
+  ): TypedEntry[Encoder[A] *: EmptyTuple, Encoder[M[A]]] =
+    TypedEntry(
+      Entry(
+        List(tagIn.tag),
+        tagOut.tag,
+        args =>
+          val e = args(0).asInstanceOf[Encoder[A]]
+          Encoder[M[A]]: (w, xs) =>
+            w.writeArrayHeader(xs.size)
+            xs.foreach(a => e.write(w, a))
+            w
+      )
+    )
+
   /** `Encoder[Seq[A]]`. */
   def encodeSeqOf[A](using
       tagIn: Tag[Encoder[A]],

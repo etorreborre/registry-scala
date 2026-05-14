@@ -114,6 +114,25 @@ object Decoders:
       )
     )
 
+  /**
+   * `Decoder[M[A]]` for any `M[X] <: LinearSeq[X]` (e.g. `List`, `Queue`, `LazyList`). Delegates to
+   * borer's `Decoder.fromFactory`, so it accepts both sized and unsized CBOR arrays. Symmetric to
+   * [[Encoders.encodeLinearSeqOf]].
+   */
+  def decodeLinearSeqOf[A, M[X] <: scala.collection.LinearSeq[X]](using
+      tagIn: Tag[Decoder[A]],
+      tagOut: Tag[Decoder[M[A]]],
+      tagA: Tag[A],
+      factory: scala.collection.Factory[A, M[A]]
+  ): TypedEntry[Decoder[A] *: EmptyTuple, Decoder[M[A]]] =
+    TypedEntry(
+      Entry(
+        List(tagIn.tag),
+        tagOut.tag,
+        args => Decoder.fromFactory[A, M](using args(0).asInstanceOf[Decoder[A]], factory)
+      )
+    )
+
   /** `Decoder[Seq[A]]`. */
   def decodeSeqOf[A](using
       tagIn: Tag[Decoder[A]],

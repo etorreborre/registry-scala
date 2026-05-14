@@ -404,7 +404,9 @@ private[cbor] object DecoderMacro:
   /**
    * Look for an implicit/given member of type `targetTpe` declared directly in `tTpe`'s companion
    * object — or, for an opaque type alias defined inside an `object`, in that enclosing object —
-   * and nowhere else.
+   * and nowhere else. Returns a `Term` that references the member, or `None` if no matching member
+   * exists. Polymorphic givens (`given [A]: Foo[Bar[A]]`) are skipped: first-cut handles
+   * monomorphic vals/defs only.
    */
   private[cbor] def findCompanionGiven(using q: Quotes)(
       tTpe: q.reflect.TypeRepr,

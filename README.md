@@ -13,7 +13,9 @@ libraryDependencies ++= Seq(
   "org.atnos" %% "registry"            % "0.1.5",
   "org.atnos" %% "registry-scalacheck" % "0.1.5", // optional
   "org.atnos" %% "registry-cats"       % "0.1.5", // optional
-  "org.atnos" %% "registry-circe"      % "0.1.5"  // optional
+  "org.atnos" %% "registry-cbor"       % "0.1.5", // optional
+  "org.atnos" %% "registry-circe"      % "0.1.5", // optional
+  "org.atnos" %% "registry-cbor"       % "0.1.5", // optional
 )
 ```
 
@@ -52,6 +54,7 @@ What happens here?
 | --------------------- | ------------------------------------------------------------------ |
 | `registry`            | Core registry, entries, prepend operators, resolution.             |
 | `registry-cats`       | Lift constructors into any `Applicative[F]` via `funTo[F, T]`.     |
+| `registry-cbor`       | Derive borer `Encoder[T]` / `Decoder[T]` for CBOR encoding.        |
 | `registry-circe`      | Derive `Encoder[T]` / `Decoder[T]` with configurable JSON options. |
 | `registry-scalacheck` | Derive ScalaCheck `Gen[T]` for case classes and sealed hierarchies.|
 

@@ -27,6 +27,7 @@ val izumi = "dev.zio" %% "izumi-reflect" % "3.0.3"
 val scalaCheckDep = "org.scalacheck" %% "scalacheck" % "1.18.1"
 val circeCore = "io.circe" %% "circe-core" % "0.14.10"
 val circeParser = "io.circe" %% "circe-parser" % "0.14.10"
+val borerCore = "io.bullet" %% "borer-core" % "1.16.2"
 val catsCore   = "org.typelevel" %% "cats-core"   % "2.12.0"
 val catsEffect = "org.typelevel" %% "cats-effect" % "3.5.7"
 
@@ -93,9 +94,21 @@ lazy val catsInterop = (project in file("cats"))
     )
   )
 
+lazy val cbor = (project in file("cbor"))
+  .dependsOn(core % "compile->compile;test->test")
+  .settings(commonSettings)
+  .settings(publishSettings)
+  .settings(
+    name := "registry-cbor",
+    libraryDependencies ++= Seq(
+      borerCore,
+      specs2 % Test
+    )
+  )
+
 lazy val docs = (project in file("docs"))
   .enablePlugins(MdocPlugin)
-  .dependsOn(core, scalacheck, circe, catsInterop)
+  .dependsOn(core, scalacheck, circe, catsInterop, cbor)
   .settings(commonSettings)
   .settings(
     name := "registry-docs",
@@ -106,7 +119,7 @@ lazy val docs = (project in file("docs"))
   )
 
 lazy val root = (project in file("."))
-  .aggregate(core, bench, scalacheck, circe, catsInterop, docs)
+  .aggregate(core, bench, scalacheck, circe, catsInterop, cbor, docs)
   .settings(commonSettings)
   .settings(releaseSettings)
   .settings(
